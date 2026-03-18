@@ -1,0 +1,32 @@
+<svg width="140" height="36" viewBox="0 0 140 36" fill="none" xmlns="http://www.w3.org/2000/svg">
+  <defs>
+    <linearGradient id="neo-grad" x1="0%" y1="0%" x2="100%" y2="100%">
+      <stop offset="0%" stop-color="#10B981"/>
+      <stop offset="100%" stop-color="#059669"/>
+    </linearGradient>
+    <linearGradient id="neo-grad-light" x1="0%" y1="0%" x2="100%" y2="0%">
+      <stop offset="0%" stop-color="#6EE7B7"/>
+      <stop offset="100%" stop-color="#10B981"/>
+    </linearGradient>
+  </defs>
+  <!-- Icon: N + E with gear -->
+  <g transform="translate(0, 2)">
+    <rect width="32" height="32" rx="6" fill="url(#neo-grad)"/>
+    <g transform="translate(16, 16)" opacity="0.4">
+      <circle cx="0" cy="0" r="6" fill="white" opacity="0.6"/>
+      <rect x="-1.5" y="-10" width="3" height="10" fill="white" transform="rotate(0)"/>
+      <rect x="-1.5" y="-10" width="3" height="10" fill="white" transform="rotate(45)"/>
+      <rect x="-1.5" y="-10" width="3" height="10" fill="white" transform="rotate(90)"/>
+      <rect x="-1.5" y="-10" width="3" height="10" fill="white" transform="rotate(135)"/>
+      <rect x="-1.5" y="-10" width="3" height="10" fill="white" transform="rotate(180)"/>
+      <rect x="-1.5" y="-10" width="3" height="10" fill="white" transform="rotate(225)"/>
+      <rect x="-1.5" y="-10" width="3" height="10" fill="white" transform="rotate(270)"/>
+      <rect x="-1.5" y="-10" width="3" height="10" fill="white" transform="rotate(315)"/>
+    </g>
+    <path d="M6 26V6h2L26 26h2V6h-2L8 26h-2z" fill="white"/>
+    <path d="M20 8h6v2h-4v4h3v2h-3v4h4v2h-6V8z" fill="white"/>
+    <rect x="24" y="18" width="2" height="1" rx="0.25" fill="url(#neo-grad-light)" opacity="0.9"/>
+  </g>
+  <!-- Wordmark -->
+  <text x="40" y="24" font-family="system-ui, -apple-system, sans-serif" font-size="18" font-weight="700" fill="#059669">NeoEngine</text>
+</svg>

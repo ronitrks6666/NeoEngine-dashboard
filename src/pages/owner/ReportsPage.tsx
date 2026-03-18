@@ -1,5 +1,7 @@
-import { useState } from 'react';
+import { useState, useEffect } from 'react';
+import { useSearchParams } from 'react-router-dom';
 import { useQuery } from '@tanstack/react-query';
+import { HighlightSection } from '@/components/HighlightSection';
 import { useOutletStore } from '@/stores/outletStore';
 import { managerApi } from '@/api/manager';
 import { leaveApi } from '@/api/leave';
@@ -10,7 +12,14 @@ import { leaveApi } from '@/api/leave';
  */
 export function ReportsPage() {
   const { selectedOutletId } = useOutletStore();
+  const [searchParams] = useSearchParams();
   const [view, setView] = useState<'roster' | 'leave'>('roster');
+
+  useEffect(() => {
+    const h = searchParams.get('highlight');
+    if (h === 'roster') setView('roster');
+    else if (h === 'leave') setView('leave');
+  }, [searchParams]);
 
   const today = new Date().toISOString().slice(0, 10);
   const nextMonth = new Date();
@@ -69,6 +78,7 @@ export function ReportsPage() {
       </div>
 
       {view === 'roster' && (
+        <HighlightSection id="roster">
         <div className="bg-white rounded-xl border border-gray-200 shadow-sm overflow-hidden">
           <div className="px-6 py-4 border-b border-gray-100 bg-gradient-to-r from-teal-50 to-cyan-50">
             <h2 className="text-lg font-semibold text-gray-900">Staff roster — Today</h2>
@@ -116,9 +126,11 @@ export function ReportsPage() {
             )}
           </div>
         </div>
+        </HighlightSection>
       )}
 
       {view === 'leave' && (
+        <HighlightSection id="leave">
         <div className="bg-white rounded-xl border border-gray-200 shadow-sm overflow-hidden">
           <div className="px-6 py-4 border-b border-gray-100 bg-gradient-to-r from-teal-50 to-cyan-50">
             <h2 className="text-lg font-semibold text-gray-900">Upcoming approved leave</h2>
@@ -145,6 +157,7 @@ export function ReportsPage() {
             )}
           </div>
         </div>
+        </HighlightSection>
       )}
 
       {/* Quick tips */}

@@ -24,6 +24,8 @@ import {
   User,
 } from 'lucide-react';
 import { NeoEngineLogo } from '@/components/NeoEngineLogo';
+import { DashboardVoiceButton } from '@/components/DashboardVoiceButton';
+import { useHighlightSection } from '@/hooks/useHighlightSection';
 import type { LucideIcon } from 'lucide-react';
 
 interface AppLayoutProps {
@@ -55,7 +57,7 @@ const ownerNav: { to: string; label: string; icon: LucideIcon }[] = [
 
 export function AppLayout({ children, role }: AppLayoutProps) {
   const { user, logout } = useAuth();
-  const { setOutlets, clear } = useOutletStore();
+  const { selectedOutletId, setOutlets, clear } = useOutletStore();
   const [sidebarCollapsed, setSidebarCollapsed] = useState(false);
   const [profileOpen, setProfileOpen] = useState(false);
   const profileRef = useRef<HTMLDivElement>(null);
@@ -74,6 +76,7 @@ export function AppLayout({ children, role }: AppLayoutProps) {
   }, [role, ownerOutlets, setOutlets, clear]);
   const navigate = useNavigate();
   const location = useLocation();
+  useHighlightSection();
 
   const handleLogout = () => {
     setProfileOpen(false);
@@ -159,6 +162,22 @@ export function AppLayout({ children, role }: AppLayoutProps) {
             <div className="flex items-center gap-4">
               <span className="text-sm font-medium text-emerald-800">Outlet:</span>
               <OutletSelector />
+              <DashboardVoiceButton
+                outletId={selectedOutletId}
+                onResult={(result) => {
+                  const url = result.sectionId ? `${result.route}?highlight=${result.sectionId}` : result.route;
+                  if (result.action === 'create_task' && result.prefilledData) {
+                    navigate(url, { state: { openCreate: true, prefilledTask: result.prefilledData } });
+                  } else if (result.action === 'create_staff' && result.prefilledData) {
+                    navigate(url, { state: { openCreate: true, prefilledStaff: result.prefilledData } });
+                  } else {
+                    navigate(url);
+                  }
+                }}
+                onError={(err) => {
+                  window.alert(err || 'Voice processing failed. Try: "Show staff", "Create a task to...", etc.');
+                }}
+              />
             </div>
           )}
           {role === 'SUPER_ADMIN' && <div />}

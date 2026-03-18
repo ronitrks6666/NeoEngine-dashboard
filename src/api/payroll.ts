@@ -6,7 +6,7 @@ export const payrollApi = {
     return data;
   },
 
-  createPeriod: async (outletId: string, payload: { startDate: string; endDate: string }) => {
+  createPeriod: async (outletId: string, payload: { periodStart: string; periodEnd: string }) => {
     const { data } = await api.post(`/payroll/outlet/${outletId}/period`, payload);
     return data;
   },
@@ -34,6 +34,11 @@ export const payrollApi = {
   exportPayroll: async (outletId: string, periodId?: string) => {
     const q = periodId ? `?periodId=${periodId}` : '';
     const { data } = await api.get(`/payroll/outlet/${outletId}/export${q}`);
+    return data;
+  },
+
+  getPaymentHistory: async (outletId: string, employeeId: string, limit = 50) => {
+    const { data } = await api.get(`/payroll/outlet/${outletId}/employee/${employeeId}/payments?limit=${limit}`);
     return data;
   },
 };

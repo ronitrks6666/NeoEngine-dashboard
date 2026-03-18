@@ -1,5 +1,6 @@
 import { useState } from 'react';
 import { useQuery } from '@tanstack/react-query';
+import { HighlightSection } from '@/components/HighlightSection';
 import { useAuth } from '@/hooks/useAuth';
 import { useOutletStore } from '@/stores/outletStore';
 import { managerApi } from '@/api/manager';
@@ -14,9 +15,9 @@ import {
   CartesianGrid,
   Tooltip,
   ResponsiveContainer,
+  Legend,
 } from 'recharts';
 import { UserCheck, Users, ClipboardList, UserCircle, Clock, Coffee } from 'lucide-react';
-import { LoadingSpinner } from '@/components/LoadingSpinner';
 
 const TASK_COLORS = { pending: '#F59E0B', done: '#059669', escalated: '#EF4444' };
 
@@ -44,10 +45,12 @@ export function OwnerDashboardPage() {
     enabled: !!selectedOutletId,
   });
 
-  if (isLoading) return <div className="p-6"><LoadingSpinner /></div>;
   if (error) return <div className="p-6 text-red-600">Failed to load dashboard</div>;
 
-  const summary = data?.todaySummary;
+  // Use summary with fallbacks so cards render immediately (for voice highlight target)
+  const summary = data?.todaySummary ?? (selectedOutletId && isLoading
+    ? { checkedInToday: '—', workingNow: '—', pendingTasks: '—', totalEmployees: '—' }
+    : null);
   const staffStatus = data?.staffStatus ?? [];
   const lateStaff = staffStatus.filter((s) => s.isLate);
   const taskBreakdown = tasksData?.data ?? { pending: 0, done: 0, escalated: 0 };
@@ -63,7 +66,7 @@ export function OwnerDashboardPage() {
     <div className="p-6 max-w-7xl mx-auto animate-fade-in">
       <div className="mb-8">
         <h1 className="text-2xl font-bold text-emerald-900">Welcome, {user?.name || 'Owner'}</h1>
-        <p className="text-emerald-700 mt-0.5 font-medium">{data?.outletName || 'Select an outlet'}</p>
+        <p className="text-emerald-700 mt-0.5 font-medium">{data?.outletName || (selectedOutletId && isLoading ? 'Loading...' : 'Select an outlet')}</p>
       </div>
 
       {!selectedOutletId && (
@@ -75,6 +78,7 @@ export function OwnerDashboardPage() {
       {selectedOutletId && summary && (
         <>
           {lateStaff.length > 0 && (
+            <HighlightSection id="late-arrivals">
             <div className="mb-6 p-4 bg-amber-50 border border-amber-200 rounded-2xl animate-slide-up">
               <h3 className="font-semibold text-amber-800 mb-2">Late arrivals ({lateStaff.length})</h3>
               <div className="flex flex-wrap gap-2">
@@ -85,10 +89,12 @@ export function OwnerDashboardPage() {
                 ))}
               </div>
             </div>
+            </HighlightSection>
           )}
 
-          {/* Summary cards */}
-          <div className="grid grid-cols-2 lg:grid-cols-4 gap-4 mb-8 animate-in-stagger">
+          {/* Summary cards - no stagger so voice-highlight target is visible immediately */}
+          <div className="grid grid-cols-2 lg:grid-cols-4 gap-4 mb-8">
+            <HighlightSection id="checked-in">
             <div className="bg-white rounded-2xl border border-emerald-100 p-5 card-hover shadow-sm">
               <div className="flex items-center gap-3">
                 <div className="w-10 h-10 rounded-xl bg-emerald-100 flex items-center justify-center">
@@ -96,10 +102,12 @@ export function OwnerDashboardPage() {
                 </div>
                 <div>
                   <p className="text-sm font-medium text-emerald-700">Checked in today</p>
-                  <p className="text-2xl font-bold text-emerald-600">{summary.checkedInToday}</p>
+                  <p className={`text-2xl font-bold text-emerald-600 ${isLoading ? 'animate-pulse' : ''}`}>{summary.checkedInToday}</p>
                 </div>
               </div>
             </div>
+            </HighlightSection>
+            <HighlightSection id="working-now">
             <div className="bg-white rounded-2xl border border-emerald-100 p-5 card-hover shadow-sm">
               <div className="flex items-center gap-3">
                 <div className="w-10 h-10 rounded-xl bg-emerald-100 flex items-center justify-center">
@@ -107,10 +115,12 @@ export function OwnerDashboardPage() {
                 </div>
                 <div>
                   <p className="text-sm font-medium text-emerald-700">Working now</p>
-                  <p className="text-2xl font-bold text-emerald-600">{summary.workingNow}</p>
+                  <p className={`text-2xl font-bold text-emerald-600 ${isLoading ? 'animate-pulse' : ''}`}>{summary.workingNow}</p>
                 </div>
               </div>
             </div>
+            </HighlightSection>
+            <HighlightSection id="pending-tasks">
             <div className="bg-white rounded-2xl border border-emerald-100 p-5 card-hover shadow-sm">
               <div className="flex items-center gap-3">
                 <div className="w-10 h-10 rounded-xl bg-amber-100 flex items-center justify-center">
@@ -118,10 +128,12 @@ export function OwnerDashboardPage() {
                 </div>
                 <div>
                   <p className="text-sm font-medium text-amber-700">Pending tasks</p>
-                  <p className="text-2xl font-bold text-amber-600">{summary.pendingTasks}</p>
+                  <p className={`text-2xl font-bold text-amber-600 ${isLoading ? 'animate-pulse' : ''}`}>{summary.pendingTasks}</p>
                 </div>
               </div>
             </div>
+            </HighlightSection>
+            <HighlightSection id="total-staff">
             <div className="bg-white rounded-2xl border border-emerald-100 p-5 card-hover shadow-sm">
               <div className="flex items-center gap-3">
                 <div className="w-10 h-10 rounded-xl bg-emerald-100 flex items-center justify-center">
@@ -129,13 +141,15 @@ export function OwnerDashboardPage() {
                 </div>
                 <div>
                   <p className="text-sm font-medium text-emerald-700">Total staff</p>
-                  <p className="text-2xl font-bold text-emerald-600">{summary.totalEmployees}</p>
+                  <p className={`text-2xl font-bold text-emerald-600 ${isLoading ? 'animate-pulse' : ''}`}>{summary.totalEmployees}</p>
                 </div>
               </div>
             </div>
+            </HighlightSection>
           </div>
 
           {/* Staff status - card grid */}
+          <HighlightSection id="staff-status">
           <div className="mb-8">
             <h2 className="text-lg font-semibold text-gray-900 mb-4">Staff status</h2>
             <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-3 xl:grid-cols-4 gap-3 animate-in-stagger">
@@ -174,10 +188,12 @@ export function OwnerDashboardPage() {
             </div>
             {staffStatus.length === 0 && <p className="text-gray-500 py-8 text-center">No staff in this outlet</p>}
           </div>
+          </HighlightSection>
 
           {/* Charts row */}
           <div className="grid grid-cols-1 lg:grid-cols-2 gap-6 mb-8">
             {/* Task pie chart */}
+            <HighlightSection id="tasks-chart">
             <div className="bg-white rounded-2xl border border-emerald-100 overflow-hidden shadow-sm">
               <div className="px-6 py-4 border-b border-emerald-50 flex items-center justify-between">
                 <div>
@@ -199,21 +215,30 @@ export function OwnerDashboardPage() {
               <div className="p-6 h-64">
                 {taskPieData.length > 0 ? (
                   <ResponsiveContainer width="100%" height="100%">
-                    <PieChart>
+                    <PieChart margin={{ top: 8, right: 8, bottom: 8, left: 8 }}>
                       <Pie
                         data={taskPieData}
                         dataKey="value"
                         nameKey="name"
                         cx="50%"
-                        cy="50%"
-                        outerRadius={80}
-                        label={({ name, value }) => `${name}: ${value}`}
+                        cy="45%"
+                        outerRadius={70}
                       >
                         {taskPieData.map((_, i) => (
                           <Cell key={i} fill={taskPieData[i].color} />
                         ))}
                       </Pie>
                       <Tooltip />
+                      <Legend
+                        layout="horizontal"
+                        align="center"
+                        verticalAlign="bottom"
+                        formatter={(value, entry) => (
+                          <span className="text-sm text-gray-700">
+                            {entry.payload?.name}: {entry.payload?.value}
+                          </span>
+                        )}
+                      />
                     </PieChart>
                   </ResponsiveContainer>
                 ) : (
@@ -221,8 +246,10 @@ export function OwnerDashboardPage() {
                 )}
               </div>
             </div>
+            </HighlightSection>
 
             {/* Punch-in daily trend */}
+            <HighlightSection id="punch-daily">
             <div className="bg-white rounded-2xl border border-emerald-100 overflow-hidden shadow-sm">
               <div className="px-6 py-4 border-b border-emerald-50 flex items-center justify-between">
                 <div>
@@ -257,6 +284,7 @@ export function OwnerDashboardPage() {
                 )}
               </div>
             </div>
+            </HighlightSection>
           </div>
         </>
       )}

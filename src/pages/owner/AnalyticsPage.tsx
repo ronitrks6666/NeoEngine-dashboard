@@ -1,5 +1,6 @@
 import { useState } from 'react';
 import { useQuery } from '@tanstack/react-query';
+import { HighlightSection } from '@/components/HighlightSection';
 import { useOutletStore } from '@/stores/outletStore';
 import { analyticsApi } from '@/api/analytics';
 import {
@@ -16,7 +17,9 @@ import {
   Tooltip,
   ResponsiveContainer,
   Legend,
+  LabelList,
 } from 'recharts';
+import { CheckCircle, Clock, BarChart3, Users, Wallet, Download } from 'lucide-react';
 import { LoadingSpinner } from '@/components/LoadingSpinner';
 
 const PIE_COLORS = ['#0F766E', '#14B8A6', '#F59E0B', '#F97316', '#EF4444', '#8B5CF6'];
@@ -41,14 +44,14 @@ function StatCard({
   title,
   value,
   subtitle,
-  icon,
+  icon: Icon,
   trend,
   accent = 'primary',
 }: {
   title: string;
   value: string | number;
   subtitle?: string;
-  icon: string;
+  icon: React.ComponentType<{ className?: string }>;
   trend?: 'up' | 'down' | 'neutral';
   accent?: 'primary' | 'amber' | 'success' | 'danger';
 }) {
@@ -61,7 +64,7 @@ function StatCard({
   return (
     <div className="bg-white rounded-xl border border-gray-200 shadow-sm overflow-hidden hover:shadow-md transition-shadow">
       <div className={`${accentClasses[accent]} px-4 py-2 flex items-center gap-2`}>
-        <span className="text-2xl">{icon}</span>
+        <Icon className="h-5 w-5 text-white" />
         <span className="text-white/90 text-sm font-medium">{title}</span>
       </div>
       <div className="p-4">
@@ -161,7 +164,7 @@ export function AnalyticsPage() {
             onClick={handleExport}
             className="px-4 py-2 rounded-lg text-sm font-medium bg-gray-100 text-gray-600 hover:bg-gray-200 flex items-center gap-2"
           >
-            <span>📥</span> Export
+            <Download className="h-4 w-4" /> Export
           </button>
         </div>
       </div>
@@ -172,35 +175,35 @@ export function AnalyticsPage() {
           title="Task completion"
           value={`${taskCompletionRate}%`}
           subtitle={`${d.completedTasks ?? 0} of ${d.totalTasks ?? 0} tasks`}
-          icon="✅"
+          icon={CheckCircle}
           accent="primary"
         />
         <StatCard
           title="Total hours"
           value={totalHours ?? '-'}
           subtitle={`${d.averageHoursPerEmployee ?? 0} avg per staff`}
-          icon="⏱️"
+          icon={Clock}
           accent="primary"
         />
         <StatCard
           title="Hours compliance"
           value={`${hoursComplianceRate}%`}
           subtitle={`${d.employeesMetMinHours ?? 0} met min hours`}
-          icon="📊"
+          icon={BarChart3}
           accent={hoursComplianceRate >= 80 ? 'success' : 'amber'}
         />
         <StatCard
           title="Staff today"
           value={`${activeEmployeesToday}/${totalEmployees}`}
           subtitle="Currently clocked in"
-          icon="👥"
+          icon={Users}
           accent="primary"
         />
         <StatCard
           title="Est. labor cost"
           value={laborCostEstimate > 0 ? `₹${laborCostEstimate.toLocaleString()}` : '-'}
           subtitle="Period estimate"
-          icon="💰"
+          icon={Wallet}
           accent="amber"
         />
       </div>
@@ -208,6 +211,7 @@ export function AnalyticsPage() {
       {/* Charts Row 1 */}
       <div className="grid grid-cols-1 lg:grid-cols-2 gap-6 mb-8">
         {/* Daily hours */}
+        <HighlightSection id="work-hours">
         <div className="bg-white rounded-xl border border-gray-200 shadow-sm overflow-hidden">
           <div className="px-6 py-4 border-b border-gray-100">
             <h2 className="text-lg font-semibold text-gray-900">Work hours trend</h2>
@@ -235,8 +239,10 @@ export function AnalyticsPage() {
             )}
           </div>
         </div>
+        </HighlightSection>
 
         {/* Role breakdown */}
+        <HighlightSection id="role-breakdown">
         <div className="bg-white rounded-xl border border-gray-200 shadow-sm overflow-hidden">
           <div className="px-6 py-4 border-b border-gray-100">
             <h2 className="text-lg font-semibold text-gray-900">Hours by role</h2>
@@ -245,21 +251,30 @@ export function AnalyticsPage() {
           <div className="p-4 h-72">
             {roleBreakdown.length > 0 ? (
               <ResponsiveContainer width="100%" height="100%">
-                <PieChart>
+                <PieChart margin={{ top: 8, right: 8, bottom: 8, left: 8 }}>
                   <Pie
                     data={roleBreakdown}
                     dataKey="hours"
                     nameKey="role"
                     cx="50%"
-                    cy="50%"
-                    outerRadius={100}
-                    label={({ role, hours }) => `${role}: ${hours}h`}
+                    cy="45%"
+                    outerRadius={85}
                   >
                     {roleBreakdown.map((_: unknown, i: number) => (
                       <Cell key={i} fill={PIE_COLORS[i % PIE_COLORS.length]} />
                     ))}
                   </Pie>
                   <Tooltip formatter={(v: number) => `${v}h`} />
+                  <Legend
+                    layout="vertical"
+                    align="right"
+                    verticalAlign="middle"
+                    formatter={(value, entry) => (
+                      <span className="text-sm text-gray-700">
+                        {value}: {(entry.payload as { hours?: number })?.hours ?? 0}h
+                      </span>
+                    )}
+                  />
                 </PieChart>
               </ResponsiveContainer>
             ) : (
@@ -267,11 +282,13 @@ export function AnalyticsPage() {
             )}
           </div>
         </div>
+        </HighlightSection>
       </div>
 
       {/* Charts Row 2 */}
       <div className="grid grid-cols-1 lg:grid-cols-2 gap-6 mb-8">
         {/* Shift distribution */}
+        <HighlightSection id="shift-distribution">
         <div className="bg-white rounded-xl border border-gray-200 shadow-sm overflow-hidden">
           <div className="px-6 py-4 border-b border-gray-100">
             <h2 className="text-lg font-semibold text-gray-900">Shift coverage</h2>
@@ -304,8 +321,10 @@ export function AnalyticsPage() {
             )}
           </div>
         </div>
+        </HighlightSection>
 
         {/* Task completion by shift */}
+        <HighlightSection id="task-completion">
         <div className="bg-white rounded-xl border border-gray-200 shadow-sm overflow-hidden">
           <div className="px-6 py-4 border-b border-gray-100">
             <h2 className="text-lg font-semibold text-gray-900">Task completion by shift</h2>
@@ -314,12 +333,26 @@ export function AnalyticsPage() {
           <div className="p-4 h-64">
             {taskCompletionByShift.length > 0 ? (
               <ResponsiveContainer width="100%" height="100%">
-                <BarChart data={taskCompletionByShift} layout="vertical" margin={{ left: 20 }}>
+                <BarChart data={taskCompletionByShift} layout="vertical" margin={{ left: 20, right: 40 }}>
                   <CartesianGrid strokeDasharray="3 3" stroke="#E5E7EB" />
-                  <XAxis type="number" domain={[0, 100]} tick={{ fontSize: 11 }} stroke="#9CA3AF" />
+                  <XAxis type="number" domain={[0, 100]} tick={{ fontSize: 11 }} stroke="#9CA3AF" unit="%" />
                   <YAxis dataKey="shift" type="category" width={60} tick={{ fontSize: 11 }} stroke="#9CA3AF" />
-                  <Tooltip formatter={(v: number) => `${v}%`} />
-                  <Bar dataKey="rate" name="Completion %" fill="#0F766E" radius={[0, 4, 4, 0]} />
+                  <Tooltip
+                    content={({ active, payload }) => {
+                      if (!active || !payload?.length) return null;
+                      const p = payload[0].payload as { shift?: string; rate?: number; completed?: number; total?: number };
+                      return (
+                        <div className="bg-white rounded-lg shadow-lg border border-gray-200 p-3 text-sm">
+                          <p className="font-medium text-gray-800">{p.shift} shift</p>
+                          <p className="text-teal-600">{(p.rate ?? 0).toFixed(1)}% completion</p>
+                          <p className="text-gray-500 text-xs mt-1">{p.completed ?? 0} of {p.total ?? 0} tasks</p>
+                        </div>
+                      );
+                    }}
+                  />
+                  <Bar dataKey="rate" name="Completion %" fill="#0F766E" radius={[0, 4, 4, 0]} minPointSize={8}>
+                    <LabelList dataKey="rate" position="right" formatter={(v: number) => `${v}%`} /> 
+                  </Bar>
                 </BarChart>
               </ResponsiveContainer>
             ) : (
@@ -327,10 +360,12 @@ export function AnalyticsPage() {
             )}
           </div>
         </div>
+        </HighlightSection>
       </div>
 
       {/* Leave trend */}
-      {Array.isArray(leaveTrend) && leaveTrend.length > 0 && (
+      <HighlightSection id="leave-trend">
+      {Array.isArray(leaveTrend) && leaveTrend.length > 0 ? (
         <div className="bg-white rounded-xl border border-gray-200 shadow-sm overflow-hidden mb-8">
           <div className="px-6 py-4 border-b border-gray-100">
             <h2 className="text-lg font-semibold text-gray-900">Leave trend</h2>
@@ -351,10 +386,16 @@ export function AnalyticsPage() {
             </ResponsiveContainer>
           </div>
         </div>
+      ) : (
+        <div className="bg-white rounded-xl border border-gray-200 shadow-sm overflow-hidden mb-8 p-8 text-center text-gray-400">
+          No leave data for this period
+        </div>
       )}
+      </HighlightSection>
 
       {/* Web-only: Staff compliance & labor cost */}
       <div className="grid grid-cols-1 lg:grid-cols-2 gap-6 mb-8">
+        <HighlightSection id="staff-compliance">
         <div className="bg-white rounded-xl border border-gray-200 shadow-sm overflow-hidden">
           <div className="px-6 py-4 border-b border-gray-100">
             <h2 className="text-lg font-semibold text-gray-900">Staff compliance</h2>
@@ -389,8 +430,10 @@ export function AnalyticsPage() {
             )}
           </div>
         </div>
+        </HighlightSection>
 
         {/* Labor cost breakdown */}
+        <HighlightSection id="labor-cost">
         <div className="bg-white rounded-xl border border-gray-200 shadow-sm overflow-hidden">
           <div className="px-6 py-4 border-b border-gray-100">
             <h2 className="text-lg font-semibold text-gray-900">Labor cost estimate</h2>
@@ -421,6 +464,7 @@ export function AnalyticsPage() {
             )}
           </div>
         </div>
+        </HighlightSection>
       </div>
 
       {/* Web-only: Quick insights */}

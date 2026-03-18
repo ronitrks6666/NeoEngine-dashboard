@@ -1,13 +1,15 @@
-import { useState } from 'react';
+import { useState, useEffect } from 'react';
+import { useLocation, useNavigate } from 'react-router-dom';
 import { useQuery, useMutation, useQueryClient } from '@tanstack/react-query';
 import { useForm } from 'react-hook-form';
 import { zodResolver } from '@hookform/resolvers/zod';
 import { z } from 'zod';
 import { useOutletStore } from '@/stores/outletStore';
 import { employeeApi } from '@/api/employee';
+import { overtimeApi } from '@/api/overtime';
 import { getApiErrorMessage } from '@/api/auth';
 import { LoadingSpinner } from '@/components/LoadingSpinner';
-import { UserPlus, Pencil, Trash2, FileText, ExternalLink, Plus, Shield, Briefcase, X } from 'lucide-react';
+import { UserPlus, Pencil, Trash2, FileText, ExternalLink, Plus, Shield, Briefcase, X, Loader2 } from 'lucide-react';
 
 const createSchema = z.object({
   name: z.string().min(1, 'Name required'),
@@ -21,6 +23,18 @@ const editSchema = z.object({
   phone: z.string().min(10, 'Valid phone required'),
   shiftType: z.enum(['Day', 'Night']).optional(),
   activeRoleId: z.string().optional(),
+  salary: z.union([z.number(), z.string()]).optional().transform((v) => {
+    if (v === '' || v == null) return undefined;
+    const n = typeof v === 'string' ? parseFloat(v) : v;
+    return isNaN(n) ? undefined : n;
+  }),
+  minHoursPerDay: z.union([z.number(), z.string()]).optional().transform((v) => {
+    if (v === '' || v == null) return undefined;
+    const n = typeof v === 'string' ? parseFloat(v) : v;
+    return isNaN(n) ? undefined : n;
+  }),
+  punchInTime: z.string().optional(),
+  upiId: z.string().optional(),
 });
 
 type CreateForm = z.infer<typeof createSchema>;
@@ -28,9 +42,11 @@ type EditForm = z.infer<typeof editSchema>;
 
 export function StaffPage() {
   const { selectedOutletId } = useOutletStore();
+  const location = useLocation();
+  const navigate = useNavigate();
   const [search, setSearch] = useState('');
   const [showCreate, setShowCreate] = useState(false);
-  const [editing, setEditing] = useState<{ _id: string; name: string; phone: string; shiftType?: string; activeRoleId?: { _id: string; name: string } } | null>(null);
+  const [editing, setEditing] = useState<{ _id: string; name: string; phone: string; shiftType?: string; activeRoleId?: { _id: string; name: string }; salary?: number | null; minHoursPerDay?: number | null; punchInTime?: string | null; upiId?: string | null } | null>(null);
   const [confirmRemove, setConfirmRemove] = useState<{ _id: string; name: string } | null>(null);
   const [documentsFor, setDocumentsFor] = useState<{ _id: string; name: string } | null>(null);
   const [showCreateMasterRole, setShowCreateMasterRole] = useState(false);
@@ -62,6 +78,12 @@ export function StaffPage() {
     queryKey: ['employee-documents', documentsFor?._id],
     queryFn: () => employeeApi.getDocuments(documentsFor!._id),
     enabled: !!documentsFor?._id,
+  });
+
+  const { data: overtimeData } = useQuery({
+    queryKey: ['overtime-outlet', selectedOutletId, editing?._id],
+    queryFn: () => overtimeApi.getOutletOvertime(selectedOutletId!, { employeeId: editing!._id }),
+    enabled: !!selectedOutletId && !!editing?._id,
   });
 
   const createMutation = useMutation({
@@ -134,7 +156,7 @@ export function StaffPage() {
 
   const editForm = useForm<EditForm>({
     resolver: zodResolver(editSchema),
-    defaultValues: { name: '', phone: '', shiftType: 'Day', activeRoleId: '' },
+    defaultValues: { name: '', phone: '', shiftType: 'Day', activeRoleId: '', salary: undefined, minHoursPerDay: undefined, punchInTime: '', upiId: '' },
   });
 
   const employees = empData?.data?.employees ?? [];
@@ -145,7 +167,20 @@ export function StaffPage() {
       e.name?.toLowerCase().includes(search.toLowerCase()) || e.phone?.includes(search)
   );
 
-  const openEdit = (e: { _id: string; name: string; phone: string; shiftType?: string; activeRoleId?: { _id: string; name: string } }) => {
+  // Voice navigation: open create modal with prefilled data
+  useEffect(() => {
+    const state = location.state as { openCreate?: boolean; prefilledStaff?: Record<string, unknown> } | null;
+    if (state?.openCreate && state?.prefilledStaff) {
+      setShowCreate(true);
+      const s = state.prefilledStaff;
+      if (s.name) form.setValue('name', String(s.name));
+      if (s.phone) form.setValue('phone', String(s.phone));
+      if (s.activeRoleId) form.setValue('activeRoleId', String(s.activeRoleId));
+      navigate(location.pathname, { replace: true, state: {} });
+    }
+  }, [location.state, navigate, location.pathname]);
+
+  const openEdit = (e: { _id: string; name: string; phone: string; shiftType?: string; activeRoleId?: { _id: string; name: string }; salary?: number | null; minHoursPerDay?: number | null; punchInTime?: string | null; upiId?: string | null }) => {
     setEditing(e);
     setShowCreateMasterRole(false);
     setShowCreateRole(false);
@@ -158,6 +193,10 @@ export function StaffPage() {
       phone: e.phone,
       shiftType: (e.shiftType as 'Day' | 'Night') || 'Day',
       activeRoleId: roleId || '',
+      salary: e.salary ?? undefined,
+      minHoursPerDay: e.minHoursPerDay ?? undefined,
+      punchInTime: e.punchInTime ?? '',
+      upiId: e.upiId ?? '',
     });
   };
 
@@ -400,6 +439,10 @@ export function StaffPage() {
                     data: {
                       ...d,
                       activeRoleId: d.activeRoleId || undefined,
+                      salary: d.salary ?? null,
+                      minHoursPerDay: d.minHoursPerDay ?? null,
+                      punchInTime: d.punchInTime || null,
+                      upiId: d.upiId?.trim() || null,
                     },
                   })
                 )}
@@ -538,9 +581,84 @@ export function StaffPage() {
                   </div>
                 </section>
 
+                <section>
+                  <h3 className="text-sm font-semibold text-gray-700 mb-3 flex items-center gap-2">
+                    <span className="w-6 h-6 rounded-lg bg-emerald-100 flex items-center justify-center text-emerald-600 text-xs">3</span>
+                    Payroll & attendance
+                  </h3>
+                  <p className="text-xs text-gray-500 mb-3">Salary is per pay cycle (set in outlet settings). Payout uses approved overtime only.</p>
+                  <div className="grid grid-cols-1 sm:grid-cols-2 gap-4">
+                    <div>
+                      <label className="block text-sm font-medium text-gray-600 mb-1.5">Salary (per pay cycle)</label>
+                      <input
+                        type="number"
+                        min={0}
+                        step={0.01}
+                        {...editForm.register('salary', { valueAsNumber: true })}
+                        className="w-full px-4 py-2.5 rounded-xl border border-emerald-200 bg-gray-50/50 focus:bg-white focus:ring-2 focus:ring-emerald-500/20 focus:border-emerald-500"
+                        placeholder="e.g. 15000"
+                      />
+                    </div>
+                    <div>
+                      <label className="block text-sm font-medium text-gray-600 mb-1.5">Min hours per day</label>
+                      <input
+                        type="number"
+                        min={0.5}
+                        max={24}
+                        step={0.5}
+                        {...editForm.register('minHoursPerDay', { valueAsNumber: true })}
+                        className="w-full px-4 py-2.5 rounded-xl border border-emerald-200 bg-gray-50/50 focus:bg-white focus:ring-2 focus:ring-emerald-500/20 focus:border-emerald-500"
+                        placeholder="e.g. 8"
+                      />
+                    </div>
+                    <div>
+                      <label className="block text-sm font-medium text-gray-600 mb-1.5">Punch-in time (HH:mm)</label>
+                      <input
+                        type="time"
+                        {...editForm.register('punchInTime')}
+                        className="w-full px-4 py-2.5 rounded-xl border border-emerald-200 bg-gray-50/50 focus:bg-white focus:ring-2 focus:ring-emerald-500/20 focus:border-emerald-500"
+                      />
+                    </div>
+                    <div>
+                      <label className="block text-sm font-medium text-gray-600 mb-1.5">UPI ID (for payout)</label>
+                      <input
+                        {...editForm.register('upiId')}
+                        className="w-full px-4 py-2.5 rounded-xl border border-emerald-200 bg-gray-50/50 focus:bg-white focus:ring-2 focus:ring-emerald-500/20 focus:border-emerald-500"
+                        placeholder="e.g. user@okaxis"
+                      />
+                    </div>
+                  </div>
+                </section>
+
+                {(overtimeData?.data?.requests ?? []).length > 0 && (
+                  <section>
+                    <h3 className="text-sm font-semibold text-gray-700 mb-3 flex items-center gap-2">
+                      <span className="w-6 h-6 rounded-lg bg-amber-100 flex items-center justify-center text-amber-600 text-xs">OT</span>
+                      Overtime requests
+                    </h3>
+                    <div className="rounded-xl border border-amber-100 bg-amber-50/50 max-h-32 overflow-y-auto">
+                      <div className="divide-y divide-amber-100">
+                        {(overtimeData?.data?.requests ?? []).map((ot: { _id: string; date: string; overtimeHours: number; status: string }) => (
+                          <div key={ot._id} className="flex items-center justify-between px-4 py-2 text-sm">
+                            <span className="text-gray-700">{new Date(ot.date).toLocaleDateString()} — {ot.overtimeHours}h</span>
+                            <span className={`px-2 py-0.5 rounded-lg text-xs font-medium ${
+                              ot.status === 'approved' ? 'bg-emerald-100 text-emerald-700' :
+                              ot.status === 'pending' ? 'bg-amber-100 text-amber-700' :
+                              ot.status === 'rejected' ? 'bg-red-100 text-red-700' : 'bg-gray-100 text-gray-600'
+                            }`}>
+                              {ot.status}
+                            </span>
+                          </div>
+                        ))}
+                      </div>
+                    </div>
+                  </section>
+                )}
+
                 <div className="flex gap-3 pt-2 border-t border-gray-100">
-                  <button type="submit" disabled={updateMutation.isPending} className="flex-1 px-4 py-2.5 bg-emerald-600 text-white rounded-xl font-semibold hover:bg-emerald-700 disabled:opacity-50 transition-colors">
-                    Save changes
+                  <button type="submit" disabled={updateMutation.isPending} className="flex-1 px-4 py-2.5 bg-emerald-600 text-white rounded-xl font-semibold hover:bg-emerald-700 disabled:opacity-50 transition-colors flex items-center justify-center gap-2">
+                    {updateMutation.isPending ? <Loader2 className="h-4 w-4 animate-spin" /> : null}
+                    {updateMutation.isPending ? 'Saving...' : 'Save changes'}
                   </button>
                   <button type="button" onClick={() => { setEditing(null); setShowCreateMasterRole(false); setShowCreateRole(false); }} className="px-4 py-2.5 border border-gray-200 rounded-xl font-medium hover:bg-gray-50">
                     Cancel

@@ -32,7 +32,17 @@ export const employeeApi = {
     return data;
   },
 
-  update: async (employeeId: string, payload: Partial<{ name: string; phone: string; shiftType: string; isActive: boolean; activeRoleId?: string | null }>) => {
+  update: async (employeeId: string, payload: Partial<{
+    name: string;
+    phone: string;
+    shiftType: string;
+    isActive: boolean;
+    activeRoleId?: string | null;
+    salary?: number | null;
+    minHoursPerDay?: number | null;
+    punchInTime?: string | null;
+    upiId?: string | null;
+  }>) => {
     const { data } = await api.put(`/employee/staff/${employeeId}`, payload);
     return data;
   },

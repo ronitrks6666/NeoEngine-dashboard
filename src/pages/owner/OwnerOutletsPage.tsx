@@ -52,7 +52,13 @@ const createSchema = z.object({
   phone: z.string().min(1, 'Phone required'),
 });
 
-const editSchema = createSchema;
+const editSchema = createSchema.extend({
+  payCycleDays: z.union([z.number().min(1).max(99), z.string()]).optional().transform((v) => {
+    if (v === '' || v == null) return undefined;
+    const n = typeof v === 'string' ? parseInt(v, 10) : v;
+    return isNaN(n) ? undefined : Math.max(1, Math.min(99, n));
+  }),
+});
 
 type CreateForm = z.infer<typeof createSchema>;
 type EditForm = z.infer<typeof editSchema> & { geofence?: { latitude: number; longitude: number; radius: number } };
@@ -130,12 +136,12 @@ export function OwnerOutletsPage() {
 
   const editForm = useForm<EditForm>({
     resolver: zodResolver(editSchema),
-    defaultValues: { name: '', address: '', phone: '' },
+    defaultValues: { name: '', address: '', phone: '', payCycleDays: 30 },
   });
 
   const openEdit = (o: Outlet) => {
     setEditing(o);
-    editForm.reset({ name: o.name, address: o.address ?? '', phone: o.phone ?? '' });
+    editForm.reset({ name: o.name, address: o.address ?? '', phone: o.phone ?? '', payCycleDays: o.payCycleDays ?? 30 });
     const g = o.geofence;
     setEditGeofence({
       geofenceLat: g?.latitude?.toString() ?? '',
@@ -352,7 +358,7 @@ export function OwnerOutletsPage() {
                           radius: parseFloat(editGeofence.geofenceRadius),
                         }
                       : undefined;
-                  updateMutation.mutate({ id: editing._id, data: { ...d, geofence } });
+                  updateMutation.mutate({ id: editing._id, data: { ...d, geofence, payCycleDays: d.payCycleDays } });
                 })}
                 className="space-y-5"
               >
@@ -402,6 +408,19 @@ export function OwnerOutletsPage() {
                     <input {...editForm.register('phone')} className="w-full pl-12 pr-4 py-3 rounded-xl border border-gray-200 bg-gray-50/50 focus:ring-2 focus:ring-teal-500/20 focus:border-teal-500 focus:bg-white" />
                   </div>
                   {editForm.formState.errors.phone && <p className="text-red-600 text-sm mt-1">{editForm.formState.errors.phone.message}</p>}
+                </div>
+                <div>
+                  <label className="block text-sm font-semibold text-gray-700 mb-2">Pay cycle (days)</label>
+                  <input
+                    type="number"
+                    min={1}
+                    max={99}
+                    {...editForm.register('payCycleDays', { valueAsNumber: true })}
+                    className="w-full pl-4 pr-4 py-3 rounded-xl border border-gray-200 bg-gray-50/50 focus:ring-2 focus:ring-teal-500/20 focus:border-teal-500 focus:bg-white"
+                    placeholder="e.g. 15, 28, 30"
+                  />
+                  <p className="text-xs text-gray-500 mt-1">Days per pay cycle (e.g. 15 bi-weekly, 28, 30, 31). Salary & payout use this.</p>
+                  {editForm.formState.errors.payCycleDays && <p className="text-red-600 text-sm mt-1">{editForm.formState.errors.payCycleDays.message}</p>}
                 </div>
                 <div className="flex gap-3 pt-2">
                   <button type="submit" disabled={updateMutation.isPending} className="flex-1 px-5 py-3 bg-teal-600 text-white rounded-xl font-semibold hover:bg-teal-700 disabled:opacity-50">Save</button>

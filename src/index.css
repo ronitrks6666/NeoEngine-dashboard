@@ -19,20 +19,65 @@ body {
   .animate-in {
     animation: animateIn 0.4s ease-out forwards;
   }
-  .animate-in-stagger > * {
+
+  .animate-in-stagger>* {
     animation: animateIn 0.4s ease-out forwards;
   }
-  .animate-in-stagger > *:nth-child(1) { animation-delay: 0.05s; opacity: 0; }
-  .animate-in-stagger > *:nth-child(2) { animation-delay: 0.1s; opacity: 0; }
-  .animate-in-stagger > *:nth-child(3) { animation-delay: 0.15s; opacity: 0; }
-  .animate-in-stagger > *:nth-child(4) { animation-delay: 0.2s; opacity: 0; }
-  .animate-in-stagger > *:nth-child(5) { animation-delay: 0.25s; opacity: 0; }
-  .animate-in-stagger > *:nth-child(6) { animation-delay: 0.3s; opacity: 0; }
-  .animate-in-stagger > *:nth-child(7) { animation-delay: 0.35s; opacity: 0; }
-  .animate-in-stagger > *:nth-child(8) { animation-delay: 0.4s; opacity: 0; }
-  .animate-in-stagger > *:nth-child(9) { animation-delay: 0.45s; opacity: 0; }
-  .animate-in-stagger > *:nth-child(10) { animation-delay: 0.5s; opacity: 0; }
-  .animate-in-stagger > *:nth-child(n+11) { animation-delay: 0.55s; opacity: 0; }
+
+  .animate-in-stagger>*:nth-child(1) {
+    animation-delay: 0.05s;
+    opacity: 0;
+  }
+
+  .animate-in-stagger>*:nth-child(2) {
+    animation-delay: 0.1s;
+    opacity: 0;
+  }
+
+  .animate-in-stagger>*:nth-child(3) {
+    animation-delay: 0.15s;
+    opacity: 0;
+  }
+
+  .animate-in-stagger>*:nth-child(4) {
+    animation-delay: 0.2s;
+    opacity: 0;
+  }
+
+  .animate-in-stagger>*:nth-child(5) {
+    animation-delay: 0.25s;
+    opacity: 0;
+  }
+
+  .animate-in-stagger>*:nth-child(6) {
+    animation-delay: 0.3s;
+    opacity: 0;
+  }
+
+  .animate-in-stagger>*:nth-child(7) {
+    animation-delay: 0.35s;
+    opacity: 0;
+  }
+
+  .animate-in-stagger>*:nth-child(8) {
+    animation-delay: 0.4s;
+    opacity: 0;
+  }
+
+  .animate-in-stagger>*:nth-child(9) {
+    animation-delay: 0.45s;
+    opacity: 0;
+  }
+
+  .animate-in-stagger>*:nth-child(10) {
+    animation-delay: 0.5s;
+    opacity: 0;
+  }
+
+  .animate-in-stagger>*:nth-child(n+11) {
+    animation-delay: 0.55s;
+    opacity: 0;
+  }
 }
 
 @keyframes animateIn {
@@ -40,6 +85,7 @@ body {
     opacity: 0;
     transform: translateY(12px);
   }
+
   to {
     opacity: 1;
     transform: translateY(0);
@@ -47,8 +93,13 @@ body {
 }
 
 @keyframes fadeIn {
-  from { opacity: 0; }
-  to { opacity: 1; }
+  from {
+    opacity: 0;
+  }
+
+  to {
+    opacity: 1;
+  }
 }
 
 @keyframes slideUp {
@@ -56,6 +107,7 @@ body {
     opacity: 0;
     transform: translateY(20px);
   }
+
   to {
     opacity: 1;
     transform: translateY(0);
@@ -73,7 +125,28 @@ body {
 .card-hover {
   transition: transform 0.2s ease, box-shadow 0.2s ease;
 }
+
 .card-hover:hover {
   transform: translateY(-2px);
   box-shadow: 0 12px 24px -8px rgba(5, 150, 105, 0.2);
+}
+
+/* Voice navigation highlight - smooth blinking border for ~3 seconds */
+.voice-highlight {
+  animation: voiceHighlightBlink 1.5s ease-in-out 3;
+  border-radius: 1rem;
+  position: relative;
+  z-index: 1;
+}
+
+@keyframes voiceHighlightBlink {
+
+  0%,
+  100% {
+    box-shadow: 0 0 0 4px #059669;
+  }
+
+  50% {
+    box-shadow: 0 0 0 4px rgba(5, 150, 105, 0.3);
+  }
 }

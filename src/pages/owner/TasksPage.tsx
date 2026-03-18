@@ -1,4 +1,5 @@
 import { useState, useRef, useEffect } from 'react';
+import { useLocation, useNavigate } from 'react-router-dom';
 import { useQuery, useMutation, useQueryClient } from '@tanstack/react-query';
 import { useForm } from 'react-hook-form';
 import { zodResolver } from '@hookform/resolvers/zod';
@@ -53,6 +54,8 @@ function todayYMD() {
 
 export function TasksPage() {
   const { selectedOutletId, outlets } = useOutletStore();
+  const location = useLocation();
+  const navigate = useNavigate();
   const [showCreate, setShowCreate] = useState(false);
   const [editing, setEditing] = useState<{
     _id: string;
@@ -235,6 +238,30 @@ export function TasksPage() {
       form.setValue('outletId', outlets[0]._id);
     }
   }, [showCreate, outlets]);
+
+  // Voice navigation: open create modal with prefilled data
+  useEffect(() => {
+    const state = location.state as { openCreate?: boolean; prefilledTask?: Record<string, unknown> } | null;
+    if (state?.openCreate && state?.prefilledTask) {
+      setShowCreate(true);
+      const t = state.prefilledTask;
+      if (t.title) form.setValue('title', String(t.title));
+      if (t.description) form.setValue('description', String(t.description));
+      if (t.taskType) form.setValue('taskType', t.taskType as 'daily' | 'onetime' | 'specific-days');
+      if (t.specificDate) form.setValue('specificDate', String(t.specificDate));
+      if (Array.isArray(t.specificDays)) form.setValue('specificDays', t.specificDays);
+      if (typeof t.multipleTimesPerDay === 'boolean') form.setValue('multipleTimesPerDay', t.multipleTimesPerDay);
+      if (t.intervalMinutes != null) form.setValue('intervalMinutes', String(t.intervalMinutes));
+      if (t.shiftType) form.setValue('shiftType', t.shiftType as 'Day' | 'Night' | 'Both');
+      if (t.assignToType) form.setValue('assignToType', t.assignToType as 'role' | 'staff');
+      if (t.parentRoleId) form.setValue('parentRoleId', String(t.parentRoleId));
+      if (t.assignToEmployeeId) form.setValue('assignToEmployeeId', String(t.assignToEmployeeId));
+      if (t.startTime) form.setValue('startTime', String(t.startTime));
+      if (t.timeLimitMinutes != null) form.setValue('timeLimitMinutes', String(t.timeLimitMinutes));
+      if (selectedOutletId) form.setValue('outletId', selectedOutletId);
+      navigate(location.pathname, { replace: true, state: {} });
+    }
+  }, [location.state, navigate, location.pathname, selectedOutletId]);
 
   const openEdit = (t: {
     _id: string;

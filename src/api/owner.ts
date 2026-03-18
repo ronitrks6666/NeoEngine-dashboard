@@ -7,6 +7,7 @@ export interface Outlet {
   phone?: string;
   ownerId: string;
   geofence?: { latitude?: number; longitude?: number; radius?: number };
+  payCycleDays?: number;
 }
 
 export const ownerApi = {
@@ -20,7 +21,7 @@ export const ownerApi = {
     return data;
   },
 
-  updateOutlet: async (outletId: string, payload: Partial<{ name: string; address: string; phone: string; geofence: object }>) => {
+  updateOutlet: async (outletId: string, payload: Partial<{ name: string; address: string; phone: string; geofence: object; payCycleDays?: number }>) => {
     const { data } = await api.put(`/owner/outlets/${outletId}`, payload);
     return data;
   },

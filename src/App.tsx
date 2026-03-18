@@ -2,6 +2,7 @@ import { useEffect } from 'react';
 import { Routes, Route, Navigate } from 'react-router-dom';
 import { ProtectedRoute } from '@/components/ProtectedRoute';
 import { AppLayout } from '@/layouts/AppLayout';
+import { LandingPage } from '@/pages/landing/LandingPage';
 import { LoginPage } from '@/pages/auth/LoginPage';
 import { SetPasswordPage } from '@/pages/owner/SetPasswordPage';
 import { SuperAdminDashboardPage } from '@/pages/super-admin/SuperAdminDashboardPage';
@@ -82,16 +83,7 @@ function App() {
         }
       />
 
-      <Route
-        path="/"
-        element={
-          token && role ? (
-            <Navigate to={role === 'SUPER_ADMIN' ? '/super-admin/dashboard' : '/owner/dashboard'} replace />
-          ) : (
-            <Navigate to="/login" replace />
-          )
-        }
-      />
+      <Route path="/" element={<LandingPage />} />
 
       <Route path="*" element={<Navigate to="/" replace />} />
     </Routes>

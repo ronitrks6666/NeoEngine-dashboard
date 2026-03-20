@@ -104,6 +104,13 @@ export const SITE_SEARCH_INDEX: SiteSearchItem[] = [
     roles: OWNER,
   },
   {
+    path: '/owner/permissions',
+    title: 'Permissions',
+    subtitle: 'Mobile app feature access per staff member',
+    keywords: ['access', 'features', 'screens', 'roles', 'staff permissions', 'mobile', 'flags', 'toggle'],
+    roles: OWNER,
+  },
+  {
     path: '/super-admin/dashboard',
     title: 'Super Admin — Dashboard',
     subtitle: 'Platform overview',

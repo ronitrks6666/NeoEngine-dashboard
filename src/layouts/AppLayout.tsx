@@ -19,6 +19,7 @@ import {
   CalendarDays,
   Wallet,
   FileText,
+  Shield,
   LogOut,
   ChevronLeft,
   ChevronRight,
@@ -55,6 +56,7 @@ const ownerNav: { to: string; label: string; icon: LucideIcon }[] = [
   { to: '/owner/payroll', label: 'Payroll', icon: Wallet },
   { to: '/owner/analytics', label: 'Analytics', icon: BarChart3 },
   { to: '/owner/reports', label: 'Reports', icon: FileText },
+  { to: '/owner/permissions', label: 'Permissions', icon: Shield },
 ];
 
 type SidebarFlyout =

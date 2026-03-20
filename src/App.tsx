@@ -21,6 +21,7 @@ import { AnalyticsPage as OwnerAnalyticsPage } from '@/pages/owner/AnalyticsPage
 import { BriefingPoolPage } from '@/pages/owner/BriefingPoolPage';
 import { HierarchyPage } from '@/pages/owner/HierarchyPage';
 import { ReportsPage } from '@/pages/owner/ReportsPage';
+import { PermissionsPage } from '@/pages/owner/PermissionsPage';
 import { useAuth } from '@/hooks/useAuth';
 
 function App() {
@@ -77,6 +78,7 @@ function App() {
                 <Route path="briefing-pool" element={<BriefingPoolPage />} />
                 <Route path="hierarchy" element={<HierarchyPage />} />
                 <Route path="reports" element={<ReportsPage />} />
+                <Route path="permissions" element={<PermissionsPage />} />
               </Routes>
             </AppLayout>
           </ProtectedRoute>

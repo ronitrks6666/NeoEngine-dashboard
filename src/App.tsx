@@ -24,7 +24,7 @@ import { ReportsPage } from '@/pages/owner/ReportsPage';
 import { useAuth } from '@/hooks/useAuth';
 
 function App() {
-  const { token, role, hydrate } = useAuth();
+  const { hydrate } = useAuth();
 
   useEffect(() => {
     hydrate();

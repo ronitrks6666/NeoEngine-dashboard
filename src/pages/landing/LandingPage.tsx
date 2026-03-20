@@ -17,6 +17,8 @@ import {
   type LucideIcon,
 } from 'lucide-react';
 import { NeoEngineLogo } from '@/components/NeoEngineLogo';
+import { CpuArchitecture } from '@/components/ui/cpu-architecture';
+import { TubesCursor } from '@/components/ui/tube-cursor';
 import { fetchLandingConfig, type LandingConfig, type LandingFeature } from '@/api/config';
 import {
   LineChart,
@@ -81,9 +83,11 @@ export function LandingPage() {
   }, []);
 
   return (
-    <div className="min-h-screen bg-gradient-to-br from-emerald-50 via-white to-emerald-100/50">
-      {/* Nav */}
-      <nav className="fixed top-0 left-0 right-0 z-50 border-b border-emerald-100 bg-white/90 backdrop-blur-xl">
+    <div className="relative min-h-screen bg-emerald-50">
+      {/* Tubes sit below z-20 UI shell; canvas uses bg-emerald-50 so empty GL pixels don’t read as muddy gray */}
+      <TubesCursor variant="fullscreen" className="z-[1]" />
+      <div className="relative z-20 isolate min-h-screen">
+      <nav className="fixed top-0 left-0 right-0 z-50 border-b border-emerald-100 bg-white shadow-sm">
         <div className="max-w-6xl mx-auto px-4 sm:px-6 h-16 flex items-center justify-between">
           <Link to="/" className="flex items-center gap-2">
             <NeoEngineLogo size={36} />
@@ -117,67 +121,65 @@ export function LandingPage() {
         </div>
       </nav>
 
-      <main className="pt-16">
-        {/* 1. Hero */}
-        <section className="relative overflow-hidden px-4 sm:px-6 py-20 sm:py-32">
-          <div className="absolute inset-0 bg-gradient-to-br from-emerald-500/10 via-emerald-400/5 to-transparent" />
-          <div className="absolute top-1/4 right-0 w-96 h-96 bg-emerald-400/20 rounded-full blur-3xl" />
-          <div className="absolute bottom-1/4 left-0 w-64 h-64 bg-emerald-300/20 rounded-full blur-3xl" />
-          <div className="relative max-w-6xl mx-auto">
+      <main className="relative z-10 min-h-screen bg-emerald-50 pt-16">
+        {/* 1. Hero — opaque base so decorative layers never composite through to WebGL */}
+        <section className="relative overflow-x-hidden overflow-y-visible bg-gradient-to-br from-emerald-50 via-white to-emerald-50 px-4 sm:px-6 pt-4 sm:pt-6 pb-12 sm:pb-16 md:pb-20">
+          <div className="pointer-events-none absolute inset-0 z-[1] bg-gradient-to-br from-emerald-100/80 via-white to-emerald-50" />
+          <div className="pointer-events-none absolute top-1/4 right-0 z-[1] w-96 h-96 bg-emerald-400/12 rounded-full blur-3xl" />
+          <div className="pointer-events-none absolute bottom-1/4 left-0 z-[1] w-64 h-64 bg-emerald-300/12 rounded-full blur-3xl" />
+          <div className="relative z-10 max-w-6xl mx-auto">
             <motion.div
               initial={{ opacity: 0, y: 24 }}
               animate={{ opacity: 1, y: 0 }}
               transition={{ duration: 0.6 }}
-              className="text-center max-w-4xl mx-auto"
+              className="text-center max-w-3xl mx-auto"
             >
-              <h1 className="text-4xl sm:text-5xl md:text-6xl font-bold tracking-tight text-slate-900 mb-6">
+              <h1 className="text-3xl sm:text-4xl md:text-[2.65rem] font-bold tracking-tight text-slate-900 mb-3 sm:mb-4 leading-tight">
                 Run your business
-                <span className="block bg-gradient-to-r from-emerald-600 to-emerald-700 bg-clip-text text-transparent">
+                <span className="block bg-gradient-to-r from-emerald-600 to-emerald-700 bg-clip-text text-transparent mt-0.5">
                   smarter, not harder
                 </span>
               </h1>
-              <p className="text-lg sm:text-xl text-slate-600 mb-10 max-w-2xl mx-auto">
+              <p className="text-base sm:text-lg text-slate-600 mb-5 sm:mb-6 max-w-xl mx-auto leading-relaxed">
                 NeoEngine automates operations, attendance, tasks, and payroll—so you can focus on what matters.
               </p>
-              <div className="flex flex-col sm:flex-row gap-4 justify-center">
+              <div className="flex flex-col sm:flex-row gap-3 justify-center">
                 <Link
                   to={token && role ? (role === 'SUPER_ADMIN' ? '/super-admin/dashboard' : '/owner/dashboard') : '/login'}
-                  className="inline-flex items-center justify-center gap-2 px-8 py-4 rounded-2xl bg-gradient-to-r from-emerald-600 to-emerald-700 text-white font-semibold text-lg shadow-emerald-lg hover:from-emerald-700 hover:to-emerald-800 transition-all"
+                  className="inline-flex items-center justify-center gap-2 px-6 py-3 rounded-xl bg-gradient-to-r from-emerald-600 to-emerald-700 text-white font-semibold text-base shadow-emerald-lg hover:from-emerald-700 hover:to-emerald-800 transition-all"
                 >
                   {token && role ? 'Go to Dashboard' : 'Get Started'}
-                  <ArrowRight className="h-5 w-5" />
+                  <ArrowRight className="h-4 w-4 shrink-0" />
                 </Link>
                 <a
                   href="#demo"
-                  className="inline-flex items-center justify-center gap-2 px-8 py-4 rounded-2xl border-2 border-emerald-200 text-slate-700 hover:border-emerald-500 hover:text-emerald-700 font-semibold transition-colors"
+                  className="inline-flex items-center justify-center gap-2 px-6 py-3 rounded-xl border-2 border-emerald-200 text-slate-700 hover:border-emerald-500 hover:text-emerald-700 font-semibold text-base transition-colors"
                 >
-                  <Play className="h-5 w-5" />
+                  <Play className="h-4 w-4 shrink-0" />
                   Watch Demo
                 </a>
               </div>
             </motion.div>
             <motion.div
-              initial={{ opacity: 0, y: 40 }}
+              initial={{ opacity: 0, y: 20 }}
               animate={{ opacity: 1, y: 0 }}
-              transition={{ delay: 0.3, duration: 0.6 }}
-              className="mt-16 relative"
+              transition={{ delay: 0.2, duration: 0.6, ease: [0.22, 1, 0.36, 1] }}
+              className="mt-4 sm:mt-5 md:mt-6 flex justify-center w-full pointer-events-auto"
             >
-              <div className="rounded-2xl overflow-hidden border border-emerald-100 shadow-emerald-lg bg-white backdrop-blur-sm">
-                <div className="aspect-video bg-gradient-to-br from-emerald-50 to-emerald-100 flex items-center justify-center">
-                  <div className="grid grid-cols-3 gap-4 p-8">
-                    {[1, 2, 3].map((i) => (
-                      <motion.div
-                        key={i}
-                        animate={{ y: [0, -6, 0] }}
-                        transition={{ duration: 3 + i * 0.5, repeat: Infinity, ease: 'easeInOut' }}
-                        className="rounded-xl bg-white/90 p-4 shadow-lg border border-emerald-100"
-                      >
-                        <div className="h-3 w-20 bg-emerald-200 rounded mb-3" />
-                        <div className="h-2 w-full bg-emerald-100 rounded mb-2" />
-                        <div className="h-2 w-3/4 bg-emerald-100 rounded" />
-                      </motion.div>
-                    ))}
-                  </div>
+              <div className="relative w-full max-w-5xl lg:max-w-6xl mx-auto px-0 sm:px-2">
+                <div
+                  className="pointer-events-none absolute inset-0 -inset-x-4 sm:-inset-x-8 rounded-[2rem] bg-[radial-gradient(ellipse_85%_75%_at_50%_55%,rgba(16,185,129,0.14),rgba(236,253,245,0.35)_45%,transparent_72%)] opacity-90"
+                  aria-hidden
+                />
+                {/*
+                  Taller CPU region: larger svh + px caps; SVG preserveAspectRatio meet keeps art contained.
+                */}
+                <div className="relative mx-auto flex w-full justify-center h-[min(44svh,400px)] sm:h-[min(50svh,480px)] md:h-[min(54svh,540px)] lg:h-[min(58svh,600px)]">
+                  <CpuArchitecture
+                    text="Engine"
+                    ambient
+                    className="h-full w-full max-w-full drop-shadow-[0_12px_40px_-8px_rgba(5,150,105,0.18)]"
+                  />
                 </div>
               </div>
             </motion.div>
@@ -185,7 +187,7 @@ export function LandingPage() {
         </section>
 
         {/* 2. Trust */}
-        <section className="px-4 sm:px-6 py-16 sm:py-24 border-y border-emerald-100 bg-white/70">
+        <section className="px-4 sm:px-6 py-16 sm:py-24 border-y border-emerald-100 bg-white">
           <motion.div
             initial={{ opacity: 0, y: 20 }}
             whileInView={{ opacity: 1, y: 0 }}
@@ -228,7 +230,7 @@ export function LandingPage() {
         </section>
 
         {/* 3. Features (dynamic) */}
-        <section className="px-4 sm:px-6 py-20 sm:py-32">
+        <section className="px-4 sm:px-6 py-20 sm:py-32 bg-white">
           <div className="max-w-6xl mx-auto">
             <motion.div
               initial={{ opacity: 0, y: 20 }}
@@ -248,7 +250,7 @@ export function LandingPage() {
                 {[1, 2, 3, 4, 5, 6].map((i) => (
                   <div
                     key={i}
-                    className="h-48 rounded-2xl bg-emerald-100/50 animate-pulse"
+                    className="h-48 rounded-2xl bg-emerald-100 animate-pulse"
                   />
                 ))}
               </div>
@@ -286,7 +288,7 @@ export function LandingPage() {
         </section>
 
         {/* 4. Product Experience */}
-        <section className="px-4 sm:px-6 py-20 sm:py-32 bg-emerald-50/50">
+        <section className="px-4 sm:px-6 py-20 sm:py-32 bg-emerald-50">
           <div className="max-w-6xl mx-auto">
             <div className="grid lg:grid-cols-2 gap-16 items-center">
               <motion.div
@@ -351,7 +353,7 @@ export function LandingPage() {
         </section>
 
         {/* 5. Use Cases */}
-        <section className="px-4 sm:px-6 py-20 sm:py-32">
+        <section className="px-4 sm:px-6 py-20 sm:py-32 bg-white">
           <div className="max-w-6xl mx-auto">
             <motion.div
               initial={{ opacity: 0, y: 20 }}
@@ -398,7 +400,7 @@ export function LandingPage() {
         </section>
 
         {/* 6. Analytics */}
-        <section className="px-4 sm:px-6 py-20 sm:py-32 bg-emerald-50/50">
+        <section className="px-4 sm:px-6 py-20 sm:py-32 bg-emerald-50">
           <div className="max-w-6xl mx-auto">
             <motion.div
               initial={{ opacity: 0, y: 20 }}
@@ -470,7 +472,7 @@ export function LandingPage() {
         </section>
 
         {/* 7. Mobile + Web */}
-        <section className="px-4 sm:px-6 py-20 sm:py-32">
+        <section className="px-4 sm:px-6 py-20 sm:py-32 bg-white">
           <div className="max-w-6xl mx-auto">
             <motion.div
               initial={{ opacity: 0, y: 20 }}
@@ -592,6 +594,7 @@ export function LandingPage() {
           </div>
         </footer>
       </main>
+      </div>
     </div>
   );
 }

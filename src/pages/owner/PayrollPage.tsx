@@ -5,6 +5,8 @@ import { payrollApi } from '@/api/payroll';
 import { employeeApi } from '@/api/employee';
 import { getApiErrorMessage } from '@/api/auth';
 import { LoadingSpinner } from '@/components/LoadingSpinner';
+import { ListSearchBar } from '@/components/ListSearchBar';
+import { useDebouncedValue } from '@/hooks/useDebouncedValue';
 import { X, Wallet, Loader2, ChevronDown, Calendar } from 'lucide-react';
 
 export function PayrollPage() {
@@ -15,6 +17,8 @@ export function PayrollPage() {
   const [selectedPeriodId, setSelectedPeriodId] = useState<string | null>(null);
   const [showAddPayment, setShowAddPayment] = useState<{ periodId: string; employeeId: string; employeeName: string } | null>(null);
   const [paymentAmount, setPaymentAmount] = useState('');
+  const [payrollListSearch, setPayrollListSearch] = useState('');
+  const debouncedPayrollSearch = useDebouncedValue(payrollListSearch, 350);
   const queryClient = useQueryClient();
 
   const { data: periodsData, isLoading } = useQuery({
@@ -72,8 +76,11 @@ export function PayrollPage() {
   });
 
   const { data: periodDetailData, isLoading: isPeriodDetailLoading } = useQuery({
-    queryKey: ['payroll-period', selectedOutletId, selectedPeriodId],
-    queryFn: () => payrollApi.getPeriod(selectedOutletId!, selectedPeriodId!),
+    queryKey: ['payroll-period', selectedOutletId, selectedPeriodId, debouncedPayrollSearch],
+    queryFn: () =>
+      payrollApi.getPeriod(selectedOutletId!, selectedPeriodId!, {
+        search: debouncedPayrollSearch.trim() || undefined,
+      }),
     enabled: !!selectedOutletId && !!selectedPeriodId,
   });
 
@@ -196,6 +203,19 @@ export function PayrollPage() {
                 </div>
               </div>
               <div className="p-6">
+                <div className="mb-6">
+                  <label htmlFor="payroll-staff-search" className="block text-xs font-medium text-gray-500 uppercase tracking-wide mb-2">
+                    Filter staff in this period
+                  </label>
+                  <ListSearchBar
+                    value={payrollListSearch}
+                    onChange={setPayrollListSearch}
+                    placeholder="Search by name or phone"
+                    className="max-w-md"
+                    id="payroll-staff-search"
+                    aria-label="Search payroll staff"
+                  />
+                </div>
                 {periodSummary && (
                   <div className="grid grid-cols-2 sm:grid-cols-4 gap-4 mb-6">
                     <div className="bg-gray-50 rounded-xl p-4">
@@ -241,7 +261,11 @@ export function PayrollPage() {
                   </table>
                 </div>
                 {periodEmployees.length === 0 && (
-                  <p className="text-center py-8 text-gray-500">No staff data. Process the period first.</p>
+                  <p className="text-center py-8 text-gray-500">
+                    {debouncedPayrollSearch.trim()
+                      ? 'No staff match your search.'
+                      : 'No staff data. Process the period first.'}
+                  </p>
                 )}
               </div>
               </>

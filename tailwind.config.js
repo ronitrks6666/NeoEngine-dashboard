@@ -12,6 +12,14 @@ export default {
         display: ['Outfit', 'Plus Jakarta Sans', 'system-ui', 'sans-serif'],
       },
       colors: {
+        muted: {
+          DEFAULT: '#64748b',
+          foreground: '#475569',
+        },
+        accent: {
+          DEFAULT: 'rgba(16, 185, 129, 0.12)',
+          foreground: '#047857',
+        },
         primary: {
           DEFAULT: '#059669',
           light: '#10B981',

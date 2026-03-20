@@ -8,7 +8,9 @@ import { ownerApi, type Outlet } from '@/api/owner';
 import { getApiErrorMessage } from '@/api/auth';
 import { LoadingSpinner } from '@/components/LoadingSpinner';
 import { AddressSearchInput } from '@/components/AddressSearchInput';
-import { MapPin, Store, Phone, Locate, X } from 'lucide-react';
+import { Store, Phone, Locate, X } from 'lucide-react';
+import { useDebouncedValue } from '@/hooks/useDebouncedValue';
+import { ListSearchBar } from '@/components/ListSearchBar';
 
 function UseCurrentLocationButton({ onLocation }: { onLocation: (lat: number, lng: number) => void }) {
   const [loading, setLoading] = useState(false);
@@ -85,6 +87,8 @@ export function OwnerOutletsPage() {
     }
   }, [searchParams, setSearchParams]);
   const [confirmDelete, setConfirmDelete] = useState<Outlet | null>(null);
+  const [listSearch, setListSearch] = useState('');
+  const debouncedListSearch = useDebouncedValue(listSearch, 350);
   const [createGeofence, setCreateGeofence] = useState<CreateOutletState>({
     geofenceLat: '',
     geofenceLng: '',
@@ -98,8 +102,8 @@ export function OwnerOutletsPage() {
   const queryClient = useQueryClient();
 
   const { data: outlets = [], isLoading } = useQuery({
-    queryKey: ['owner-outlets'],
-    queryFn: ownerApi.getOutlets,
+    queryKey: ['owner-outlets', debouncedListSearch],
+    queryFn: () => ownerApi.getOutlets({ search: debouncedListSearch.trim() || undefined }),
   });
 
   const createMutation = useMutation({
@@ -157,12 +161,22 @@ export function OwnerOutletsPage() {
           <h1 className="text-2xl font-bold text-gray-900">Outlets</h1>
           <p className="text-gray-500 mt-0.5">Your restaurant or retail locations</p>
         </div>
-        <button
-          onClick={() => setShowCreate(true)}
-          className="px-5 py-2.5 bg-teal-600 text-white rounded-xl font-medium hover:bg-teal-700 transition-all shadow-sm hover:shadow-md flex items-center gap-2 w-fit"
-        >
-          <span>+</span> Create outlet
-        </button>
+        <div className="flex flex-col sm:flex-row gap-3 w-full sm:w-auto sm:items-center">
+          <ListSearchBar
+            value={listSearch}
+            onChange={setListSearch}
+            placeholder="Search by name, address, or phone"
+            className="sm:w-72"
+            id="outlets-search"
+            aria-label="Search outlets"
+          />
+          <button
+            onClick={() => setShowCreate(true)}
+            className="px-5 py-2.5 bg-teal-600 text-white rounded-xl font-medium hover:bg-teal-700 transition-all shadow-sm hover:shadow-md flex items-center gap-2 w-fit shrink-0"
+          >
+            <span>+</span> Create outlet
+          </button>
+        </div>
       </div>
 
       {isLoading ? (
@@ -195,6 +209,14 @@ export function OwnerOutletsPage() {
               <p className="font-semibold text-gray-900 truncate">{o.name}</p>
               <p className="text-sm text-gray-500 mt-0.5 line-clamp-2">{o.address || '-'}</p>
               <p className="text-sm text-gray-500 mt-1">{o.phone || '-'}</p>
+              <button
+                type="button"
+                onClick={() => openEdit(o)}
+                className="mt-3 inline-flex items-center gap-1.5 text-sm font-medium text-teal-600 hover:text-teal-700"
+              >
+                <Locate className="h-4 w-4" />
+                Edit location (GPS)
+              </button>
             </div>
           ))}
         </div>
@@ -203,10 +225,14 @@ export function OwnerOutletsPage() {
       {outlets.length === 0 && !isLoading && (
         <div className="text-center py-16 animate-fade-in">
           <div className="text-6xl mb-4 opacity-30">🏪</div>
-          <p className="text-gray-500">No outlets yet</p>
-          <button onClick={() => setShowCreate(true)} className="mt-4 text-teal-600 hover:text-teal-700 font-medium">
-            Create your first outlet
-          </button>
+          <p className="text-gray-500">
+            {debouncedListSearch.trim() ? 'No outlets match your search.' : 'No outlets yet'}
+          </p>
+          {!debouncedListSearch.trim() && (
+            <button onClick={() => setShowCreate(true)} className="mt-4 text-teal-600 hover:text-teal-700 font-medium">
+              Create your first outlet
+            </button>
+          )}
         </div>
       )}
 
@@ -388,7 +414,48 @@ export function OwnerOutletsPage() {
                     placeholder="Search address or place..."
                     error={editForm.formState.errors.address?.message}
                   />
-                  {editForm.watch('address') && !editGeofence.geofenceLat && (
+                </div>
+                <div className="rounded-xl border border-teal-100 bg-teal-50/40 p-4 space-y-3">
+                  <div>
+                    <label className="block text-sm font-semibold text-gray-800 mb-1">Outlet location (geofence)</label>
+                    <p className="text-xs text-gray-600 mb-2">
+                      Punch-in uses this area. Set coordinates manually or use your device&apos;s current position (latitude / longitude).
+                    </p>
+                    <div className="grid grid-cols-1 sm:grid-cols-3 gap-2">
+                      <div>
+                        <label className="text-xs text-gray-500">Latitude</label>
+                        <input
+                          type="text"
+                          inputMode="decimal"
+                          value={editGeofence.geofenceLat}
+                          onChange={(e) => setEditGeofence((p) => ({ ...p, geofenceLat: e.target.value }))}
+                          className="w-full mt-0.5 px-3 py-2 rounded-lg border border-teal-200 text-sm"
+                          placeholder="e.g. 12.9716"
+                        />
+                      </div>
+                      <div>
+                        <label className="text-xs text-gray-500">Longitude</label>
+                        <input
+                          type="text"
+                          inputMode="decimal"
+                          value={editGeofence.geofenceLng}
+                          onChange={(e) => setEditGeofence((p) => ({ ...p, geofenceLng: e.target.value }))}
+                          className="w-full mt-0.5 px-3 py-2 rounded-lg border border-teal-200 text-sm"
+                          placeholder="e.g. 77.5946"
+                        />
+                      </div>
+                      <div>
+                        <label className="text-xs text-gray-500">Radius (m)</label>
+                        <input
+                          type="text"
+                          inputMode="numeric"
+                          value={editGeofence.geofenceRadius}
+                          onChange={(e) => setEditGeofence((p) => ({ ...p, geofenceRadius: e.target.value }))}
+                          className="w-full mt-0.5 px-3 py-2 rounded-lg border border-teal-200 text-sm"
+                          placeholder="100"
+                        />
+                      </div>
+                    </div>
                     <UseCurrentLocationButton
                       onLocation={(lat, lng) =>
                         setEditGeofence((prev) => ({
@@ -399,7 +466,7 @@ export function OwnerOutletsPage() {
                         }))
                       }
                     />
-                  )}
+                  </div>
                 </div>
                 <div>
                   <label className="block text-sm font-semibold text-gray-700 mb-2">Phone</label>

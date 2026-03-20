@@ -1,21 +1,54 @@
-import { useState, useEffect } from 'react';
+import { useState, useEffect, useMemo, useRef } from 'react';
 import { useLocation, useNavigate } from 'react-router-dom';
 import { useQuery, useMutation, useQueryClient } from '@tanstack/react-query';
-import { useForm } from 'react-hook-form';
+import { useForm, Controller } from 'react-hook-form';
 import { zodResolver } from '@hookform/resolvers/zod';
 import { z } from 'zod';
 import { useOutletStore } from '@/stores/outletStore';
+import { useAuth } from '@/hooks/useAuth';
+import type { Owner } from '@/types/auth';
 import { employeeApi } from '@/api/employee';
 import { overtimeApi } from '@/api/overtime';
 import { getApiErrorMessage } from '@/api/auth';
 import { LoadingSpinner } from '@/components/LoadingSpinner';
-import { UserPlus, Pencil, Trash2, FileText, ExternalLink, Plus, Shield, Briefcase, X, Loader2 } from 'lucide-react';
+import { ListSearchBar } from '@/components/ListSearchBar';
+import { SearchableSelect, type SearchableSelectOption } from '@/components/SearchableSelect';
+import { useDebouncedValue } from '@/hooks/useDebouncedValue';
+import { UserPlus, Pencil, Trash2, FileText, ExternalLink, Plus, Shield, Briefcase, X, Loader2, Eye, EyeOff } from 'lucide-react';
+
+function employeeRoleSubtitle(
+  activeRoleId?: { name?: string; parentRoleId?: { name?: string } } | string | null
+): string {
+  if (!activeRoleId || typeof activeRoleId === 'string') return 'No role assigned';
+  const sub = activeRoleId.name;
+  const master = activeRoleId.parentRoleId?.name;
+  if (sub && master) return `${sub} · ${master}`;
+  return sub || master || 'No role assigned';
+}
+
+/** Form value: staff id or `owner:<ownerId>` for reports-to */
+const REPORTS_TO_OWNER_PREFIX = 'owner:';
+
+function managerNameOnCard(e: {
+  reportsToEmployeeId?: { name?: string } | string | null;
+  reportsToOwnerId?: { name?: string } | string | null;
+}): string | null {
+  const o = e.reportsToOwnerId;
+  if (o && typeof o === 'object' && o.name?.trim()) return o.name.trim();
+  const r = e.reportsToEmployeeId;
+  if (r && typeof r === 'object' && r.name?.trim()) return r.name.trim();
+  return null;
+}
 
 const createSchema = z.object({
   name: z.string().min(1, 'Name required'),
-  phone: z.string().min(10, 'Valid phone required'),
+  phone: z.string().regex(/^\d{10}$/, 'Enter exactly 10 digits'),
   tempPassword: z.string().min(6, 'Min 6 characters'),
+  /** Master role — server creates outlet role Chef-1, Chef-2, … */
+  parentRoleId: z.string().optional(),
+  /** Legacy / voice: pre-picked outlet role id */
   activeRoleId: z.string().optional(),
+  reportsToTarget: z.string().optional(),
 });
 
 const editSchema = z.object({
@@ -40,13 +73,36 @@ const editSchema = z.object({
 type CreateForm = z.infer<typeof createSchema>;
 type EditForm = z.infer<typeof editSchema>;
 
+type StaffCardRow = {
+  _id: string;
+  name: string;
+  phone: string;
+  activeRoleId?: { name?: string; parentRoleId?: { name?: string } } | { name: string } | string;
+  shiftType?: string;
+  isActive?: boolean;
+  reportsToEmployeeId?: { name?: string } | string | null;
+  reportsToOwnerId?: { name?: string } | string | null;
+};
+
 export function StaffPage() {
   const { selectedOutletId } = useOutletStore();
+  const { user, role: authRole } = useAuth();
   const location = useLocation();
   const navigate = useNavigate();
   const [search, setSearch] = useState('');
+  const debouncedSearch = useDebouncedValue(search, 350);
   const [showCreate, setShowCreate] = useState(false);
-  const [editing, setEditing] = useState<{ _id: string; name: string; phone: string; shiftType?: string; activeRoleId?: { _id: string; name: string }; salary?: number | null; minHoursPerDay?: number | null; punchInTime?: string | null; upiId?: string | null } | null>(null);
+  const [editing, setEditing] = useState<{
+    _id: string;
+    name: string;
+    phone: string;
+    shiftType?: string;
+    activeRoleId?: { _id?: string; name?: string; parentRoleId?: { name?: string } } | string;
+    salary?: number | null;
+    minHoursPerDay?: number | null;
+    punchInTime?: string | null;
+    upiId?: string | null;
+  } | null>(null);
   const [confirmRemove, setConfirmRemove] = useState<{ _id: string; name: string } | null>(null);
   const [documentsFor, setDocumentsFor] = useState<{ _id: string; name: string } | null>(null);
   const [showCreateMasterRole, setShowCreateMasterRole] = useState(false);
@@ -54,11 +110,19 @@ export function StaffPage() {
   const [newMasterRoleName, setNewMasterRoleName] = useState('');
   const [newRoleName, setNewRoleName] = useState('');
   const [newRoleParentId, setNewRoleParentId] = useState('');
+  const [showCreatePassword, setShowCreatePassword] = useState(false);
+  const prevShowCreateRef = useRef(false);
+  const skipNextCreateResetRef = useRef(false);
   const queryClient = useQueryClient();
 
   const { data: empData, isLoading } = useQuery({
-    queryKey: ['my-employees', selectedOutletId],
-    queryFn: () => employeeApi.getMyEmployees({ outletId: selectedOutletId ?? undefined, limit: 100 }),
+    queryKey: ['my-employees', selectedOutletId, debouncedSearch],
+    queryFn: () =>
+      employeeApi.getMyEmployees({
+        outletId: selectedOutletId ?? undefined,
+        limit: 100,
+        search: debouncedSearch.trim() || undefined,
+      }),
     enabled: !!selectedOutletId,
   });
 
@@ -87,14 +151,26 @@ export function StaffPage() {
   });
 
   const createMutation = useMutation({
-    mutationFn: (d: CreateForm) =>
-      employeeApi.create({
-        ...d,
+    mutationFn: (d: CreateForm) => {
+      const rt = d.reportsToTarget?.trim();
+      return employeeApi.create({
+        name: d.name,
+        phone: d.phone,
+        tempPassword: d.tempPassword,
         outletId: selectedOutletId!,
-        activeRoleId: d.activeRoleId || undefined,
-      }),
+        parentRoleId: d.parentRoleId?.trim() || undefined,
+        activeRoleId: d.activeRoleId?.trim() || undefined,
+        ...(rt?.startsWith(REPORTS_TO_OWNER_PREFIX)
+          ? { reportsToOwnerId: rt.slice(REPORTS_TO_OWNER_PREFIX.length) }
+          : rt
+            ? { reportsToEmployeeId: rt }
+            : {}),
+      });
+    },
     onSuccess: () => {
       queryClient.invalidateQueries({ queryKey: ['my-employees'] });
+      queryClient.invalidateQueries({ queryKey: ['hierarchy'] });
+      queryClient.invalidateQueries({ queryKey: ['available-roles'] });
       setShowCreate(false);
       setShowCreateMasterRole(false);
       setShowCreateRole(false);
@@ -106,6 +182,7 @@ export function StaffPage() {
     mutationFn: ({ id, data }: { id: string; data: EditForm }) => employeeApi.update(id, data),
     onSuccess: () => {
       queryClient.invalidateQueries({ queryKey: ['my-employees'] });
+      queryClient.invalidateQueries({ queryKey: ['hierarchy'] });
       setEditing(null);
       editForm.reset();
     },
@@ -120,15 +197,15 @@ export function StaffPage() {
   });
 
   const createParentRoleMutation = useMutation({
-    mutationFn: (name: string) => employeeApi.createParentRole(name),
+    mutationFn: (name: string) => employeeApi.createParentRole(name, selectedOutletId ?? undefined),
     onSuccess: (res) => {
       queryClient.invalidateQueries({ queryKey: ['parent-roles'] });
+      queryClient.invalidateQueries({ queryKey: ['hierarchy'] });
       setShowCreateMasterRole(false);
       setNewMasterRoleName('');
       const newId = (res as { data?: { parentRole?: { _id?: string } } })?.data?.parentRole?._id;
       if (newId) {
-        setShowCreateRole(true);
-        setNewRoleParentId(newId);
+        form.setValue('parentRoleId', newId, { shouldValidate: true });
       }
     },
   });
@@ -138,20 +215,27 @@ export function StaffPage() {
       employeeApi.createRole({ ...payload, outletId: selectedOutletId! }),
     onSuccess: (res) => {
       queryClient.invalidateQueries({ queryKey: ['available-roles', selectedOutletId] });
+      queryClient.invalidateQueries({ queryKey: ['hierarchy'] });
       setShowCreateRole(false);
       setNewRoleName('');
       setNewRoleParentId('');
       const newRoleId = (res as { data?: { role?: { id?: string } } })?.data?.role?.id;
       if (newRoleId) {
         editForm.setValue('activeRoleId', newRoleId);
-        form.setValue('activeRoleId', newRoleId);
       }
     },
   });
 
   const form = useForm<CreateForm>({
     resolver: zodResolver(createSchema),
-    defaultValues: { name: '', phone: '', tempPassword: '', activeRoleId: '' },
+    defaultValues: {
+      name: '',
+      phone: '',
+      tempPassword: 'staff123',
+      parentRoleId: '',
+      activeRoleId: '',
+      reportsToTarget: '',
+    },
   });
 
   const editForm = useForm<EditForm>({
@@ -162,25 +246,94 @@ export function StaffPage() {
   const employees = empData?.data?.employees ?? [];
   const roles = rolesData?.data?.roles ?? [];
   const parentRoles = parentRolesData?.data?.parentRoles ?? [];
-  const filtered = employees.filter(
-    (e: { name?: string; phone?: string }) =>
-      e.name?.toLowerCase().includes(search.toLowerCase()) || e.phone?.includes(search)
+
+  const parentRoleSelectOptions: SearchableSelectOption[] = useMemo(
+    () =>
+      (parentRoles as { _id: string; name: string }[]).map((r) => ({
+        value: r._id,
+        label: r.name,
+      })),
+    [parentRoles]
   );
+
+  const ownerForReportsOption = useMemo(() => {
+    if (authRole !== 'OWNER' || !user || !('id' in user)) return null;
+    const o = user as Owner;
+    if (!o.id) return null;
+    return { id: o.id, name: o.name || 'Owner' };
+  }, [authRole, user]);
+
+  const reportsToSelectOptions: SearchableSelectOption[] = useMemo(() => {
+    const staff = (employees as { _id: string; name: string; isActive?: boolean; activeRoleId?: unknown }[])
+      .filter((e) => e.isActive !== false)
+      .map((e) => ({
+        value: e._id,
+        label: e.name,
+        subtitle: employeeRoleSubtitle(
+          e.activeRoleId as { name?: string; parentRoleId?: { name?: string } } | undefined
+        ),
+      }));
+    if (!ownerForReportsOption) return staff;
+    return [
+      {
+        value: `${REPORTS_TO_OWNER_PREFIX}${ownerForReportsOption.id}`,
+        label: ownerForReportsOption.name,
+        subtitle: 'Owner',
+      },
+      ...staff,
+    ];
+  }, [employees, ownerForReportsOption]);
+
+  // When create modal opens: default form (unless voice prefilled — skip one reset)
+  useEffect(() => {
+    if (!showCreate) {
+      prevShowCreateRef.current = false;
+      return;
+    }
+    if (prevShowCreateRef.current) return;
+    prevShowCreateRef.current = true;
+    if (skipNextCreateResetRef.current) {
+      skipNextCreateResetRef.current = false;
+    } else {
+      form.reset({
+        name: '',
+        phone: '',
+        tempPassword: 'staff123',
+        parentRoleId: '',
+        activeRoleId: '',
+        reportsToTarget: '',
+      });
+    }
+    setShowCreatePassword(false);
+  }, [showCreate, form]);
 
   // Voice navigation: open create modal with prefilled data
   useEffect(() => {
     const state = location.state as { openCreate?: boolean; prefilledStaff?: Record<string, unknown> } | null;
     if (state?.openCreate && state?.prefilledStaff) {
+      skipNextCreateResetRef.current = true;
       setShowCreate(true);
       const s = state.prefilledStaff;
       if (s.name) form.setValue('name', String(s.name));
-      if (s.phone) form.setValue('phone', String(s.phone));
+      if (s.phone) form.setValue('phone', String(s.phone).replace(/\D/g, '').slice(0, 10));
+      if (s.parentRoleId) form.setValue('parentRoleId', String(s.parentRoleId));
       if (s.activeRoleId) form.setValue('activeRoleId', String(s.activeRoleId));
+      form.setValue('tempPassword', 'staff123');
       navigate(location.pathname, { replace: true, state: {} });
     }
-  }, [location.state, navigate, location.pathname]);
+  }, [location.state, navigate, location.pathname, form]);
 
-  const openEdit = (e: { _id: string; name: string; phone: string; shiftType?: string; activeRoleId?: { _id: string; name: string }; salary?: number | null; minHoursPerDay?: number | null; punchInTime?: string | null; upiId?: string | null }) => {
+  const openEdit = (e: {
+    _id: string;
+    name: string;
+    phone: string;
+    shiftType?: string;
+    activeRoleId?: { _id?: string; name?: string; parentRoleId?: { name?: string } } | string;
+    salary?: number | null;
+    minHoursPerDay?: number | null;
+    punchInTime?: string | null;
+    upiId?: string | null;
+  }) => {
     setEditing(e);
     setShowCreateMasterRole(false);
     setShowCreateRole(false);
@@ -217,20 +370,18 @@ export function StaffPage() {
           <h1 className="text-2xl font-bold text-gray-900">Staff</h1>
           <p className="text-gray-500 mt-0.5">Manage your team members</p>
         </div>
-        <div className="flex gap-3">
-          <div className="relative flex-1 sm:max-w-xs">
-            <span className="absolute left-3 top-1/2 -translate-y-1/2 text-gray-400">🔍</span>
-            <input
-              type="text"
-              placeholder="Search by name or phone..."
-              value={search}
-              onChange={(e) => setSearch(e.target.value)}
-              className="w-full pl-10 pr-4 py-2.5 rounded-xl border border-emerald-200 bg-white focus:ring-2 focus:ring-emerald-500/20 focus:border-emerald-500 transition-all"
-            />
-          </div>
+        <div className="flex flex-col sm:flex-row gap-3 w-full sm:w-auto sm:items-center">
+          <ListSearchBar
+            value={search}
+            onChange={setSearch}
+            placeholder="Search by name or phone"
+            className="sm:max-w-xs flex-1"
+            id="staff-search"
+            aria-label="Search staff"
+          />
           <button
             onClick={() => setShowCreate(true)}
-            className="px-5 py-2.5 bg-emerald-600 text-white rounded-xl font-semibold hover:bg-emerald-700 transition-all shadow-emerald flex items-center gap-2"
+            className="px-5 py-2.5 bg-emerald-600 text-white rounded-xl font-semibold hover:bg-emerald-700 transition-all shadow-emerald flex items-center gap-2 shrink-0"
           >
             <UserPlus className="h-5 w-5" /> Add staff
           </button>
@@ -241,7 +392,7 @@ export function StaffPage() {
         <LoadingSpinner className="py-16" />
       ) : (
         <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-3 xl:grid-cols-4 gap-4 animate-in-stagger">
-          {filtered.map((e: { _id: string; name: string; phone: string; activeRoleId?: { name: string }; shiftType?: string; isActive?: boolean }) => (
+          {(employees as StaffCardRow[]).map((e) => (
             <div
               key={e._id}
               className={`group rounded-2xl border p-5 card-hover overflow-hidden ${
@@ -281,6 +432,12 @@ export function StaffPage() {
               <div>
                 <p className="font-semibold text-gray-900 truncate">{e.name}</p>
                 <p className="text-sm text-gray-500 mt-0.5">{e.phone}</p>
+                <p className="text-xs text-gray-600 mt-1.5">
+                  <span className="text-gray-500">Reports to:</span>{' '}
+                  <span className="font-medium text-emerald-800">
+                    {managerNameOnCard(e) ?? '—'}
+                  </span>
+                </p>
                 <div className="flex flex-wrap gap-2 mt-3">
                   <span className="px-2.5 py-0.5 rounded-lg text-xs font-medium bg-emerald-100 text-emerald-700">
                     {(e.activeRoleId as { name?: string; parentRoleId?: { name?: string } })?.name ??
@@ -299,117 +456,216 @@ export function StaffPage() {
         </div>
       )}
 
-      {filtered.length === 0 && !isLoading && (
+      {employees.length === 0 && !isLoading && (
         <div className="text-center py-16 animate-fade-in">
           <div className="w-16 h-16 rounded-2xl bg-emerald-100 flex items-center justify-center mx-auto mb-4">
             <UserPlus className="h-8 w-8 text-emerald-500" />
           </div>
-          <p className="text-gray-500">No staff found</p>
-          <button
-            onClick={() => setShowCreate(true)}
-            className="mt-4 text-emerald-600 hover:text-emerald-700 font-semibold"
-          >
-            Add your first staff member
-          </button>
+          <p className="text-gray-500">
+            {debouncedSearch.trim() ? 'No staff match your search.' : 'No staff found'}
+          </p>
+          {!debouncedSearch.trim() && (
+            <button
+              onClick={() => setShowCreate(true)}
+              className="mt-4 text-emerald-600 hover:text-emerald-700 font-semibold"
+            >
+              Add your first staff member
+            </button>
+          )}
         </div>
       )}
 
       {/* Create modal */}
       {showCreate && (
-        <div className="fixed inset-0 bg-black/40 backdrop-blur-sm flex items-center justify-center z-50 animate-fade-in">
-          <div className="bg-white rounded-2xl shadow-xl w-full max-w-md mx-4 animate-slide-up relative">
+        <div className="fixed inset-0 bg-black/40 backdrop-blur-sm flex items-center justify-center z-50 animate-fade-in p-4 overflow-y-auto">
+          <div className="bg-white rounded-2xl shadow-xl w-full max-w-lg mx-auto animate-slide-up relative my-8">
             <div className="p-6 border-b border-gray-100 pr-12">
               <h2 className="text-xl font-semibold text-gray-900">Add staff member</h2>
               <p className="text-sm text-gray-500 mt-0.5">Create a new employee account</p>
             </div>
-            <button type="button" onClick={() => { setShowCreate(false); setShowCreateMasterRole(false); setShowCreateRole(false); }} className="absolute top-4 right-4 p-2 rounded-lg text-gray-400 hover:text-gray-600 hover:bg-gray-100 transition-colors" aria-label="Close"><X className="h-5 w-5" /></button>
-            <div className="p-6">
+            <button
+              type="button"
+              onClick={() => {
+                setShowCreate(false);
+                setShowCreateMasterRole(false);
+                setShowCreateRole(false);
+              }}
+              className="absolute top-4 right-4 p-2 rounded-lg text-gray-400 hover:text-gray-600 hover:bg-gray-100 transition-colors"
+              aria-label="Close"
+            >
+              <X className="h-5 w-5" />
+            </button>
+            <div className="p-6 max-h-[min(85vh,720px)] overflow-y-auto">
               {createMutation.isError && (
                 <p className="mb-4 p-3 rounded-lg bg-red-50 text-red-600 text-sm">{getApiErrorMessage(createMutation.error)}</p>
               )}
-              <form onSubmit={form.handleSubmit((d) => createMutation.mutate(d))} className="space-y-4">
+              <form onSubmit={form.handleSubmit((d) => createMutation.mutate(d))} className="space-y-5">
                 <div>
-                  <label className="block text-sm font-medium text-gray-700 mb-1">Name</label>
-                  <input {...form.register('name')} className="w-full px-4 py-2.5 rounded-xl border border-emerald-200 focus:ring-2 focus:ring-emerald-500/20 focus:border-emerald-500" placeholder="Full name" />
-                  {form.formState.errors.name && <p className="text-red-600 text-sm mt-1">{form.formState.errors.name.message}</p>}
+                  <label className="block text-sm font-medium text-gray-700 mb-1.5">Name</label>
+                  <input
+                    {...form.register('name')}
+                    className="w-full px-4 py-2.5 rounded-xl border border-emerald-200 focus:ring-2 focus:ring-emerald-500/20 focus:border-emerald-500"
+                    placeholder="Full name"
+                  />
+                  {form.formState.errors.name && (
+                    <p className="text-red-600 text-sm mt-1">{form.formState.errors.name.message}</p>
+                  )}
                 </div>
                 <div>
-                  <label className="block text-sm font-medium text-gray-700 mb-1">Phone</label>
-                  <input {...form.register('phone')} className="w-full px-4 py-2.5 rounded-xl border border-emerald-200 focus:ring-2 focus:ring-emerald-500/20 focus:border-emerald-500" placeholder="10-digit phone" />
-                  {form.formState.errors.phone && <p className="text-red-600 text-sm mt-1">{form.formState.errors.phone.message}</p>}
+                  <label className="block text-sm font-medium text-gray-700 mb-1.5">Phone</label>
+                  <Controller
+                    name="phone"
+                    control={form.control}
+                    render={({ field }) => (
+                      <input
+                        {...field}
+                        inputMode="numeric"
+                        autoComplete="tel"
+                        maxLength={10}
+                        onChange={(e) => {
+                          const digits = e.target.value.replace(/\D/g, '').slice(0, 10);
+                          field.onChange(digits);
+                        }}
+                        className="w-full px-4 py-2.5 rounded-xl border border-emerald-200 focus:ring-2 focus:ring-emerald-500/20 focus:border-emerald-500 tracking-wide"
+                        placeholder="10-digit number"
+                      />
+                    )}
+                  />
+                  {form.formState.errors.phone && (
+                    <p className="text-red-600 text-sm mt-1">{form.formState.errors.phone.message}</p>
+                  )}
                 </div>
                 <div>
-                  <label className="block text-sm font-medium text-gray-700 mb-1">Temporary password</label>
-                  <input {...form.register('tempPassword')} type="password" className="w-full px-4 py-2.5 rounded-xl border border-emerald-200 focus:ring-2 focus:ring-emerald-500/20 focus:border-emerald-500" placeholder="Min 6 characters" />
-                  {form.formState.errors.tempPassword && <p className="text-red-600 text-sm mt-1">{form.formState.errors.tempPassword.message}</p>}
-                </div>
-                <div>
-                  <label className="block text-sm font-medium text-gray-700 mb-1">Role (optional)</label>
-                  <div className="flex gap-2">
-                    <select {...form.register('activeRoleId')} className="flex-1 px-4 py-2.5 rounded-xl border border-emerald-200 focus:ring-2 focus:ring-emerald-500/20 focus:border-emerald-500">
-                      <option value="">None</option>
-                      {roles.map((r: { _id: string; name: string }) => (
-                        <option key={r._id} value={r._id}>{r.name}</option>
-                      ))}
-                    </select>
-                    <div className="flex gap-1.5 shrink-0">
-                      <button
-                        type="button"
-                        onClick={() => { setShowCreateMasterRole(true); setShowCreateRole(false); }}
-                        className="px-3 py-2.5 rounded-xl border border-emerald-200 bg-emerald-50 text-emerald-700 hover:bg-emerald-100 transition-colors flex items-center gap-1.5 text-sm font-medium"
-                        title="Create Master role"
-                      >
-                        <Shield className="h-4 w-4" /> Master
-                      </button>
-                      <button
-                        type="button"
-                        onClick={() => { setShowCreateRole(true); setShowCreateMasterRole(false); setNewRoleParentId(parentRoles[0]?._id ?? ''); }}
-                        className="px-3 py-2.5 rounded-xl border border-emerald-200 bg-emerald-50 text-emerald-700 hover:bg-emerald-100 transition-colors flex items-center gap-1.5 text-sm font-medium"
-                        title="Create role"
-                      >
-                        <Briefcase className="h-4 w-4" /> Role
-                      </button>
-                    </div>
+                  <label className="block text-sm font-medium text-gray-700 mb-1.5">Temporary password</label>
+                  <div className="relative">
+                    <input
+                      {...form.register('tempPassword')}
+                      type={showCreatePassword ? 'text' : 'password'}
+                      className="w-full px-4 py-2.5 pr-12 rounded-xl border border-emerald-200 focus:ring-2 focus:ring-emerald-500/20 focus:border-emerald-500"
+                      placeholder="Default: staff123"
+                    />
+                    <button
+                      type="button"
+                      tabIndex={-1}
+                      onClick={() => setShowCreatePassword((v) => !v)}
+                      className="absolute right-2 top-1/2 -translate-y-1/2 p-2 rounded-lg text-gray-500 hover:bg-emerald-50 hover:text-emerald-700"
+                      aria-label={showCreatePassword ? 'Hide password' : 'Show password'}
+                    >
+                      {showCreatePassword ? <EyeOff className="h-5 w-5" /> : <Eye className="h-5 w-5" />}
+                    </button>
                   </div>
-                  {showCreateMasterRole && (
-                    <div className="mt-3 p-4 rounded-xl border border-emerald-100 bg-emerald-50/50">
-                      <p className="text-sm font-medium text-gray-700 mb-2">Create Master role</p>
-                      <div className="flex gap-2">
-                        <input value={newMasterRoleName} onChange={(e) => setNewMasterRoleName(e.target.value)} placeholder="e.g. MANAGER, CHEF" className="flex-1 px-3 py-2 rounded-lg border border-emerald-200 focus:ring-2 focus:ring-emerald-500/20" />
-                        <button type="button" onClick={() => createParentRoleMutation.mutate(newMasterRoleName.trim())} disabled={!newMasterRoleName.trim() || createParentRoleMutation.isPending} className="px-4 py-2 bg-emerald-600 text-white rounded-lg font-medium hover:bg-emerald-700 disabled:opacity-50">{createParentRoleMutation.isPending ? 'Creating...' : 'Create'}</button>
-                        <button type="button" onClick={() => { setShowCreateMasterRole(false); setNewMasterRoleName(''); }} className="px-3 py-2 border border-gray-200 rounded-lg hover:bg-gray-100">Cancel</button>
-                      </div>
-                      {createParentRoleMutation.isError && <p className="text-red-600 text-xs mt-2">{getApiErrorMessage(createParentRoleMutation.error)}</p>}
-                    </div>
+                  <p className="text-xs text-gray-500 mt-1">Prefilled with <span className="font-mono">staff123</span> — change if needed.</p>
+                  {form.formState.errors.tempPassword && (
+                    <p className="text-red-600 text-sm mt-1">{form.formState.errors.tempPassword.message}</p>
                   )}
-                  {showCreateRole && (
-                    <div className="mt-3 p-4 rounded-xl border border-emerald-100 bg-emerald-50/50">
-                      <p className="text-sm font-medium text-gray-700 mb-2">Create role</p>
-                      <div className="space-y-2">
-                        <div className="flex gap-2">
-                          <select value={newRoleParentId} onChange={(e) => setNewRoleParentId(e.target.value)} className="flex-1 px-3 py-2 rounded-lg border border-emerald-200 focus:ring-2 focus:ring-emerald-500/20">
-                            <option value="">Select Master role</option>
-                            {parentRoles.map((r: { _id: string; name: string }) => (
-                              <option key={r._id} value={r._id}>{r.name}</option>
-                            ))}
-                          </select>
-                          <button type="button" onClick={() => { setShowCreateMasterRole(true); setShowCreateRole(false); }} className="px-2 py-2 rounded-lg border border-dashed border-emerald-300 text-emerald-600 hover:bg-emerald-50 text-xs font-medium flex items-center gap-1"><Plus className="h-3.5 w-3.5" /> Master</button>
-                        </div>
-                        <div className="flex gap-2">
-                          <input value={newRoleName} onChange={(e) => setNewRoleName(e.target.value)} placeholder="Role name (e.g. Store Manager)" className="flex-1 px-3 py-2 rounded-lg border border-emerald-200 focus:ring-2 focus:ring-emerald-500/20" />
-                          <button type="button" onClick={() => newRoleParentId && selectedOutletId && createRoleMutation.mutate({ name: newRoleName.trim(), parentRoleId: newRoleParentId, outletId: selectedOutletId })} disabled={!newRoleName.trim() || !newRoleParentId || createRoleMutation.isPending} className="px-4 py-2 bg-emerald-600 text-white rounded-lg font-medium hover:bg-emerald-700 disabled:opacity-50">{createRoleMutation.isPending ? 'Creating...' : 'Create'}</button>
-                          <button type="button" onClick={() => { setShowCreateRole(false); setNewRoleName(''); setNewRoleParentId(''); }} className="px-3 py-2 border border-gray-200 rounded-lg hover:bg-gray-100">Cancel</button>
+                </div>
+
+                <div>
+                  <label className="block text-sm font-medium text-gray-700 mb-1.5">Reports to <span className="font-normal text-gray-400">(optional)</span></label>
+                  <SearchableSelect
+                    value={form.watch('reportsToTarget') || ''}
+                    onChange={(v) => form.setValue('reportsToTarget', v, { shouldValidate: true })}
+                    options={reportsToSelectOptions}
+                    placeholder="Choose owner or staff…"
+                    searchPlaceholder="Search by name or role…"
+                    noOptionsText={
+                      ownerForReportsOption ? 'No matches' : 'Add the outlet owner account to pick them here'
+                    }
+                    emptyText="No matches"
+                    allowClear
+                  />
+                </div>
+
+                <div className="rounded-2xl border border-emerald-100 bg-gradient-to-b from-emerald-50/40 to-white p-4 space-y-3">
+                  <div className="flex flex-col gap-2 sm:flex-row sm:items-center sm:justify-between">
+                    <div>
+                      <label className="block text-sm font-semibold text-gray-800">Master role</label>
+                      <p className="text-xs text-gray-500">
+                        Pick the job type (e.g. CHEF, MANAGER). The server creates the outlet role automatically:
+                        <span className="font-medium text-gray-700"> Chef-1</span>, <span className="font-medium text-gray-700">Chef-2</span>, etc.
+                      </p>
+                    </div>
+                    <button
+                      type="button"
+                      onClick={() => {
+                        setShowCreateMasterRole(true);
+                      }}
+                      className="inline-flex items-center gap-1.5 px-3 py-2 rounded-xl border border-emerald-200/80 bg-white text-emerald-800 text-sm font-medium shadow-sm hover:bg-emerald-50 transition-colors shrink-0"
+                    >
+                      <Shield className="h-4 w-4" /> New master role
+                    </button>
+                  </div>
+                  <SearchableSelect
+                    value={form.watch('parentRoleId') || ''}
+                    onChange={(v) => form.setValue('parentRoleId', v, { shouldValidate: true })}
+                    options={parentRoleSelectOptions}
+                    placeholder="No role — assign later"
+                    searchPlaceholder="Search master roles…"
+                    noOptionsText="Create a master role first"
+                    emptyText="No matches"
+                    allowClear
+                  />
+
+                  {showCreateMasterRole && (
+                    <div className="mt-1 p-4 rounded-xl border border-emerald-200/80 bg-white shadow-sm space-y-3">
+                      <div className="flex items-center gap-2 text-sm font-semibold text-gray-800">
+                        <span className="flex h-8 w-8 items-center justify-center rounded-lg bg-emerald-100 text-emerald-700">
+                          <Shield className="h-4 w-4" />
+                        </span>
+                        Create master role
+                      </div>
+                      <div className="flex flex-col gap-2 sm:flex-row">
+                        <input
+                          value={newMasterRoleName}
+                          onChange={(e) => setNewMasterRoleName(e.target.value)}
+                          placeholder="e.g. MANAGER, CHEF"
+                          className="flex-1 px-3 py-2.5 rounded-xl border border-emerald-200 focus:ring-2 focus:ring-emerald-500/20"
+                        />
+                        <div className="flex gap-2 shrink-0">
+                          <button
+                            type="button"
+                            onClick={() => createParentRoleMutation.mutate(newMasterRoleName.trim())}
+                            disabled={!newMasterRoleName.trim() || createParentRoleMutation.isPending}
+                            className="px-4 py-2.5 bg-emerald-600 text-white rounded-xl font-medium hover:bg-emerald-700 disabled:opacity-50 whitespace-nowrap"
+                          >
+                            {createParentRoleMutation.isPending ? 'Creating…' : 'Create'}
+                          </button>
+                          <button
+                            type="button"
+                            onClick={() => {
+                              setShowCreateMasterRole(false);
+                              setNewMasterRoleName('');
+                            }}
+                            className="px-4 py-2.5 border border-gray-200 rounded-xl hover:bg-gray-50"
+                          >
+                            Cancel
+                          </button>
                         </div>
                       </div>
-                      {createRoleMutation.isError && <p className="text-red-600 text-xs mt-2">{getApiErrorMessage(createRoleMutation.error)}</p>}
+                      {createParentRoleMutation.isError && (
+                        <p className="text-red-600 text-xs">{getApiErrorMessage(createParentRoleMutation.error)}</p>
+                      )}
                     </div>
                   )}
                 </div>
-                <div className="flex gap-3 pt-2">
-                  <button type="submit" disabled={createMutation.isPending} className="flex-1 px-4 py-2.5 bg-emerald-600 text-white rounded-xl font-semibold hover:bg-emerald-700 disabled:opacity-50">
+
+                <div className="flex gap-3 pt-1">
+                  <button
+                    type="submit"
+                    disabled={createMutation.isPending}
+                    className="flex-1 px-4 py-2.5 bg-emerald-600 text-white rounded-xl font-semibold hover:bg-emerald-700 disabled:opacity-50"
+                  >
                     Create
                   </button>
-                  <button type="button" onClick={() => { setShowCreate(false); setShowCreateMasterRole(false); setShowCreateRole(false); }} className="px-4 py-2.5 border border-gray-200 rounded-xl font-medium hover:bg-gray-50">
+                  <button
+                    type="button"
+                    onClick={() => {
+                      setShowCreate(false);
+                      setShowCreateMasterRole(false);
+                      setShowCreateRole(false);
+                    }}
+                    className="px-4 py-2.5 border border-gray-200 rounded-xl font-medium hover:bg-gray-50"
+                  >
                     Cancel
                   </button>
                 </div>
@@ -439,10 +695,10 @@ export function StaffPage() {
                     data: {
                       ...d,
                       activeRoleId: d.activeRoleId || undefined,
-                      salary: d.salary ?? null,
-                      minHoursPerDay: d.minHoursPerDay ?? null,
-                      punchInTime: d.punchInTime || null,
-                      upiId: d.upiId?.trim() || null,
+                      salary: d.salary ?? undefined,
+                      minHoursPerDay: d.minHoursPerDay ?? undefined,
+                      punchInTime: d.punchInTime?.trim() || undefined,
+                      upiId: d.upiId?.trim() || undefined,
                     },
                   })
                 )}

@@ -17,10 +17,11 @@ export interface DashboardData {
 }
 
 export const managerApi = {
-  getDashboard: async (outletId?: string, shiftFilter?: string) => {
+  getDashboard: async (outletId?: string, shiftFilter?: string, search?: string) => {
     const params = new URLSearchParams();
     if (outletId) params.set('outletId', outletId);
     if (shiftFilter) params.set('shiftFilter', shiftFilter);
+    if (search?.trim()) params.set('search', search.trim());
     const { data } = await api.get<{ success: boolean; data: DashboardData }>(
       `/manager/dashboard?${params.toString()}`
     );

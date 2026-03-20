@@ -11,8 +11,13 @@ export interface Outlet {
 }
 
 export const ownerApi = {
-  getOutlets: async () => {
-    const { data } = await api.get<{ success: boolean; data: { outlets: Outlet[] } }>('/owner/outlets');
+  getOutlets: async (params?: { search?: string }) => {
+    const q = new URLSearchParams();
+    if (params?.search?.trim()) q.set('search', params.search.trim());
+    const qs = q.toString();
+    const { data } = await api.get<{ success: boolean; data: { outlets: Outlet[] } }>(
+      `/owner/outlets${qs ? `?${qs}` : ''}`
+    );
     return data.data.outlets;
   },
 

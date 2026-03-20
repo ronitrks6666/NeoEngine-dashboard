@@ -20,7 +20,7 @@ else
 fi
 
 # 2. Create .env with production backend URL
-echo "VITE_API_BASE_URL=https://neoman-backend.neuoptic.in/api" > .env
+echo "VITE_API_BASE_URL=https://neoengine-be.neuoptic.in/api" > .env
 echo "Created .env with production backend URL"
 
 # 3. Install & build

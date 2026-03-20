@@ -52,7 +52,6 @@ export function OwnerDashboardPage() {
     ? { checkedInToday: '—', workingNow: '—', pendingTasks: '—', totalEmployees: '—' }
     : null);
   const staffStatus = data?.staffStatus ?? [];
-  const lateStaff = staffStatus.filter((s) => s.isLate);
   const taskBreakdown = tasksData?.data ?? { pending: 0, done: 0, escalated: 0 };
   const punchDaily = punchesData?.data?.daily ?? [];
 
@@ -77,21 +76,6 @@ export function OwnerDashboardPage() {
 
       {selectedOutletId && summary && (
         <>
-          {lateStaff.length > 0 && (
-            <HighlightSection id="late-arrivals">
-            <div className="mb-6 p-4 bg-amber-50 border border-amber-200 rounded-2xl animate-slide-up">
-              <h3 className="font-semibold text-amber-800 mb-2">Late arrivals ({lateStaff.length})</h3>
-              <div className="flex flex-wrap gap-2">
-                {lateStaff.map((s) => (
-                  <span key={s.id} className="px-3 py-1 bg-amber-100 text-amber-800 rounded-lg text-sm">
-                    {s.name} ({s.role})
-                  </span>
-                ))}
-              </div>
-            </div>
-            </HighlightSection>
-          )}
-
           {/* Summary cards - no stagger so voice-highlight target is visible immediately */}
           <div className="grid grid-cols-2 lg:grid-cols-4 gap-4 mb-8">
             <HighlightSection id="checked-in">
@@ -161,12 +145,15 @@ export function OwnerDashboardPage() {
                       ? 'bg-emerald-50/50 border-emerald-200'
                       : s.status === 'break'
                         ? 'bg-amber-50/50 border-amber-200'
-                        : 'bg-gray-50 border-gray-200'
+                        : s.status === 'absent'
+                          ? 'bg-red-50/50 border-red-100'
+                          : 'bg-gray-50 border-gray-200'
                   }`}
                 >
                   <div className={`w-10 h-10 rounded-xl flex items-center justify-center font-bold text-sm ${
                     s.status === 'working' ? 'bg-emerald-100 text-emerald-700' :
-                    s.status === 'break' ? 'bg-amber-100 text-amber-700' : 'bg-gray-200 text-gray-600'
+                    s.status === 'break' ? 'bg-amber-100 text-amber-700' :
+                    s.status === 'absent' ? 'bg-red-100 text-red-700' : 'bg-gray-200 text-gray-600'
                   }`}>
                     {s.status === 'working' ? <Clock className="h-5 w-5" /> : s.status === 'break' ? <Coffee className="h-5 w-5" /> : (s.name ?? '?').charAt(0).toUpperCase()}
                   </div>
@@ -177,9 +164,10 @@ export function OwnerDashboardPage() {
                     </p>
                     <p className="text-sm text-gray-500">{s.role}</p>
                   </div>
-                  <span className={`px-2 py-0.5 rounded-lg text-xs font-medium shrink-0 ${
+                  <span className={`px-2 py-0.5 rounded-lg text-xs font-medium shrink-0 capitalize ${
                     s.status === 'working' ? 'bg-emerald-100 text-emerald-700' :
-                    s.status === 'break' ? 'bg-amber-100 text-amber-700' : 'bg-gray-200 text-gray-600'
+                    s.status === 'break' ? 'bg-amber-100 text-amber-700' :
+                    s.status === 'absent' ? 'bg-red-100 text-red-700' : 'bg-gray-200 text-gray-600'
                   }`}>
                     {s.status}
                   </span>
@@ -233,9 +221,9 @@ export function OwnerDashboardPage() {
                         layout="horizontal"
                         align="center"
                         verticalAlign="bottom"
-                        formatter={(value, entry) => (
+                        formatter={(_value, entry) => (
                           <span className="text-sm text-gray-700">
-                            {entry.payload?.name}: {entry.payload?.value}
+                            {(entry?.payload as { name?: string; value?: number })?.name}: {(entry?.payload as { name?: string; value?: number })?.value}
                           </span>
                         )}
                       />

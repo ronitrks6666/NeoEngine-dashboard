@@ -15,6 +15,53 @@ body {
   -moz-osx-font-smoothing: grayscale;
 }
 
+/* Thin, themed scrollbars (Firefox + WebKit) */
+* {
+  scrollbar-width: thin;
+  scrollbar-color: rgba(5, 150, 105, 0.35) transparent;
+}
+
+*::-webkit-scrollbar {
+  width: 6px;
+  height: 6px;
+}
+
+*::-webkit-scrollbar-track {
+  background: transparent;
+}
+
+*::-webkit-scrollbar-thumb {
+  background: linear-gradient(180deg, rgba(16, 185, 129, 0.45), rgba(5, 150, 105, 0.5));
+  border-radius: 9999px;
+  border: 2px solid transparent;
+  background-clip: padding-box;
+}
+
+*::-webkit-scrollbar-thumb:hover {
+  background: linear-gradient(180deg, rgba(5, 150, 105, 0.65), rgba(4, 120, 87, 0.7));
+  background-clip: padding-box;
+}
+
+*::-webkit-scrollbar-corner {
+  background: transparent;
+}
+
+/* Dark sidebar nav: lighter thumb on emerald rail */
+.sidebar-nav-scroll {
+  scrollbar-color: rgba(255, 255, 255, 0.28) transparent;
+}
+
+.sidebar-nav-scroll::-webkit-scrollbar-thumb {
+  background: rgba(255, 255, 255, 0.22);
+  border: 2px solid transparent;
+  background-clip: padding-box;
+}
+
+.sidebar-nav-scroll::-webkit-scrollbar-thumb:hover {
+  background: rgba(255, 255, 255, 0.38);
+  background-clip: padding-box;
+}
+
 @layer utilities {
   .animate-in {
     animation: animateIn 0.4s ease-out forwards;
@@ -148,5 +195,112 @@ body {
 
   50% {
     box-shadow: 0 0 0 4px rgba(5, 150, 105, 0.3);
+  }
+}
+
+/* CPU architecture — ambient hero / labels */
+.cpu-arch-svg-ambient .cpu-trace-ambient {
+  stroke: #0f766e;
+  stroke-opacity: 0.52;
+}
+
+.cpu-arch-svg-ambient .cpu-node-marker-ambient circle {
+  fill: rgba(236, 253, 245, 0.85);
+  stroke: rgba(5, 150, 105, 0.55);
+}
+
+.cpu-node-label {
+  fill: rgba(71, 85, 105, 0.52);
+  font-size: 4.55px;
+  font-weight: 500;
+  letter-spacing: 0.07em;
+  pointer-events: none;
+  user-select: none;
+  transition: fill 0.22s ease, font-weight 0.22s ease;
+}
+
+.cpu-node-label-hit {
+  cursor: default;
+  pointer-events: all;
+  transition: transform 0.28s cubic-bezier(0.34, 1.35, 0.64, 1);
+  transform-box: fill-box;
+  transform-origin: center;
+}
+
+.cpu-node-label-hit:hover {
+  transform: scale(1.09);
+}
+
+.cpu-node-label-hit:hover .cpu-node-label {
+  fill: #047857;
+  font-weight: 600;
+}
+
+.cpu-architecture {
+  offset-anchor: 10px 0px;
+  animation: animation-path;
+  animation-iteration-count: infinite;
+  animation-timing-function: cubic-bezier(0.75, -0.01, 0, 0.99);
+}
+
+.cpu-line-1 {
+  offset-path: path("M 10 20 h 79.5 q 5 0 5 5 v 30");
+  animation-duration: 5s;
+  animation-delay: 1s;
+}
+
+.cpu-line-2 {
+  offset-path: path("M 180 10 h -69.7 q -5 0 -5 5 v 40");
+  animation-delay: 6s;
+  animation-duration: 2s;
+}
+
+.cpu-line-3 {
+  offset-path: path("M 130 20 v 21.8 q 0 5 -5 5 h -25");
+  animation-delay: 4s;
+  animation-duration: 6s;
+}
+
+.cpu-line-4 {
+  offset-path: path("M 170 80 v -21.8 q 0 -5 -5 -5 h -65");
+  animation-delay: 3s;
+  animation-duration: 3s;
+}
+
+.cpu-line-5 {
+  offset-path: path(
+    "M 135 65 h 15 q 5 0 5 5 v 10 q 0 5 -5 5 h -39.8 q -5 0 -5 -5 v -35"
+  );
+  animation-delay: 9s;
+  animation-duration: 4s;
+}
+
+.cpu-line-6 {
+  offset-path: path("M 94.8 95 v -46");
+  animation-delay: 3s;
+  animation-duration: 7s;
+}
+
+.cpu-line-7 {
+  offset-path: path(
+    "M 88 88 v -15 q 0 -5 -5 -5 h -10 q -5 0 -5 -5 v -5 q 0 -5 5 -5 h 28"
+  );
+  animation-delay: 4s;
+  animation-duration: 4s;
+}
+
+.cpu-line-8 {
+  offset-path: path("M 30 30 h 25 q 5 0 5 5 v 6.5 q 0 5 5 5 h 35");
+  animation-delay: 3s;
+  animation-duration: 3s;
+}
+
+@keyframes animation-path {
+  0% {
+    offset-distance: 0%;
+  }
+
+  100% {
+    offset-distance: 100%;
   }
 }

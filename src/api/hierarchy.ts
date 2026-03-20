@@ -6,7 +6,16 @@ export const hierarchyApi = {
     return data;
   },
 
-  addNode: async (outletId: string, payload: { parentNodeId?: string; nodeType: 'employee' | 'role'; employeeId?: string; parentRoleId?: string }) => {
+  addNode: async (
+    outletId: string,
+    payload: {
+      parentNodeId?: string;
+      nodeType: 'employee' | 'role' | 'active_role';
+      employeeId?: string;
+      parentRoleId?: string;
+      activeRoleId?: string;
+    }
+  ) => {
     const { data } = await api.post(`/hierarchy/${outletId}/nodes`, payload);
     return data;
   },

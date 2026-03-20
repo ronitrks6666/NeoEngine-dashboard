@@ -30,7 +30,7 @@ export function OutletSelector({ className = '' }: OutletSelectorProps) {
         <button
           type="button"
           onClick={() => setOpen((o) => !o)}
-          className="flex items-center gap-2 min-w-[180px] px-4 py-2.5 rounded-xl border border-emerald-200 bg-white text-emerald-800 font-medium text-sm hover:border-emerald-300 hover:bg-emerald-50/50 focus:outline-none focus:ring-2 focus:ring-emerald-500/20 focus:border-emerald-500 transition-all duration-200 shadow-sm"
+          className="flex h-10 min-w-[180px] items-center gap-2 rounded-xl border border-emerald-200 bg-white px-4 text-sm font-medium text-emerald-800 shadow-sm transition-all duration-200 hover:border-emerald-300 hover:bg-emerald-50/50 focus:border-emerald-500 focus:outline-none focus:ring-2 focus:ring-emerald-500/20"
         >
           <Store className="h-4 w-4 text-emerald-600 shrink-0" />
           <span className="truncate flex-1 text-left">{outlets[0].name}</span>
@@ -77,7 +77,7 @@ export function OutletSelector({ className = '' }: OutletSelectorProps) {
       <button
         type="button"
         onClick={() => setOpen((o) => !o)}
-        className="flex items-center gap-2 min-w-[180px] px-4 py-2.5 rounded-xl border border-emerald-200 bg-white text-emerald-800 font-medium text-sm hover:border-emerald-300 hover:bg-emerald-50/50 focus:outline-none focus:ring-2 focus:ring-emerald-500/20 focus:border-emerald-500 transition-all duration-200 shadow-sm"
+        className="flex h-10 min-w-[180px] items-center gap-2 rounded-xl border border-emerald-200 bg-white px-4 text-sm font-medium text-emerald-800 shadow-sm transition-all duration-200 hover:border-emerald-300 hover:bg-emerald-50/50 focus:border-emerald-500 focus:outline-none focus:ring-2 focus:ring-emerald-500/20"
       >
         <Store className="h-4 w-4 text-emerald-600 shrink-0" />
         <span className="truncate flex-1 text-left">{selectedOutlet?.name ?? 'Select outlet'}</span>

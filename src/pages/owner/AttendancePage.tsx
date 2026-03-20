@@ -5,9 +5,13 @@ import { managerApi } from '@/api/manager';
 import { punchApi } from '@/api/punch';
 import { activityApi } from '@/api/activity';
 import { getApiErrorMessage } from '@/api/auth';
+import { ListSearchBar } from '@/components/ListSearchBar';
+import { useDebouncedValue } from '@/hooks/useDebouncedValue';
 
 export function AttendancePage() {
   const { selectedOutletId } = useOutletStore();
+  const [attendanceSearch, setAttendanceSearch] = useState('');
+  const debouncedAttendanceSearch = useDebouncedValue(attendanceSearch, 350);
   const [punchEmployee, setPunchEmployee] = useState<{ id: string; name: string } | null>(null);
   const [punchAction, setPunchAction] = useState<'in' | 'out' | 'break_start' | 'break_end' | null>(null);
   const queryClient = useQueryClient();
@@ -15,18 +19,20 @@ export function AttendancePage() {
   const today = new Date().toISOString().slice(0, 10);
 
   const { data: dashboardData } = useQuery({
-    queryKey: ['manager-dashboard', selectedOutletId],
-    queryFn: () => managerApi.getDashboard(selectedOutletId ?? undefined),
+    queryKey: ['manager-dashboard', selectedOutletId, debouncedAttendanceSearch],
+    queryFn: () =>
+      managerApi.getDashboard(selectedOutletId ?? undefined, undefined, debouncedAttendanceSearch.trim() || undefined),
     enabled: !!selectedOutletId,
   });
 
   const { data: attendanceData } = useQuery({
-    queryKey: ['attendance', selectedOutletId, today],
+    queryKey: ['attendance', selectedOutletId, today, debouncedAttendanceSearch],
     queryFn: () =>
       activityApi.getAttendance(selectedOutletId!, {
         startDate: today,
         endDate: today,
         limit: 100,
+        search: debouncedAttendanceSearch.trim() || undefined,
       }),
     enabled: !!selectedOutletId,
   });
@@ -55,11 +61,21 @@ export function AttendancePage() {
   }
 
   return (
-    <div className="p-6">
-      <h1 className="text-2xl font-bold text-gray-900 mb-6">Attendance</h1>
+    <div className="p-6 max-w-5xl mx-auto">
+      <div className="flex flex-col sm:flex-row sm:items-end sm:justify-between gap-4 mb-6">
+        <h1 className="text-2xl font-bold text-gray-900">Attendance</h1>
+        <ListSearchBar
+          value={attendanceSearch}
+          onChange={setAttendanceSearch}
+          placeholder="Filter by staff name or phone"
+          className="sm:max-w-md w-full"
+          id="attendance-search"
+          aria-label="Search attendance and punch list"
+        />
+      </div>
 
-      <div className="mb-6">
-        <h2 className="text-lg font-semibold mb-3">Punch for staff</h2>
+      <div className="mb-8">
+        <h2 className="text-lg font-semibold mb-3 text-gray-800">Punch for staff</h2>
         <div className="flex flex-wrap gap-2">
           {staffStatus.map((s) => (
             <div key={s.id} className="flex items-center gap-2 bg-white border rounded-lg p-3">
@@ -93,11 +109,16 @@ export function AttendancePage() {
             </div>
           ))}
         </div>
+        {staffStatus.length === 0 && (
+          <p className="text-sm text-gray-500">
+            {debouncedAttendanceSearch.trim() ? 'No staff match your search.' : 'No staff for this outlet.'}
+          </p>
+        )}
         {punchMutation.isError && <p className="mt-2 text-red-600 text-sm">{getApiErrorMessage(punchMutation.error)}</p>}
       </div>
 
       <div>
-        <h2 className="text-lg font-semibold mb-3">Today&apos;s activity</h2>
+        <h2 className="text-lg font-semibold mb-3 text-gray-800">Today&apos;s activity</h2>
         <div className="flex gap-2 mb-2">
           <button
             onClick={() => {
@@ -146,7 +167,9 @@ export function AttendancePage() {
             </table>
           </div>
         ) : (
-          <p className="text-gray-500">No activity today</p>
+          <p className="text-gray-500">
+            {debouncedAttendanceSearch.trim() ? 'No punch activity matches your search for today.' : 'No activity today'}
+          </p>
         )}
       </div>
     </div>

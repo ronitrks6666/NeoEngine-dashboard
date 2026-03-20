@@ -9,6 +9,8 @@ import { taskApi } from '@/api/task';
 import { employeeApi } from '@/api/employee';
 import { getApiErrorMessage } from '@/api/auth';
 import { LoadingSpinner } from '@/components/LoadingSpinner';
+import { ListSearchBar } from '@/components/ListSearchBar';
+import { useDebouncedValue } from '@/hooks/useDebouncedValue';
 import { VoiceInputButton } from '@/components/VoiceInputButton';
 import {
   CheckSquare,
@@ -72,12 +74,18 @@ export function TasksPage() {
   const [uploadingImage, setUploadingImage] = useState(false);
   const [voiceProcessing, setVoiceProcessing] = useState(false);
   const [voiceError, setVoiceError] = useState<string | null>(null);
+  const [templateSearch, setTemplateSearch] = useState('');
+  const debouncedTemplateSearch = useDebouncedValue(templateSearch, 350);
   const fileInputRef = useRef<HTMLInputElement>(null);
   const queryClient = useQueryClient();
 
   const { data, isLoading } = useQuery({
-    queryKey: ['task-templates', selectedOutletId],
-    queryFn: () => taskApi.getTemplates(selectedOutletId!, { limit: 100 }),
+    queryKey: ['task-templates', selectedOutletId, debouncedTemplateSearch],
+    queryFn: () =>
+      taskApi.getTemplates(selectedOutletId!, {
+        limit: 100,
+        search: debouncedTemplateSearch.trim() || undefined,
+      }),
     enabled: !!selectedOutletId,
   });
 
@@ -93,11 +101,12 @@ export function TasksPage() {
   });
 
   const createRoleMutation = useMutation({
-    mutationFn: (name: string) => employeeApi.createParentRole(name),
+    mutationFn: (name: string) => employeeApi.createParentRole(name, selectedOutletId ?? undefined),
     onSuccess: (res) => {
       const newRole = res?.data?.parentRole;
       if (newRole) {
         queryClient.invalidateQueries({ queryKey: ['parent-roles'] });
+        queryClient.invalidateQueries({ queryKey: ['hierarchy'] });
         form.setValue('parentRoleId', newRole._id);
         setShowCreateRole(false);
         setNewRoleName('');
@@ -107,30 +116,9 @@ export function TasksPage() {
 
   const createMutation = useMutation({
     mutationFn: (payload: Parameters<typeof taskApi.createTemplate>[0]) => taskApi.createTemplate(payload),
-    onSuccess: (res, payload) => {
-      const newTemplate = res?.data?.template;
-      if (newTemplate && selectedOutletId) {
-          const roleId = payload.parentRoleId || payload.assignToRoleId || (newTemplate.parentRoleId?._id ?? newTemplate.parentRoleId);
-        const role = parentRoles.find((r: { _id: string }) => r._id === roleId);
-        const templateForCache = role
-          ? { ...newTemplate, parentRoleId: { _id: role._id, name: role.name } }
-          : newTemplate;
-        queryClient.setQueryData(
-          ['task-templates', selectedOutletId],
-          (prev: { data?: { templates?: unknown[]; pagination?: unknown } } | undefined) => {
-            if (!prev?.data?.templates) return prev;
-            return {
-              ...prev,
-              data: {
-                ...prev.data,
-                templates: [templateForCache, ...prev.data.templates],
-                pagination: prev.data.pagination
-                  ? { ...prev.data.pagination, total: ((prev.data.pagination as { total?: number }).total ?? 0) + 1 }
-                  : undefined,
-              },
-            };
-          }
-        );
+    onSuccess: () => {
+      if (selectedOutletId) {
+        queryClient.invalidateQueries({ queryKey: ['task-templates', selectedOutletId] });
       }
       setShowCreate(false);
       form.reset(defaultFormValues);
@@ -146,30 +134,9 @@ export function TasksPage() {
         assignToType: 'role',
         timeLimitMinutes: data.timeLimitMinutes ? parseInt(String(data.timeLimitMinutes), 10) : undefined,
       }),
-    onSuccess: (res) => {
-      const updatedTemplate = res?.data?.template;
-      if (updatedTemplate && selectedOutletId) {
-        queryClient.setQueryData(
-          ['task-templates', selectedOutletId],
-          (prev: { data?: { templates?: { _id: string; parentRoleId?: { _id?: string; name?: string } }[]; pagination?: unknown } } | undefined) => {
-            if (!prev?.data?.templates) return prev;
-            const roleId = updatedTemplate.parentRoleId?._id ?? updatedTemplate.parentRoleId;
-            const role = parentRoles.find((r: { _id: string }) => r._id === roleId);
-            const merged = {
-              ...updatedTemplate,
-              parentRoleId: role ? { _id: role._id, name: role.name } : updatedTemplate.parentRoleId,
-            };
-            return {
-              ...prev,
-              data: {
-                ...prev.data,
-                templates: prev.data.templates.map((t) =>
-                  t._id === updatedTemplate._id ? { ...t, ...merged } : t
-                ),
-              },
-            };
-          }
-        );
+    onSuccess: () => {
+      if (selectedOutletId) {
+        queryClient.invalidateQueries({ queryKey: ['task-templates', selectedOutletId] });
       }
       setEditing(null);
       editForm.reset();
@@ -178,24 +145,9 @@ export function TasksPage() {
 
   const deleteMutation = useMutation({
     mutationFn: (id: string) => taskApi.deleteTemplate(id),
-    onSuccess: (_res, deletedId) => {
+    onSuccess: () => {
       if (selectedOutletId) {
-        queryClient.setQueryData(
-          ['task-templates', selectedOutletId],
-          (prev: { data?: { templates?: { _id: string }[]; pagination?: unknown } } | undefined) => {
-            if (!prev?.data?.templates) return prev;
-            return {
-              ...prev,
-              data: {
-                ...prev.data,
-                templates: prev.data.templates.filter((t) => t._id !== deletedId),
-                pagination: prev.data.pagination
-                  ? { ...prev.data.pagination, total: Math.max(0, ((prev.data.pagination as { total?: number }).total ?? 1) - 1) }
-                  : undefined,
-              },
-            };
-          }
-        );
+        queryClient.invalidateQueries({ queryKey: ['task-templates', selectedOutletId] });
       }
       setConfirmDelete(null);
     },
@@ -343,21 +295,31 @@ export function TasksPage() {
 
   return (
     <div className="p-6 max-w-6xl mx-auto animate-fade-in">
-      <div className="flex flex-col sm:flex-row sm:items-center sm:justify-between gap-4 mb-8">
-        <div>
-          <h1 className="text-2xl font-bold text-gray-900">Task templates</h1>
-          <p className="text-gray-500 mt-0.5">Define tasks for your staff</p>
+      <div className="flex flex-col gap-4 mb-8">
+        <div className="flex flex-col sm:flex-row sm:items-center sm:justify-between gap-4">
+          <div>
+            <h1 className="text-2xl font-bold text-gray-900">Task templates</h1>
+            <p className="text-gray-500 mt-0.5">Define tasks for your staff</p>
+          </div>
+          <button
+            onClick={() => {
+              form.reset({ ...defaultFormValues, outletId: selectedOutletId || outlets[0]?._id || '' });
+              setVoiceError(null);
+              setShowCreate(true);
+            }}
+            className="px-5 py-2.5 bg-gradient-to-r from-emerald-600 to-emerald-700 text-white rounded-xl font-semibold hover:from-emerald-700 hover:to-emerald-800 transition-all shadow-emerald flex items-center gap-2 w-fit shrink-0"
+          >
+            <ListTodo className="h-5 w-5" /> Create task
+          </button>
         </div>
-        <button
-          onClick={() => {
-            form.reset({ ...defaultFormValues, outletId: selectedOutletId || outlets[0]?._id || '' });
-            setVoiceError(null);
-            setShowCreate(true);
-          }}
-          className="px-5 py-2.5 bg-gradient-to-r from-emerald-600 to-emerald-700 text-white rounded-xl font-semibold hover:from-emerald-700 hover:to-emerald-800 transition-all shadow-emerald flex items-center gap-2 w-fit"
-        >
-          <ListTodo className="h-5 w-5" /> Create task
-        </button>
+        <ListSearchBar
+          value={templateSearch}
+          onChange={setTemplateSearch}
+          placeholder="Search templates by title or description"
+          className="max-w-xl"
+          id="tasks-search"
+          aria-label="Search task templates"
+        />
       </div>
 
       {isLoading ? (
@@ -391,8 +353,14 @@ export function TasksPage() {
           <div className="w-16 h-16 rounded-2xl bg-emerald-100 flex items-center justify-center mx-auto mb-4">
             <CheckSquare className="h-8 w-8 text-emerald-500" />
           </div>
-          <p className="text-gray-500">No task templates yet</p>
-          <button onClick={() => setShowCreate(true)} className="mt-4 text-emerald-600 hover:text-emerald-700 font-medium">Create your first task</button>
+          <p className="text-gray-500">
+            {debouncedTemplateSearch.trim() ? 'No templates match your search.' : 'No task templates yet'}
+          </p>
+          {!debouncedTemplateSearch.trim() && (
+            <button onClick={() => setShowCreate(true)} className="mt-4 text-emerald-600 hover:text-emerald-700 font-medium">
+              Create your first task
+            </button>
+          )}
         </div>
       )}
 
@@ -433,9 +401,9 @@ export function TasksPage() {
                         setVoiceError(null);
                         setVoiceProcessing(true);
                         try {
-                          const { transcript, task } = await taskApi.voiceToTask(blob, outletId);
-                          if (task.title) form.setValue('title', task.title);
-                          if (task.description) form.setValue('description', task.description);
+                          const { task } = await taskApi.voiceToTask(blob, outletId);
+                          if (typeof task.title === 'string') form.setValue('title', task.title);
+                          if (typeof task.description === 'string') form.setValue('description', task.description);
                           if (task.taskType) form.setValue('taskType', task.taskType as 'daily' | 'onetime' | 'specific-days');
                           if (task.specificDate) form.setValue('specificDate', task.specificDate as string);
                           if (Array.isArray(task.specificDays)) form.setValue('specificDays', task.specificDays);
@@ -443,8 +411,10 @@ export function TasksPage() {
                           if (task.intervalMinutes != null) form.setValue('intervalMinutes', String(task.intervalMinutes));
                           if (task.shiftType) form.setValue('shiftType', task.shiftType as 'Day' | 'Night' | 'Both');
                           if (task.assignToType) form.setValue('assignToType', task.assignToType as 'role' | 'staff');
-                          if (task.parentRoleId) form.setValue('parentRoleId', task.parentRoleId as string);
-                          if (task.assignToEmployeeId) form.setValue('assignToEmployeeId', task.assignToEmployeeId as string);
+                          const pr = task.parentRoleId;
+                          if (typeof pr === 'string') form.setValue('parentRoleId', pr);
+                          const ae = task.assignToEmployeeId;
+                          if (typeof ae === 'string') form.setValue('assignToEmployeeId', ae);
                           if (task.startTime) form.setValue('startTime', task.startTime as string);
                           if (task.timeLimitMinutes != null) form.setValue('timeLimitMinutes', String(task.timeLimitMinutes));
                         } catch (err) {

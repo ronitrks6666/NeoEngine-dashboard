@@ -8,6 +8,8 @@ export interface Employee {
   activeRoleId?: { _id: string; name: string } | string;
   shiftType?: string;
   isActive?: boolean;
+  reportsToEmployeeId?: { name?: string } | string | null;
+  reportsToOwnerId?: { name?: string } | string | null;
 }
 
 export const employeeApi = {
@@ -27,7 +29,19 @@ export const employeeApi = {
     return data;
   },
 
-  create: async (payload: { name: string; phone: string; tempPassword: string; outletId: string; activeRoleId?: string; shiftType?: string }) => {
+  create: async (payload: {
+    name: string;
+    phone: string;
+    tempPassword: string;
+    outletId: string;
+    /** Pick existing outlet role (legacy / integrations) */
+    activeRoleId?: string;
+    /** Master role only — backend creates Chef-1, Chef-2, … under this outlet */
+    parentRoleId?: string;
+    shiftType?: string;
+    reportsToEmployeeId?: string;
+    reportsToOwnerId?: string;
+  }) => {
     const { data } = await api.post('/employee/create', payload);
     return data;
   },
@@ -42,6 +56,8 @@ export const employeeApi = {
     minHoursPerDay?: number | null;
     punchInTime?: string | null;
     upiId?: string | null;
+    reportsToEmployeeId?: string | null;
+    reportsToOwnerId?: string | null;
   }>) => {
     const { data } = await api.put(`/employee/staff/${employeeId}`, payload);
     return data;
@@ -62,8 +78,11 @@ export const employeeApi = {
     return data;
   },
 
-  createParentRole: async (name: string) => {
-    const { data } = await api.post('/employee/create-parent-role', { name });
+  createParentRole: async (name: string, outletId?: string) => {
+    const { data } = await api.post('/employee/create-parent-role', {
+      name,
+      ...(outletId ? { outletId } : {}),
+    });
     return data;
   },
 

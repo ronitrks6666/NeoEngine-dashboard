@@ -1,4 +1,5 @@
 import { useEffect, useState, useRef } from 'react';
+import { createPortal } from 'react-dom';
 import { Link, useNavigate, useLocation } from 'react-router-dom';
 import { useAuth } from '@/hooks/useAuth';
 import { useOutletStore } from '@/stores/outletStore';
@@ -25,6 +26,7 @@ import {
 } from 'lucide-react';
 import { NeoEngineLogo } from '@/components/NeoEngineLogo';
 import { DashboardVoiceButton } from '@/components/DashboardVoiceButton';
+import { SiteSearchTypeahead } from '@/components/SiteSearchTypeahead';
 import { useHighlightSection } from '@/hooks/useHighlightSection';
 import type { LucideIcon } from 'lucide-react';
 
@@ -55,16 +57,51 @@ const ownerNav: { to: string; label: string; icon: LucideIcon }[] = [
   { to: '/owner/reports', label: 'Reports', icon: FileText },
 ];
 
+type SidebarFlyout =
+  | { type: 'nav'; label: string; left: number; top: number }
+  | { type: 'expand'; left: number; top: number }
+  | null;
+
+function SidebarFlyoutLayer({ flyout }: { flyout: SidebarFlyout }) {
+  if (typeof document === 'undefined' || !flyout) return null;
+
+  const label = flyout.type === 'expand' ? 'Expand menu' : flyout.label;
+
+  return createPortal(
+    <div
+      className="pointer-events-none fixed z-[9999] animate-fade-in"
+      style={{
+        left: flyout.left,
+        top: flyout.top,
+        transform: 'translateY(-50%)',
+      }}
+      role="tooltip"
+    >
+      <div className="relative flex items-center">
+        <span
+          className="absolute right-full top-1/2 mr-[-1px] h-0 w-0 -translate-y-1/2 border-y-[7px] border-r-[8px] border-y-transparent border-r-white drop-shadow-sm"
+          aria-hidden
+        />
+        <span className="rounded-lg bg-white px-3 py-2 text-sm font-semibold tracking-tight text-emerald-900 shadow-lg shadow-emerald-950/25 ring-1 ring-emerald-100">
+          {label}
+        </span>
+      </div>
+    </div>,
+    document.body
+  );
+}
+
 export function AppLayout({ children, role }: AppLayoutProps) {
   const { user, logout } = useAuth();
   const { selectedOutletId, setOutlets, clear } = useOutletStore();
   const [sidebarCollapsed, setSidebarCollapsed] = useState(false);
   const [profileOpen, setProfileOpen] = useState(false);
+  const [sidebarFlyout, setSidebarFlyout] = useState<SidebarFlyout>(null);
   const profileRef = useRef<HTMLDivElement>(null);
 
   const { data: ownerOutlets } = useQuery({
     queryKey: ['owner-outlets'],
-    queryFn: ownerApi.getOutlets,
+    queryFn: () => ownerApi.getOutlets(),
     enabled: role === 'OWNER',
   });
 
@@ -94,38 +131,80 @@ export function AppLayout({ children, role }: AppLayoutProps) {
     return () => document.removeEventListener('mousedown', handleClickOutside);
   }, []);
 
+  useEffect(() => {
+    if (!sidebarCollapsed) setSidebarFlyout(null);
+  }, [sidebarCollapsed]);
+
   const navItems = role === 'SUPER_ADMIN' ? superAdminNav : ownerNav;
   const basePath = role === 'SUPER_ADMIN' ? '/super-admin' : '/owner';
   const sidebarWidth = sidebarCollapsed ? 72 : 256;
+  const dashboardPath = `${basePath}/dashboard`;
+
+  const showNavFlyout = (el: HTMLElement, label: string) => {
+    const r = el.getBoundingClientRect();
+    setSidebarFlyout({ type: 'nav', label, left: r.right + 10, top: r.top + r.height / 2 });
+  };
+
+  const showExpandFlyout = (el: HTMLElement) => {
+    const r = el.getBoundingClientRect();
+    setSidebarFlyout({ type: 'expand', left: r.right + 10, top: r.top + r.height / 2 });
+  };
 
   return (
     <div className="flex min-h-screen bg-emerald-50/40">
+      <SidebarFlyoutLayer flyout={sidebarCollapsed ? sidebarFlyout : null} />
       <aside
-        className="fixed left-0 top-0 z-40 h-screen flex flex-col bg-gradient-to-b from-emerald-800 to-emerald-900 shadow-emerald-lg transition-all duration-300 ease-in-out overflow-hidden"
+        className="fixed left-0 top-0 z-40 flex h-screen flex-col overflow-x-visible overflow-y-hidden bg-gradient-to-b from-emerald-800 to-emerald-900 shadow-emerald-lg transition-[width] duration-300 ease-in-out"
         style={{ width: sidebarWidth }}
       >
-        <div className={`flex-shrink-0 flex items-center border-b border-emerald-700/50 min-h-[56px] transition-all duration-300 ${
-          sidebarCollapsed ? 'justify-center' : 'justify-between px-2'
-        }`}>
-          {!sidebarCollapsed && (
-            <Link to={`${basePath}/dashboard`} className="font-bold text-white text-xl truncate flex-1 min-w-0 flex items-center gap-2">
-              <NeoEngineLogo size={28} className="shrink-0" />
-              NeoEngine
-            </Link>
+        <button
+          type="button"
+          onClick={() => setSidebarCollapsed((c) => !c)}
+          onMouseEnter={(e) => {
+            if (sidebarCollapsed) showExpandFlyout(e.currentTarget);
+          }}
+          onMouseLeave={() => setSidebarFlyout(null)}
+          onFocus={(e) => {
+            if (sidebarCollapsed) showExpandFlyout(e.currentTarget);
+          }}
+          onBlur={() => setSidebarFlyout(null)}
+          aria-label={sidebarCollapsed ? 'Expand sidebar' : 'Collapse sidebar'}
+          className="fixed top-1/2 z-[45] flex h-9 w-9 -translate-y-1/2 items-center justify-center rounded-r-xl border border-emerald-200/90 border-l-0 bg-white text-emerald-700 shadow-md shadow-emerald-900/15 transition-[left,box-shadow] duration-300 ease-in-out hover:bg-emerald-50 hover:shadow-lg hover:shadow-emerald-900/12"
+          style={{ left: sidebarWidth }}
+        >
+          {sidebarCollapsed ? (
+            <ChevronRight className="h-5 w-5 shrink-0" />
+          ) : (
+            <ChevronLeft className="h-5 w-5 shrink-0" />
           )}
-          <button
-            onClick={() => setSidebarCollapsed((c) => !c)}
-            className="flex-shrink-0 p-2 rounded-lg text-emerald-200 hover:bg-emerald-700/50 hover:text-white transition-colors"
-            aria-label={sidebarCollapsed ? 'Expand sidebar' : 'Collapse sidebar'}
+        </button>
+
+        <nav className="sidebar-nav-scroll flex min-h-0 flex-1 flex-col space-y-0.5 overflow-y-auto overflow-x-visible p-2">
+          <Link
+            to={dashboardPath}
+            onMouseEnter={(e) => {
+              if (sidebarCollapsed) showNavFlyout(e.currentTarget, 'NeoEngine');
+            }}
+            onMouseLeave={() => setSidebarFlyout(null)}
+            onFocus={(e) => {
+              if (sidebarCollapsed) showNavFlyout(e.currentTarget, 'NeoEngine');
+            }}
+            onBlur={() => setSidebarFlyout(null)}
+            className={
+              sidebarCollapsed
+                ? 'relative inline-flex shrink-0 items-center justify-center self-center rounded-lg px-2 py-3 text-emerald-100 transition-colors duration-200 hover:bg-emerald-700/50 hover:text-white'
+                : 'relative flex w-full items-center gap-3 rounded-lg px-3 py-2.5 text-sm font-medium text-emerald-100 transition-colors duration-200 hover:bg-emerald-700/50 hover:text-white'
+            }
+            aria-label="NeoEngine home"
           >
-            {sidebarCollapsed ? (
-              <ChevronRight className="h-5 w-5" />
-            ) : (
-              <ChevronLeft className="h-5 w-5" />
+            {/* Same size in both states — avoids flicker during drawer width transition */}
+            <NeoEngineLogo size={28} className="shrink-0" />
+            {!sidebarCollapsed && (
+              <span className="truncate text-lg font-bold">NeoEngine</span>
             )}
-          </button>
-        </div>
-        <nav className="flex-1 min-h-0 overflow-y-auto overflow-x-hidden p-2 space-y-0.5">
+          </Link>
+          <div className="mx-1 mb-0.5 shrink-0 border-b border-emerald-700/50" aria-hidden />
+
           {navItems.map((item) => {
             const isActive = location.pathname === item.to;
             const Icon = item.icon;
@@ -133,21 +212,24 @@ export function AppLayout({ children, role }: AppLayoutProps) {
               <Link
                 key={item.to}
                 to={item.to}
-                title={sidebarCollapsed ? item.label : undefined}
-                className={`flex items-center gap-3 rounded-lg text-sm font-medium transition-all duration-200 ${
-                  sidebarCollapsed ? 'justify-center px-2 py-3' : 'px-3 py-2.5'
+                onMouseEnter={(e) => {
+                  if (sidebarCollapsed) showNavFlyout(e.currentTarget, item.label);
+                }}
+                onMouseLeave={() => setSidebarFlyout(null)}
+                onFocus={(e) => {
+                  if (sidebarCollapsed) showNavFlyout(e.currentTarget, item.label);
+                }}
+                onBlur={() => setSidebarFlyout(null)}
+                className={`relative flex items-center rounded-lg text-sm font-medium transition-colors duration-200 ${
+                  sidebarCollapsed
+                    ? 'justify-center gap-0 px-2 py-3'
+                    : 'gap-3 px-3 py-2.5'
                 } ${
                   isActive ? 'bg-emerald-500/30 text-white' : 'text-emerald-100 hover:bg-emerald-700/50 hover:text-white'
                 }`}
               >
-                <Icon className="h-5 w-5 flex-shrink-0" />
-                <span
-                  className={`whitespace-nowrap transition-all duration-300 ${
-                    sidebarCollapsed ? 'w-0 opacity-0 overflow-hidden' : 'opacity-100'
-                  }`}
-                >
-                  {item.label}
-                </span>
+                <Icon className="h-5 w-5 shrink-0" />
+                {!sidebarCollapsed && <span className="whitespace-nowrap">{item.label}</span>}
               </Link>
             );
           })}
@@ -157,10 +239,10 @@ export function AppLayout({ children, role }: AppLayoutProps) {
         className="flex-1 min-h-screen overflow-auto transition-all duration-300 ease-in-out"
         style={{ marginLeft: sidebarWidth }}
       >
-        <header className="sticky top-0 z-30 bg-white/90 backdrop-blur-md border-b border-emerald-100 px-4 sm:px-6 py-3 flex items-center justify-between gap-4 shadow-sm">
+        <header className="sticky top-0 z-30 min-h-[3.5rem] shrink-0 bg-white/90 backdrop-blur-md border-b border-emerald-100 px-4 sm:px-6 py-2 flex flex-wrap items-center justify-between gap-3 sm:gap-4 shadow-sm">
           {role === 'OWNER' && (
-            <div className="flex items-center gap-4">
-              <span className="text-sm font-medium text-emerald-800">Outlet:</span>
+            <div className="flex min-h-0 flex-1 flex-wrap items-center gap-3 sm:gap-4 min-w-0">
+              <span className="shrink-0 text-sm font-medium leading-none text-emerald-800">Outlet:</span>
               <OutletSelector />
               <DashboardVoiceButton
                 outletId={selectedOutletId}
@@ -178,10 +260,18 @@ export function AppLayout({ children, role }: AppLayoutProps) {
                   window.alert(err || 'Voice processing failed. Try: "Show staff", "Create a task to...", etc.');
                 }}
               />
+              <SiteSearchTypeahead
+                role="OWNER"
+                className="w-full basis-full sm:basis-auto sm:ml-auto sm:max-w-xs md:max-w-sm lg:max-w-md"
+              />
             </div>
           )}
-          {role === 'SUPER_ADMIN' && <div />}
-          <div className="relative ml-auto" ref={profileRef}>
+          {role === 'SUPER_ADMIN' && (
+            <div className="flex min-w-0 flex-1 items-center justify-start px-0 sm:px-2">
+              <SiteSearchTypeahead role="SUPER_ADMIN" className="w-full max-w-md" />
+            </div>
+          )}
+          <div className="relative ml-auto shrink-0" ref={profileRef}>
             <button
               onClick={() => setProfileOpen((o) => !o)}
               className="flex items-center gap-2 p-2 rounded-full hover:bg-emerald-50 transition-colors"

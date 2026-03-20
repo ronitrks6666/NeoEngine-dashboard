@@ -5,15 +5,23 @@ import { managerApi } from '@/api/manager';
 import { taskApi } from '@/api/task';
 import { getApiErrorMessage } from '@/api/auth';
 import { LoadingSpinner } from '@/components/LoadingSpinner';
+import { ListSearchBar } from '@/components/ListSearchBar';
+import { useDebouncedValue } from '@/hooks/useDebouncedValue';
 
 export function BriefingPoolPage() {
   const { selectedOutletId } = useOutletStore();
   const [expandedId, setExpandedId] = useState<string | null>(null);
+  const [poolSearch, setPoolSearch] = useState('');
+  const debouncedPoolSearch = useDebouncedValue(poolSearch, 350);
   const queryClient = useQueryClient();
 
   const { data, isLoading } = useQuery({
-    queryKey: ['briefing-pool', selectedOutletId],
-    queryFn: () => managerApi.getBriefingPool(selectedOutletId!, { limit: 50 }),
+    queryKey: ['briefing-pool', selectedOutletId, debouncedPoolSearch],
+    queryFn: () =>
+      managerApi.getBriefingPool(selectedOutletId!, {
+        limit: 50,
+        search: debouncedPoolSearch.trim() || undefined,
+      }),
     enabled: !!selectedOutletId,
   });
 
@@ -25,8 +33,7 @@ export function BriefingPoolPage() {
 
   const completeMutation = useMutation({
     mutationFn: (taskId: string) => taskApi.completeOnBehalf(taskId),
-    onSuccess: (res, taskId) => {
-      const taskData = res?.data?.task;
+    onSuccess: (_res, taskId) => {
       if (expandedId) {
         queryClient.setQueryData(
           ['briefing-pool-tasks', expandedId],
@@ -44,27 +51,8 @@ export function BriefingPoolPage() {
           }
         );
       }
-      if (expandedId && selectedOutletId) {
-        queryClient.setQueryData(
-          ['briefing-pool', selectedOutletId],
-          (prev: { data?: { employees?: { _id: string; notCompletedCount?: number; escalatedCount?: number }[] } } | undefined) => {
-            if (!prev?.data?.employees) return prev;
-            return {
-              ...prev,
-              data: {
-                ...prev.data,
-                employees: prev.data.employees.map((emp) =>
-                  emp._id === expandedId
-                    ? {
-                        ...emp,
-                        notCompletedCount: Math.max(0, (emp.notCompletedCount ?? 0) - 1),
-                      }
-                    : emp
-                ),
-              },
-            };
-          }
-        );
+      if (selectedOutletId) {
+        queryClient.invalidateQueries({ queryKey: ['briefing-pool', selectedOutletId] });
       }
       queryClient.invalidateQueries({ queryKey: ['manager-dashboard'] });
     },
@@ -80,8 +68,20 @@ export function BriefingPoolPage() {
 
   return (
     <div className="p-6 max-w-4xl mx-auto animate-fade-in">
-      <h1 className="text-2xl font-bold text-emerald-900 mb-2">Briefing Pool</h1>
-      <p className="text-emerald-700 font-medium mb-8">Staff with not-done or escalated tasks</p>
+      <div className="flex flex-col sm:flex-row sm:items-end sm:justify-between gap-4 mb-6">
+        <div>
+          <h1 className="text-2xl font-bold text-emerald-900 mb-2">Briefing Pool</h1>
+          <p className="text-emerald-700 font-medium">Staff with not-done or escalated tasks</p>
+        </div>
+        <ListSearchBar
+          value={poolSearch}
+          onChange={setPoolSearch}
+          placeholder="Search by staff name or phone"
+          className="sm:max-w-sm w-full"
+          id="briefing-pool-search"
+          aria-label="Search briefing pool"
+        />
+      </div>
 
       {isLoading ? (
         <LoadingSpinner className="py-16" />
@@ -153,7 +153,11 @@ export function BriefingPoolPage() {
               )}
             </div>
           ))}
-          {employees.length === 0 && <p className="text-gray-500">No staff with pending tasks</p>}
+          {employees.length === 0 && (
+            <p className="text-gray-500">
+              {debouncedPoolSearch.trim() ? 'No staff match your search.' : 'No staff with pending tasks'}
+            </p>
+          )}
         </div>
       )}
       {completeMutation.isError && (

@@ -21,8 +21,11 @@ export const payrollApi = {
     return data;
   },
 
-  getPeriod: async (outletId: string, periodId: string) => {
-    const { data } = await api.get(`/payroll/outlet/${outletId}/period/${periodId}`);
+  getPeriod: async (outletId: string, periodId: string, params?: { search?: string }) => {
+    const q = new URLSearchParams();
+    if (params?.search?.trim()) q.set('search', params.search.trim());
+    const qs = q.toString();
+    const { data } = await api.get(`/payroll/outlet/${outletId}/period/${periodId}${qs ? `?${qs}` : ''}`);
     return data;
   },
 

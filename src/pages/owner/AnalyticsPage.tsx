@@ -1,4 +1,4 @@
-import { useState } from 'react';
+import { useState, useRef, useEffect, useMemo } from 'react';
 import { useQuery } from '@tanstack/react-query';
 import { HighlightSection } from '@/components/HighlightSection';
 import { useOutletStore } from '@/stores/outletStore';
@@ -19,10 +19,15 @@ import {
   Legend,
   LabelList,
 } from 'recharts';
-import { CheckCircle, Clock, BarChart3, Users, Wallet, Download } from 'lucide-react';
+import { CheckCircle, Clock, BarChart3, Users, Wallet, Download, Info } from 'lucide-react';
 import { LoadingSpinner } from '@/components/LoadingSpinner';
+import { ListSearchBar } from '@/components/ListSearchBar';
+import { useDebouncedValue } from '@/hooks/useDebouncedValue';
 
 const PIE_COLORS = ['#0F766E', '#14B8A6', '#F59E0B', '#F97316', '#EF4444', '#8B5CF6'];
+
+/** Leave trend: ~this many days fit in the viewport; scroll for the rest */
+const LEAVE_CHART_VISIBLE_DAYS = 10;
 
 // Custom tooltip for charts
 const CustomTooltip = ({ active, payload, label }: { active?: boolean; payload?: { name: string; value: number; color: string }[]; label?: string }) => {
@@ -39,47 +44,92 @@ const CustomTooltip = ({ active, payload, label }: { active?: boolean; payload?:
   );
 };
 
-// KPI Card
+/** Shown inside the (i) tooltip for period-based KPIs */
+function periodScopeLabel(period: 'daily' | 'weekly' | 'monthly') {
+  if (period === 'daily') return 'Time scope: today.';
+  if (period === 'weekly') return 'Time scope: last 7 days.';
+  return 'Time scope: this month.';
+}
+
+// KPI card — header + value; full explanation in info popover
 function StatCard({
-  title,
+  label,
   value,
-  subtitle,
+  infoText,
   icon: Icon,
-  trend,
-  accent = 'primary',
+  accent = 'teal',
 }: {
-  title: string;
+  label: string;
   value: string | number;
-  subtitle?: string;
+  /** Shown when the (i) control is opened */
+  infoText: string;
   icon: React.ComponentType<{ className?: string }>;
-  trend?: 'up' | 'down' | 'neutral';
-  accent?: 'primary' | 'amber' | 'success' | 'danger';
+  accent?: 'teal' | 'amber' | 'emerald' | 'rose';
 }) {
-  const accentClasses = {
-    primary: 'from-teal-600 to-teal-700',
-    amber: 'from-amber-500 to-amber-600',
-    success: 'from-emerald-600 to-emerald-700',
-    danger: 'from-rose-500 to-rose-600',
+  const [infoOpen, setInfoOpen] = useState(false);
+  const wrapRef = useRef<HTMLDivElement>(null);
+
+  useEffect(() => {
+    if (!infoOpen) return;
+    const onKey = (e: KeyboardEvent) => {
+      if (e.key === 'Escape') setInfoOpen(false);
+    };
+    const onPointer = (e: PointerEvent) => {
+      const el = wrapRef.current;
+      if (el && !el.contains(e.target as Node)) setInfoOpen(false);
+    };
+    document.addEventListener('keydown', onKey);
+    document.addEventListener('pointerdown', onPointer);
+    return () => {
+      document.removeEventListener('keydown', onKey);
+      document.removeEventListener('pointerdown', onPointer);
+    };
+  }, [infoOpen]);
+
+  const stripe = {
+    teal: 'border-l-teal-600',
+    amber: 'border-l-amber-500',
+    emerald: 'border-l-emerald-600',
+    rose: 'border-l-rose-500',
+  };
+  const iconWrap = {
+    teal: 'bg-teal-50 text-teal-700',
+    amber: 'bg-amber-50 text-amber-800',
+    emerald: 'bg-emerald-50 text-emerald-800',
+    rose: 'bg-rose-50 text-rose-700',
   };
   return (
-    <div className="bg-white rounded-xl border border-gray-200 shadow-sm overflow-hidden hover:shadow-md transition-shadow">
-      <div className={`${accentClasses[accent]} px-4 py-2 flex items-center gap-2`}>
-        <Icon className="h-5 w-5 text-white" />
-        <span className="text-white/90 text-sm font-medium">{title}</span>
+    <div
+      className={`bg-white rounded-xl border border-gray-200/90 shadow-sm border-l-[3px] ${stripe[accent]} px-4 py-3.5 flex flex-col gap-2 min-h-[100px] hover:shadow-md transition-shadow`}
+    >
+      <div className="flex items-start justify-between gap-2">
+        <h3 className="text-xs font-semibold text-gray-800 leading-snug pr-1">{label}</h3>
+        <div className="flex items-center gap-0.5 shrink-0">
+          <div className={`rounded-lg p-1.5 ${iconWrap[accent]}`} aria-hidden>
+            <Icon className="h-4 w-4" />
+          </div>
+          <div className="relative" ref={wrapRef}>
+            <button
+              type="button"
+              onClick={() => setInfoOpen((o) => !o)}
+              className="rounded-full p-1.5 text-gray-400 hover:text-teal-700 hover:bg-teal-50 transition-colors focus:outline-none focus-visible:ring-2 focus-visible:ring-teal-500 focus-visible:ring-offset-1"
+              aria-label={`About ${label}`}
+              aria-expanded={infoOpen}
+            >
+              <Info className="h-4 w-4" strokeWidth={2.25} />
+            </button>
+            {infoOpen ? (
+              <div
+                role="tooltip"
+                className="absolute right-0 top-full z-50 mt-1.5 w-[min(18rem,calc(100vw-2rem))] rounded-lg border border-gray-200 bg-white p-3 text-left text-xs leading-relaxed text-gray-600 shadow-lg"
+              >
+                <p className="whitespace-pre-line text-gray-700">{infoText}</p>
+              </div>
+            ) : null}
+          </div>
+        </div>
       </div>
-      <div className="p-4">
-        <p className="text-2xl font-bold text-gray-900">{value}</p>
-        {subtitle && <p className="text-sm text-gray-500 mt-0.5">{subtitle}</p>}
-        {trend && (
-          <span
-            className={`inline-block mt-2 text-xs font-medium ${
-              trend === 'up' ? 'text-emerald-600' : trend === 'down' ? 'text-rose-600' : 'text-gray-500'
-            }`}
-          >
-            {trend === 'up' ? '↑' : trend === 'down' ? '↓' : '→'} vs last period
-          </span>
-        )}
-      </div>
+      <p className="text-2xl font-bold text-gray-900 tabular-nums tracking-tight">{value}</p>
     </div>
   );
 }
@@ -87,10 +137,16 @@ function StatCard({
 export function AnalyticsPage() {
   const { selectedOutletId } = useOutletStore();
   const [period, setPeriod] = useState<'daily' | 'weekly' | 'monthly'>('monthly');
+  const [analyticsSearch, setAnalyticsSearch] = useState('');
+  const debouncedAnalyticsSearch = useDebouncedValue(analyticsSearch, 350);
 
   const { data, isLoading } = useQuery({
-    queryKey: ['outlet-analytics', selectedOutletId, period],
-    queryFn: () => analyticsApi.getOutletAnalytics(selectedOutletId!, { period }),
+    queryKey: ['outlet-analytics', selectedOutletId, period, debouncedAnalyticsSearch],
+    queryFn: () =>
+      analyticsApi.getOutletAnalytics(selectedOutletId!, {
+        period,
+        search: debouncedAnalyticsSearch.trim() || undefined,
+      }),
     enabled: !!selectedOutletId,
   });
 
@@ -118,13 +174,41 @@ export function AnalyticsPage() {
     URL.revokeObjectURL(url);
   };
 
+  const d = data?.data ?? data ?? {};
+  const leaveTrend = d.leaveTrend ?? [];
+  /** Short axis labels; fallback for older API responses without `label` */
+  const leaveChartData = useMemo(
+    () =>
+      (Array.isArray(leaveTrend) ? leaveTrend : []).map(
+        (r: { date?: string; label?: string; approved?: number; rejected?: number; pending?: number }) => ({
+          ...r,
+          label: r.label ?? r.date ?? '',
+        })
+      ),
+    [leaveTrend]
+  );
+
+  const leaveScrollRef = useRef<HTMLDivElement>(null);
+
+  /** Vertical wheel / trackpad → horizontal scroll (needs non-passive listener) */
+  useEffect(() => {
+    const el = leaveScrollRef.current;
+    if (!el) return;
+    const onWheel = (e: WheelEvent) => {
+      if (el.scrollWidth <= el.clientWidth + 2) return;
+      if (Math.abs(e.deltaY) >= Math.abs(e.deltaX)) {
+        e.preventDefault();
+        el.scrollLeft += e.deltaY;
+      }
+    };
+    el.addEventListener('wheel', onWheel, { passive: false });
+    return () => el.removeEventListener('wheel', onWheel);
+  }, [leaveChartData.length, selectedOutletId]);
+
   if (!selectedOutletId) {
     return <div className="p-6 text-amber-600">Select an outlet first.</div>;
   }
 
-  if (isLoading) return <div className="p-6"><LoadingSpinner /></div>;
-
-  const d = data?.data ?? data ?? {};
   const staffAnalytics = d.employeeStats ?? [];
   const taskCompletionRate = d.taskCompletionRate ?? 0;
   const dailyHours = d.dailyHoursData ?? [];
@@ -132,7 +216,6 @@ export function AnalyticsPage() {
   const roleBreakdown = d.roleBreakdown ?? [];
   const shiftDistribution = d.shiftDistribution ?? [];
   const taskCompletionByShift = d.taskCompletionByShift ?? [];
-  const leaveTrend = d.leaveTrend ?? [];
   const hoursComplianceRate = d.hoursComplianceRate ?? 0;
   const activeEmployeesToday = d.activeEmployeesToday ?? 0;
   const totalEmployees = d.totalEmployees ?? 0;
@@ -140,69 +223,110 @@ export function AnalyticsPage() {
   // Labor cost estimate (sum of dailyEarned)
   const laborCostEstimate = staffAnalytics.reduce((sum: number, s: { dailyEarned?: number }) => sum + (s.dailyEarned ?? 0), 0);
 
+  const staffInView = staffAnalytics.length;
+  const complianceDenominator = staffInView > 0 ? staffInView : totalEmployees;
+  const completedTasks = d.completedTasks ?? 0;
+  const totalTasks = d.totalTasks ?? 0;
+  const avgHours =
+    typeof d.averageHoursPerEmployee === 'number' ? d.averageHoursPerEmployee.toFixed(1) : String(d.averageHoursPerEmployee ?? '—');
+  const totalHoursDisplay =
+    typeof totalHours === 'number' && !Number.isNaN(totalHours)
+      ? `${totalHours.toLocaleString(undefined, { maximumFractionDigits: 1 })}h`
+      : totalHours != null && totalHours !== ''
+        ? `${totalHours}h`
+        : '—';
+
+  const searchNote = analyticsSearch.trim()
+    ? '\n\nStaff search filter is applied — KPIs use only matching people.'
+    : '';
+
   return (
     <div className="p-6 max-w-7xl mx-auto">
       {/* Header */}
-      <div className="flex flex-col sm:flex-row sm:items-center sm:justify-between gap-4 mb-8">
-        <div>
-          <h1 className="text-2xl font-bold text-gray-900">Outlet Analytics</h1>
-          <p className="text-gray-500">Insights for your restaurant or retail outlet</p>
-        </div>
-        <div className="flex items-center gap-2">
-          {(['daily', 'weekly', 'monthly'] as const).map((p) => (
+      <div className="flex flex-col gap-4 mb-8">
+        <div className="flex flex-col sm:flex-row sm:items-center sm:justify-between gap-4">
+          <div>
+            <h1 className="text-2xl font-bold text-gray-900">Outlet Analytics</h1>
+            <p className="text-gray-500">Insights for your restaurant or retail outlet</p>
+          </div>
+          <div className="flex flex-wrap items-center gap-2">
+            {(['daily', 'weekly', 'monthly'] as const).map((p) => (
+              <button
+                key={p}
+                onClick={() => setPeriod(p)}
+                className={`px-4 py-2 rounded-lg text-sm font-medium transition-colors ${
+                  period === p ? 'bg-teal-600 text-white' : 'bg-gray-100 text-gray-600 hover:bg-gray-200'
+                }`}
+              >
+                {p.charAt(0).toUpperCase() + p.slice(1)}
+              </button>
+            ))}
             <button
-              key={p}
-              onClick={() => setPeriod(p)}
-              className={`px-4 py-2 rounded-lg text-sm font-medium transition-colors ${
-                period === p ? 'bg-teal-600 text-white' : 'bg-gray-100 text-gray-600 hover:bg-gray-200'
-              }`}
+              onClick={handleExport}
+              disabled={isLoading}
+              className="px-4 py-2 rounded-lg text-sm font-medium bg-gray-100 text-gray-600 hover:bg-gray-200 flex items-center gap-2 disabled:opacity-50"
             >
-              {p.charAt(0).toUpperCase() + p.slice(1)}
+              <Download className="h-4 w-4" /> Export
             </button>
-          ))}
-          <button
-            onClick={handleExport}
-            className="px-4 py-2 rounded-lg text-sm font-medium bg-gray-100 text-gray-600 hover:bg-gray-200 flex items-center gap-2"
-          >
-            <Download className="h-4 w-4" /> Export
-          </button>
+          </div>
         </div>
+        <ListSearchBar
+          value={analyticsSearch}
+          onChange={setAnalyticsSearch}
+          placeholder="Filter analytics by staff name or phone"
+          className="max-w-xl"
+          id="analytics-search"
+          aria-label="Filter analytics by staff"
+        />
+        <p className="text-xs text-gray-500">
+          Search narrows all metrics and charts to matching staff.
+        </p>
       </div>
 
+      {isLoading ? (
+        <LoadingSpinner className="py-20" />
+      ) : (
+        <>
       {/* KPI Cards */}
-      <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-5 gap-4 mb-8">
+      <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-3 xl:grid-cols-5 gap-4 mb-8">
         <StatCard
-          title="Task completion"
+          label="Task completion rate"
           value={`${taskCompletionRate}%`}
-          subtitle={`${d.completedTasks ?? 0} of ${d.totalTasks ?? 0} tasks`}
+          infoText={`${completedTasks} of ${totalTasks} task${totalTasks === 1 ? '' : 's'} completed in the selected period.${searchNote}\n\n${periodScopeLabel(period)}`}
           icon={CheckCircle}
-          accent="primary"
+          accent="teal"
         />
         <StatCard
-          title="Total hours"
-          value={totalHours ?? '-'}
-          subtitle={`${d.averageHoursPerEmployee ?? 0} avg per staff`}
+          label="Total work hours"
+          value={totalHoursDisplay}
+          infoText={`Combined net hours logged for the team. Average ${avgHours}h per staff member.${searchNote}\n\n${periodScopeLabel(period)}`}
           icon={Clock}
-          accent="primary"
+          accent="teal"
         />
         <StatCard
-          title="Hours compliance"
+          label="Hours compliance"
           value={`${hoursComplianceRate}%`}
-          subtitle={`${d.employeesMetMinHours ?? 0} met min hours`}
+          infoText={`${d.employeesMetMinHours ?? 0} of ${complianceDenominator} staff met minimum required hours for the period.${searchNote}\n\n${periodScopeLabel(period)}`}
           icon={BarChart3}
-          accent={hoursComplianceRate >= 80 ? 'success' : 'amber'}
+          accent={hoursComplianceRate >= 80 ? 'emerald' : 'amber'}
         />
         <StatCard
-          title="Staff today"
-          value={`${activeEmployeesToday}/${totalEmployees}`}
-          subtitle="Currently clocked in"
+          label="Live attendance"
+          value={`${activeEmployeesToday} / ${totalEmployees}`}
+          infoText={
+            'Staff currently checked in vs. total staff on your active roster.\n\nLive snapshot at this moment — not tied to Daily / Weekly / Monthly.'
+          }
           icon={Users}
-          accent="primary"
+          accent="teal"
         />
         <StatCard
-          title="Est. labor cost"
-          value={laborCostEstimate > 0 ? `₹${laborCostEstimate.toLocaleString()}` : '-'}
-          subtitle="Period estimate"
+          label="Est. labor cost"
+          value={
+            laborCostEstimate > 0
+              ? `₹${laborCostEstimate.toLocaleString(undefined, { minimumFractionDigits: 2, maximumFractionDigits: 2 })}`
+              : '—'
+          }
+          infoText={`Sum of "daily earned" pay for staff listed in Labor cost below (same period and search).${searchNote}\n\n${periodScopeLabel(period)}`}
           icon={Wallet}
           accent="amber"
         />
@@ -363,32 +487,99 @@ export function AnalyticsPage() {
         </HighlightSection>
       </div>
 
-      {/* Leave trend */}
+      {/* Leave trend — backend fills every day in the selected period (zeros when no requests) */}
       <HighlightSection id="leave-trend">
-      {Array.isArray(leaveTrend) && leaveTrend.length > 0 ? (
+      {leaveChartData.length > 0 ? (
         <div className="bg-white rounded-xl border border-gray-200 shadow-sm overflow-hidden mb-8">
           <div className="px-6 py-4 border-b border-gray-100">
             <h2 className="text-lg font-semibold text-gray-900">Leave trend</h2>
-            <p className="text-sm text-gray-500">Approved, rejected, pending by date</p>
+            <p className="text-sm text-gray-500">
+              Approved, rejected, and pending counts for each day in your selected period (daily / weekly / monthly / custom / pay cycle).
+            </p>
+            {leaveChartData.length > LEAVE_CHART_VISIBLE_DAYS && (
+              <p className="text-xs text-teal-700/90 mt-2">
+                About {LEAVE_CHART_VISIBLE_DAYS} days visible at once — drag the scrollbar or use your mouse wheel / trackpad (scroll up-down) over the chart to move along the timeline.
+              </p>
+            )}
           </div>
-          <div className="p-4 h-64">
-            <ResponsiveContainer width="100%" height="100%">
-              <BarChart data={leaveTrend}>
-                <CartesianGrid strokeDasharray="3 3" stroke="#E5E7EB" />
-                <XAxis dataKey="date" tick={{ fontSize: 10 }} stroke="#9CA3AF" />
-                <YAxis tick={{ fontSize: 11 }} stroke="#9CA3AF" />
-                <Tooltip />
-                <Legend />
-                <Bar dataKey="approved" stackId="a" fill="#10B981" name="Approved" />
-                <Bar dataKey="rejected" stackId="a" fill="#EF4444" name="Rejected" />
-                <Bar dataKey="pending" stackId="a" fill="#F59E0B" name="Pending" />
-              </BarChart>
-            </ResponsiveContainer>
+          <div className="p-4 pb-3">
+            <div
+              ref={leaveScrollRef}
+              className="w-full h-72 overflow-x-auto overflow-y-hidden rounded-lg border border-gray-100 bg-gray-50/40 scroll-smooth [scrollbar-width:thin]"
+            >
+              <div
+                className="h-full min-w-full"
+                style={{
+                  width:
+                    leaveChartData.length <= LEAVE_CHART_VISIBLE_DAYS
+                      ? '100%'
+                      : `${(leaveChartData.length / LEAVE_CHART_VISIBLE_DAYS) * 100}%`,
+                }}
+              >
+                <ResponsiveContainer width="100%" height="100%">
+                  <BarChart
+                    data={leaveChartData}
+                    margin={{ bottom: 40, left: 4, right: 12, top: 8 }}
+                    barCategoryGap="18%"
+                  >
+                    <CartesianGrid strokeDasharray="3 3" stroke="#E5E7EB" />
+                    <XAxis
+                      dataKey="label"
+                      tick={{ fontSize: 10 }}
+                      stroke="#9CA3AF"
+                      interval={0}
+                      angle={leaveChartData.length > LEAVE_CHART_VISIBLE_DAYS ? -28 : 0}
+                      textAnchor={leaveChartData.length > LEAVE_CHART_VISIBLE_DAYS ? 'end' : 'middle'}
+                      height={leaveChartData.length > LEAVE_CHART_VISIBLE_DAYS ? 52 : 28}
+                    />
+                    <YAxis tick={{ fontSize: 11 }} stroke="#9CA3AF" allowDecimals={false} width={40} />
+                    <Tooltip
+                      content={({ active, payload, label }) => {
+                        if (!active || !payload?.length) return null;
+                        const row = payload[0].payload as {
+                          date?: string;
+                          label?: string;
+                          approved?: number;
+                          rejected?: number;
+                          pending?: number;
+                        };
+                        return (
+                          <div className="bg-white rounded-lg shadow-lg border border-gray-200 p-3 text-sm min-w-[10rem]">
+                            <p className="font-medium text-gray-900">{row.date ?? label}</p>
+                            <p className="text-xs text-gray-500 mb-2">{row.label}</p>
+                            <p className="text-emerald-700">Approved: {row.approved ?? 0}</p>
+                            <p className="text-red-600">Rejected: {row.rejected ?? 0}</p>
+                            <p className="text-amber-600">Pending: {row.pending ?? 0}</p>
+                          </div>
+                        );
+                      }}
+                    />
+                    <Bar dataKey="approved" stackId="a" fill="#10B981" name="Approved" />
+                    <Bar dataKey="rejected" stackId="a" fill="#EF4444" name="Rejected" />
+                    <Bar dataKey="pending" stackId="a" fill="#F59E0B" name="Pending" />
+                  </BarChart>
+                </ResponsiveContainer>
+              </div>
+            </div>
+            <div className="flex flex-wrap justify-center gap-x-5 gap-y-1 pt-3 text-xs text-gray-600">
+              <span className="inline-flex items-center gap-1.5">
+                <span className="inline-block size-2.5 rounded-sm bg-[#10B981]" aria-hidden />
+                Approved
+              </span>
+              <span className="inline-flex items-center gap-1.5">
+                <span className="inline-block size-2.5 rounded-sm bg-[#EF4444]" aria-hidden />
+                Rejected
+              </span>
+              <span className="inline-flex items-center gap-1.5">
+                <span className="inline-block size-2.5 rounded-sm bg-[#F59E0B]" aria-hidden />
+                Pending
+              </span>
+            </div>
           </div>
         </div>
       ) : (
         <div className="bg-white rounded-xl border border-gray-200 shadow-sm overflow-hidden mb-8 p-8 text-center text-gray-400">
-          No leave data for this period
+          No days in range for leave trend
         </div>
       )}
       </HighlightSection>
@@ -496,6 +687,8 @@ export function AnalyticsPage() {
           </div>
         </div>
       </div>
+        </>
+      )}
     </div>
   );
 }

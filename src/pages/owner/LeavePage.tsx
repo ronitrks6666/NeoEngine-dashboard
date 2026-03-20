@@ -4,15 +4,24 @@ import { useOutletStore } from '@/stores/outletStore';
 import { leaveApi } from '@/api/leave';
 import { getApiErrorMessage } from '@/api/auth';
 import { LoadingSpinner } from '@/components/LoadingSpinner';
+import { ListSearchBar } from '@/components/ListSearchBar';
+import { useDebouncedValue } from '@/hooks/useDebouncedValue';
 
 export function LeavePage() {
   const { selectedOutletId } = useOutletStore();
   const [statusFilter, setStatusFilter] = useState<string>('pending');
+  const [leaveSearch, setLeaveSearch] = useState('');
+  const debouncedLeaveSearch = useDebouncedValue(leaveSearch, 350);
   const queryClient = useQueryClient();
 
   const { data, isLoading } = useQuery({
-    queryKey: ['leaves', selectedOutletId, statusFilter],
-    queryFn: () => leaveApi.getLeaves(selectedOutletId!, { status: statusFilter, limit: 100 }),
+    queryKey: ['leaves', selectedOutletId, statusFilter, debouncedLeaveSearch],
+    queryFn: () =>
+      leaveApi.getLeaves(selectedOutletId!, {
+        status: statusFilter,
+        limit: 100,
+        search: debouncedLeaveSearch.trim() || undefined,
+      }),
     enabled: !!selectedOutletId,
   });
 
@@ -40,12 +49,13 @@ export function LeavePage() {
 
   return (
     <div className="p-6 max-w-6xl mx-auto animate-fade-in">
-      <div className="flex flex-col sm:flex-row sm:items-center sm:justify-between gap-4 mb-8">
-        <div>
-          <h1 className="text-2xl font-bold text-gray-900">Leave management</h1>
-          <p className="text-gray-500 mt-0.5">Approve or reject leave requests</p>
-        </div>
-        <div className="flex gap-2 p-1 bg-gray-100 rounded-xl">
+      <div className="flex flex-col gap-4 mb-8">
+        <div className="flex flex-col sm:flex-row sm:items-center sm:justify-between gap-4">
+          <div>
+            <h1 className="text-2xl font-bold text-gray-900">Leave management</h1>
+            <p className="text-gray-500 mt-0.5">Approve or reject leave requests</p>
+          </div>
+          <div className="flex gap-2 p-1 bg-gray-100 rounded-xl shrink-0">
           {['pending', 'approved', 'rejected'].map((s) => (
             <button
               key={s}
@@ -57,7 +67,16 @@ export function LeavePage() {
               {s.charAt(0).toUpperCase() + s.slice(1)}
             </button>
           ))}
+          </div>
         </div>
+        <ListSearchBar
+          value={leaveSearch}
+          onChange={setLeaveSearch}
+          placeholder="Search by staff name, phone, or reason"
+          className="max-w-xl"
+          id="leave-search"
+          aria-label="Search leave requests"
+        />
       </div>
 
       {isLoading ? (
@@ -114,7 +133,9 @@ export function LeavePage() {
       {leaves.length === 0 && !isLoading && (
         <div className="text-center py-16 animate-fade-in">
           <div className="text-6xl mb-4 opacity-30">📅</div>
-          <p className="text-gray-500">No leave requests</p>
+          <p className="text-gray-500">
+            {debouncedLeaveSearch.trim() ? 'No leave requests match your search.' : 'No leave requests'}
+          </p>
         </div>
       )}
 

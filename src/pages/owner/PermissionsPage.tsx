@@ -29,6 +29,7 @@ import {
   ChevronsDownUp,
   ChevronsUpDown,
   ArrowLeftRight,
+  Undo2,
 } from 'lucide-react';
 
 const CONFLICT_ZONE_UI: Record<string, { title: string; hint: string }> = {
@@ -802,6 +803,28 @@ export function PermissionsPage() {
                     >
                       <RotateCcw className="h-3.5 w-3.5" />
                       Enable all
+                    </button>
+                    <button
+                      type="button"
+                      disabled={!permissionsDirty || saveMutation.isPending}
+                      onClick={() => {
+                        if (!savedPermissions) return;
+                        setSaveMsg(null);
+                        setDraft({ ...savedPermissions });
+                      }}
+                      title={
+                        !permissionsDirty
+                          ? 'No unsaved changes'
+                          : 'Revert to last loaded permissions (does not save)'
+                      }
+                      className={`inline-flex items-center gap-1.5 rounded-xl border px-3 py-2 text-xs font-semibold transition-colors ${
+                        !permissionsDirty || saveMutation.isPending
+                          ? 'cursor-not-allowed border-slate-200 bg-slate-100 text-slate-400'
+                          : 'border-amber-200/90 bg-white text-amber-900 hover:bg-amber-50/80'
+                      }`}
+                    >
+                      <Undo2 className="h-3.5 w-3.5" />
+                      Undo all
                     </button>
                     <button
                       type="button"

@@ -8,6 +8,62 @@
   --color-primary-dark: #047857;
 }
 
+/* Landing: professional green navbar (multi-stop, works with slate nav text) */
+.landing-nav {
+  background: linear-gradient(
+    118deg,
+    #ecfdf5 0%,
+    #d1fae5 26%,
+    #f8fafc 48%,
+    #ccfbf1 74%,
+    #ecfdf5 100%
+  );
+}
+
+@supports (backdrop-filter: blur(12px)) {
+  .landing-nav {
+    background: linear-gradient(
+      118deg,
+      rgba(236, 253, 245, 0.92) 0%,
+      rgba(209, 250, 229, 0.88) 26%,
+      rgba(248, 250, 252, 0.9) 48%,
+      rgba(204, 251, 241, 0.88) 74%,
+      rgba(236, 253, 245, 0.92) 100%
+    );
+  }
+}
+
+/* Hero: one screen below fixed nav (h-16 = 4rem). Tablet+ locks to viewport; phone uses min-height + scroll if needed. */
+.landing-hero-viewport {
+  --landing-nav-h: 4rem;
+  box-sizing: border-box;
+}
+
+@media (max-width: 767.98px) {
+  .landing-hero-viewport {
+    min-height: calc(100svh - var(--landing-nav-h));
+  }
+}
+
+@media (min-width: 768px) {
+  .landing-hero-viewport {
+    height: calc(100svh - var(--landing-nav-h));
+    max-height: calc(100svh - var(--landing-nav-h));
+    min-height: calc(100svh - var(--landing-nav-h));
+    overflow: hidden;
+  }
+}
+
+@supports (height: 100dvh) {
+  @media (min-width: 768px) {
+    .landing-hero-viewport {
+      height: calc(100dvh - var(--landing-nav-h));
+      max-height: calc(100dvh - var(--landing-nav-h));
+      min-height: calc(100dvh - var(--landing-nav-h));
+    }
+  }
+}
+
 body {
   margin: 0;
   font-family: 'Plus Jakarta Sans', system-ui, sans-serif;
@@ -209,6 +265,155 @@ body {
   stroke: rgba(5, 150, 105, 0.55);
 }
 
+/* All wires: traveling light (node → engine) */
+.cpu-tube-energy,
+.cpu-port-energy-layer {
+  --cpu-energy-cycle: 5s;
+}
+
+.cpu-tube-energy {
+  pointer-events: none;
+}
+
+.cpu-tube-energy-bloom,
+.cpu-tube-energy-core {
+  fill: none;
+  stroke-linecap: round;
+  stroke-linejoin: round;
+  stroke-dasharray: 24 76;
+  /* longhands so .cpu-tube-energy-delay-* is not reset by shorthand */
+  animation-name: cpu-tube-energy-travel;
+  animation-duration: var(--cpu-energy-cycle);
+  animation-timing-function: cubic-bezier(0.45, 0.02, 0.25, 1);
+  animation-iteration-count: infinite;
+}
+
+.cpu-tube-energy-bloom {
+  stroke: #34d399;
+  stroke-width: 2.15;
+  stroke-opacity: 0.55;
+}
+
+.cpu-tube-energy-core {
+  stroke: #f8fafc;
+  stroke-width: 0.62;
+  stroke-opacity: 0.95;
+}
+
+/* Stagger wires + matching cylinder (eighths of --cpu-energy-cycle) */
+.cpu-tube-energy-delay-0 {
+  animation-delay: 0s;
+}
+
+.cpu-tube-energy-delay-1 {
+  animation-delay: calc(var(--cpu-energy-cycle) * -0.125);
+}
+
+.cpu-tube-energy-delay-2 {
+  animation-delay: calc(var(--cpu-energy-cycle) * -0.25);
+}
+
+.cpu-tube-energy-delay-3 {
+  animation-delay: calc(var(--cpu-energy-cycle) * -0.375);
+}
+
+.cpu-tube-energy-delay-4 {
+  animation-delay: calc(var(--cpu-energy-cycle) * -0.5);
+}
+
+.cpu-tube-energy-delay-5 {
+  animation-delay: calc(var(--cpu-energy-cycle) * -0.625);
+}
+
+.cpu-tube-energy-delay-6 {
+  animation-delay: calc(var(--cpu-energy-cycle) * -0.75);
+}
+
+.cpu-tube-energy-delay-7 {
+  animation-delay: calc(var(--cpu-energy-cycle) * -0.875);
+}
+
+/* Cylinder glow: ~0.8s at end of each cycle; longhands preserve delay class */
+.cpu-port-energy-hit {
+  opacity: 0;
+  mix-blend-mode: screen;
+  animation-name: cpu-port-energy-hit;
+  animation-duration: var(--cpu-energy-cycle);
+  animation-timing-function: cubic-bezier(0.36, 0, 0.2, 1);
+  animation-iteration-count: infinite;
+}
+
+.cpu-arch-svg-ambient .cpu-tube-energy-bloom {
+  stroke-opacity: 0.38;
+}
+
+.cpu-arch-svg-ambient .cpu-tube-energy-core {
+  stroke-opacity: 0.82;
+}
+
+.cpu-arch-svg-ambient .cpu-port-energy-hit {
+  animation-name: cpu-port-energy-hit-soft;
+}
+
+@keyframes cpu-tube-energy-travel {
+  to {
+    stroke-dashoffset: -100;
+  }
+}
+
+/* (5s - 0.8s) / 5s = 84% → last 16% of cycle ≈ 0.8s glow */
+@keyframes cpu-port-energy-hit {
+  0%,
+  83.85% {
+    opacity: 0;
+  }
+
+  84.1% {
+    opacity: 1;
+  }
+
+  93% {
+    opacity: 0.78;
+  }
+
+  100% {
+    opacity: 0;
+  }
+}
+
+@keyframes cpu-port-energy-hit-soft {
+  0%,
+  83.85% {
+    opacity: 0;
+  }
+
+  84.1% {
+    opacity: 0.72;
+  }
+
+  93% {
+    opacity: 0.48;
+  }
+
+  100% {
+    opacity: 0;
+  }
+}
+
+@media (prefers-reduced-motion: reduce) {
+  .cpu-tube-energy-bloom,
+  .cpu-tube-energy-core {
+    animation: none;
+    stroke-dashoffset: 0;
+    opacity: 0;
+  }
+
+  .cpu-port-energy-hit {
+    animation: none;
+    opacity: 0;
+  }
+}
+
 .cpu-node-label {
   fill: rgba(71, 85, 105, 0.52);
   font-size: 4.55px;
@@ -217,6 +422,42 @@ body {
   pointer-events: none;
   user-select: none;
   transition: fill 0.22s ease, font-weight 0.22s ease;
+}
+
+/* Hero CPU: occupy full flex slot, then scale up (hero section height unchanged). */
+.landing-cpu-slot {
+  min-height: 0;
+}
+
+.landing-cpu-frame {
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  overflow: visible;
+}
+
+.landing-cpu-svg {
+  flex-shrink: 0;
+  transform-origin: center center;
+  transform: scale(1.08);
+}
+
+@media (min-width: 640px) {
+  .landing-cpu-svg {
+    transform: scale(1.14);
+  }
+}
+
+@media (min-width: 768px) {
+  .landing-cpu-svg {
+    transform: scale(1.22);
+  }
+}
+
+@media (min-width: 1024px) {
+  .landing-cpu-svg {
+    transform: scale(1.28);
+  }
 }
 
 .cpu-node-label-hit {
@@ -268,9 +509,8 @@ body {
 }
 
 .cpu-line-5 {
-  offset-path: path(
-    "M 135 65 h 15 q 5 0 5 5 v 10 q 0 5 -5 5 h -39.8 q -5 0 -5 -5 v -35"
-  );
+  offset-path: path("M 135 65 h 15 q 5 0 5 5 v 10 q 0 5 -5 5 h -39.8 q -5 0 -5 -5 v -35"
+    );
   animation-delay: 9s;
   animation-duration: 4s;
 }
@@ -282,9 +522,8 @@ body {
 }
 
 .cpu-line-7 {
-  offset-path: path(
-    "M 88 88 v -15 q 0 -5 -5 -5 h -10 q -5 0 -5 -5 v -5 q 0 -5 5 -5 h 28"
-  );
+  offset-path: path("M 88 88 v -15 q 0 -5 -5 -5 h -10 q -5 0 -5 -5 v -5 q 0 -5 5 -5 h 28"
+    );
   animation-delay: 4s;
   animation-duration: 4s;
 }

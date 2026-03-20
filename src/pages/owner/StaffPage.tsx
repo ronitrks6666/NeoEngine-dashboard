@@ -653,18 +653,26 @@ export function StaffPage() {
                   <button
                     type="submit"
                     disabled={createMutation.isPending}
-                    className="flex-1 px-4 py-2.5 bg-emerald-600 text-white rounded-xl font-semibold hover:bg-emerald-700 disabled:opacity-50"
+                    className="flex-1 px-4 py-2.5 bg-emerald-600 text-white rounded-xl font-semibold hover:bg-emerald-700 disabled:opacity-50 transition-colors flex items-center justify-center gap-2 min-h-[44px]"
                   >
-                    Create
+                    {createMutation.isPending ? (
+                      <>
+                        <Loader2 className="h-5 w-5 animate-spin shrink-0" aria-hidden />
+                        <span>Creating…</span>
+                      </>
+                    ) : (
+                      'Create'
+                    )}
                   </button>
                   <button
                     type="button"
+                    disabled={createMutation.isPending}
                     onClick={() => {
                       setShowCreate(false);
                       setShowCreateMasterRole(false);
                       setShowCreateRole(false);
                     }}
-                    className="px-4 py-2.5 border border-gray-200 rounded-xl font-medium hover:bg-gray-50"
+                    className="px-4 py-2.5 border border-gray-200 rounded-xl font-medium hover:bg-gray-50 disabled:opacity-50 disabled:pointer-events-none"
                   >
                     Cancel
                   </button>

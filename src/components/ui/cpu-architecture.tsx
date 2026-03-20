@@ -25,7 +25,41 @@ export interface CpuArchitectureSvgProps {
   animateText?: boolean;
   animateLines?: boolean;
   animateMarkers?: boolean;
+  /** Traveling light on all wires + per-cylinder hit glow at the engine */
+  animateRightTubeEnergy?: boolean;
 }
+
+/** Path `d` values = trace order (Attendance → Reports), same as base wires */
+const ALL_WIRE_ENERGY_PATHS = [
+  'M 10 20 h 79.5 q 5 0 5 5 v 30',
+  'M 180 10 h -69.7 q -5 0 -5 5 v 30',
+  'M 130 20 v 21.8 q 0 5 -5 5 h -10',
+  'M 170 80 v -21.8 q 0 -5 -5 -5 h -50',
+  'M 135 65 h 15 q 5 0 5 5 v 10 q 0 5 -5 5 h -39.8 q -5 0 -5 -5 v -20',
+  'M 94.8 95 v -36',
+  'M 88 88 v -15 q 0 -5 -5 -5 h -10 q -5 0 -5 -5 v -5 q 0 -5 5 -5 h 14',
+  'M 30 30 h 25 q 5 0 5 5 v 6.5 q 0 5 5 5 h 20',
+] as const;
+
+type EngineIoPad = { x: number; y: number; w: number; h: number; rx: number; transform?: string };
+
+/** Eight physical IO pads on the chip (DOM order). */
+const ENGINE_IO_PADS: readonly EngineIoPad[] = [
+  { x: 92.4, y: 36.2, w: 3.2, h: 5.2, rx: 1.1 },
+  { x: 103.4, y: 36.2, w: 3.2, h: 5.2, rx: 1.1 },
+  { x: 116.15, y: 43.2, w: 3.2, h: 5.2, rx: 1.1, transform: 'rotate(90 116.25 45.5)' },
+  { x: 122.65, y: 43.2, w: 3.2, h: 5.2, rx: 1.1, transform: 'rotate(90 116.25 45.5)' },
+  { x: 103.4, y: 14.7, w: 3.2, h: 5.2, rx: 1.1, transform: 'rotate(180 105.25 39.5)' },
+  { x: 113.9, y: 14.7, w: 3.2, h: 5.2, rx: 1.1, transform: 'rotate(180 105.25 39.5)' },
+  { x: 79.4, y: -14.2, w: 3.2, h: 5.2, rx: 1.1, transform: 'rotate(270 115.25 19.5)' },
+  { x: 86.4, y: -14.2, w: 3.2, h: 5.2, rx: 1.1, transform: 'rotate(270 115.25 19.5)' },
+];
+
+/**
+ * trace index 0–7 → pad slot 0–7 (left pair, bottom pair, top pair, right pair in artwork).
+ * Maps each label’s wire to the cylinder it meets at the engine.
+ */
+const WIRE_TO_PAD_SLOT = [0, 5, 4, 3, 7, 2, 6, 1] as const;
 
 type LabelPlacement = {
   tx: number;
@@ -104,6 +138,7 @@ const CpuArchitecture = ({
   animateText = false,
   animateLines = true,
   animateMarkers = true,
+  animateRightTubeEnergy = true,
 }: CpuArchitectureSvgProps) => {
   const labels: string[] = [...DEFAULT_CPU_NODE_LABELS];
   if (nodeLabels?.length) {
@@ -169,6 +204,34 @@ const CpuArchitecture = ({
           />
         )}
       </g>
+
+      {/* All wires: pulse travels node → engine; pad glow syncs in CSS (last 0.8s of cycle) */}
+      {animateLines && animateRightTubeEnergy && (
+        <g className="cpu-tube-energy" pointerEvents="none">
+          <g filter="url(#cpu-tube-energy-bloom-filter)">
+            {ALL_WIRE_ENERGY_PATHS.map((d, i) => (
+              <path
+                key={`bloom-${i}`}
+                d={d}
+                fill="none"
+                className={cn('cpu-tube-energy-bloom', `cpu-tube-energy-delay-${i}`)}
+                pathLength={100}
+              />
+            ))}
+          </g>
+          <g filter="url(#cpu-tube-energy-hot-filter)">
+            {ALL_WIRE_ENERGY_PATHS.map((d, i) => (
+              <path
+                key={`core-${i}`}
+                d={d}
+                fill="none"
+                className={cn('cpu-tube-energy-core', `cpu-tube-energy-delay-${i}`)}
+                pathLength={100}
+              />
+            ))}
+          </g>
+        </g>
+      )}
 
       {/* Signal orbs — larger cores + glow for visibility */}
       <g mask="url(#cpu-mask-1)">
@@ -255,74 +318,20 @@ const CpuArchitecture = ({
       <g>
         {showCpuConnections && (
           <g filter="url(#cpu-port-matte-shadow)">
-            <rect x="92.4" y="36.2" width="3.2" height="5.2" rx="1.1" fill="url(#cpu-io-pad)" stroke="#1c2e29" strokeWidth="0.2" />
-            <rect x="103.4" y="36.2" width="3.2" height="5.2" rx="1.1" fill="url(#cpu-io-pad)" stroke="#1c2e29" strokeWidth="0.2" />
-            <rect
-              x="116.15"
-              y="43.2"
-              width="3.2"
-              height="5.2"
-              rx="1.1"
-              fill="url(#cpu-io-pad)"
-              stroke="#1c2e29"
-              strokeWidth="0.2"
-              transform="rotate(90 116.25 45.5)"
-            />
-            <rect
-              x="122.65"
-              y="43.2"
-              width="3.2"
-              height="5.2"
-              rx="1.1"
-              fill="url(#cpu-io-pad)"
-              stroke="#1c2e29"
-              strokeWidth="0.2"
-              transform="rotate(90 116.25 45.5)"
-            />
-            <rect
-              x="103.4"
-              y="14.7"
-              width="3.2"
-              height="5.2"
-              rx="1.1"
-              fill="url(#cpu-io-pad)"
-              stroke="#1c2e29"
-              strokeWidth="0.2"
-              transform="rotate(180 105.25 39.5)"
-            />
-            <rect
-              x="113.9"
-              y="14.7"
-              width="3.2"
-              height="5.2"
-              rx="1.1"
-              fill="url(#cpu-io-pad)"
-              stroke="#1c2e29"
-              strokeWidth="0.2"
-              transform="rotate(180 105.25 39.5)"
-            />
-            <rect
-              x="79.4"
-              y="-14.2"
-              width="3.2"
-              height="5.2"
-              rx="1.1"
-              fill="url(#cpu-io-pad)"
-              stroke="#1c2e29"
-              strokeWidth="0.2"
-              transform="rotate(270 115.25 19.5)"
-            />
-            <rect
-              x="86.4"
-              y="-14.2"
-              width="3.2"
-              height="5.2"
-              rx="1.1"
-              fill="url(#cpu-io-pad)"
-              stroke="#1c2e29"
-              strokeWidth="0.2"
-              transform="rotate(270 115.25 19.5)"
-            />
+            {ENGINE_IO_PADS.map((pad, idx) => (
+              <rect
+                key={`pad-${idx}`}
+                x={pad.x}
+                y={pad.y}
+                width={pad.w}
+                height={pad.h}
+                rx={pad.rx}
+                fill="url(#cpu-io-pad)"
+                stroke="#1c2e29"
+                strokeWidth="0.2"
+                transform={pad.transform}
+              />
+            ))}
           </g>
         )}
         <rect
@@ -346,6 +355,28 @@ const CpuArchitecture = ({
           fill="url(#cpu-chip-sheen)"
           opacity={0.35}
         />
+        {/* Per-cylinder glow when each wire’s pulse reaches the engine (~0.8s, synced in CSS) */}
+        {animateLines && animateRightTubeEnergy && (
+          <g className="cpu-port-energy-layer" pointerEvents="none">
+            {WIRE_TO_PAD_SLOT.map((padSlot, wireIdx) => {
+              const pad = ENGINE_IO_PADS[padSlot];
+              return (
+                <rect
+                  key={`port-hit-${wireIdx}`}
+                  x={pad.x}
+                  y={pad.y}
+                  width={pad.w}
+                  height={pad.h}
+                  rx={pad.rx}
+                  transform={pad.transform}
+                  fill="url(#cpu-port-hit-fill)"
+                  className={cn('cpu-port-energy-hit', `cpu-tube-energy-delay-${wireIdx}`)}
+                  filter="url(#cpu-port-hit-filter)"
+                />
+              );
+            })}
+          </g>
+        )}
         <text
           x="100"
           y="52.8"
@@ -370,11 +401,12 @@ const CpuArchitecture = ({
 
       <defs>
         {/* Brushed emerald metal: clear green, low gloss, diagonal grain */}
+        {/* Matches --color-primary (#059669) / button gradient (emerald-600 → emerald-700) */}
         <linearGradient id="cpu-chip-fill" x1="82" y1="38" x2="118" y2="64" gradientUnits="userSpaceOnUse">
-          <stop offset="0%" stopColor="#169b72" stopOpacity="1" />
-          <stop offset="28%" stopColor="#0f7a5c" stopOpacity="1" />
-          <stop offset="55%" stopColor="#0c664c" stopOpacity="1" />
-          <stop offset="100%" stopColor="#064032" stopOpacity="1" />
+          <stop offset="0%" stopColor="#10b981" stopOpacity="1" />
+          <stop offset="35%" stopColor="#059669" stopOpacity="1" />
+          <stop offset="70%" stopColor="#059669" stopOpacity="1" />
+          <stop offset="100%" stopColor="#047857" stopOpacity="1" />
         </linearGradient>
         <linearGradient id="cpu-chip-sheen" x1="85" y1="40" x2="85" y2="48" gradientUnits="userSpaceOnUse">
           <stop offset="0%" stopColor="#ffffff" stopOpacity="0.2" />
@@ -382,8 +414,8 @@ const CpuArchitecture = ({
           <stop offset="100%" stopColor="#ffffff" stopOpacity="0" />
         </linearGradient>
         <linearGradient id="cpu-chip-stroke" x1="84" y1="39" x2="116" y2="61" gradientUnits="userSpaceOnUse">
-          <stop offset="0%" stopColor="#0b3d2e" />
-          <stop offset="100%" stopColor="#021a14" />
+          <stop offset="0%" stopColor="#047857" />
+          <stop offset="100%" stopColor="#065f46" />
         </linearGradient>
         <linearGradient id="cpu-io-pad" x1="0%" y1="0%" x2="0%" y2="100%">
           <stop offset="0%" stopColor="#1a8f6c" />
@@ -400,6 +432,51 @@ const CpuArchitecture = ({
           <feGaussianBlur in="SourceGraphic" stdDeviation="1.65" result="blur" />
           <feMerge>
             <feMergeNode in="blur" />
+            <feMergeNode in="SourceGraphic" />
+          </feMerge>
+        </filter>
+        <filter id="cpu-tube-energy-bloom-filter" x="-120%" y="-120%" width="340%" height="340%">
+          <feGaussianBlur in="SourceGraphic" stdDeviation="2.35" result="blur" />
+          <feColorMatrix
+            in="blur"
+            type="matrix"
+            values="1 0 0 0 0
+                    0 1 0 0 0.12
+                    0 0 1 0 0.08
+                    0 0 0 0.75 0"
+            result="glow"
+          />
+          <feMerge>
+            <feMergeNode in="glow" />
+            <feMergeNode in="SourceGraphic" />
+          </feMerge>
+        </filter>
+        <filter id="cpu-tube-energy-hot-filter" x="-100%" y="-100%" width="300%" height="300%">
+          <feGaussianBlur in="SourceGraphic" stdDeviation="0.45" result="b" />
+          <feMerge>
+            <feMergeNode in="b" />
+            <feMergeNode in="SourceGraphic" />
+          </feMerge>
+        </filter>
+        <radialGradient id="cpu-port-hit-fill" cx="50%" cy="45%" r="60%">
+          <stop offset="0%" stopColor="#ffffff" stopOpacity="1" />
+          <stop offset="35%" stopColor="#a7f3d0" stopOpacity="0.95" />
+          <stop offset="70%" stopColor="#34d399" stopOpacity="0.65" />
+          <stop offset="100%" stopColor="#059669" stopOpacity="0" />
+        </radialGradient>
+        <filter id="cpu-port-hit-filter" x="-250%" y="-250%" width="600%" height="600%">
+          <feGaussianBlur in="SourceGraphic" stdDeviation="1.35" result="b" />
+          <feColorMatrix
+            in="b"
+            type="matrix"
+            values="1 0 0 0 0
+                    0 1 0 0 0.08
+                    0 0 1 0 0.06
+                    0 0 0 0.92 0"
+            result="glow"
+          />
+          <feMerge>
+            <feMergeNode in="glow" />
             <feMergeNode in="SourceGraphic" />
           </feMerge>
         </filter>

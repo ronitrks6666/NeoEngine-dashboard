@@ -1,73 +1,29 @@
 import { useEffect, useRef } from 'react';
-import { cn } from '@/lib/utils';
-
-/** NeoEngine — saturated but not neon; reads on light mint backgrounds */
-export const LANDING_TUBE_COLORS = ['#2dd4bf', '#14b8a6', '#0d9488'] as const;
-export const LANDING_LIGHT_COLORS = ['#a7f3d0', '#6ee7b3', '#5eead4', '#2dd4bf'] as const;
-
-type TubesApp = {
-  tubes?: {
-    setColors: (c: string[]) => void;
-    setLightsColors: (c: string[]) => void;
-  };
-  dispose?: () => void;
-};
 
 export type TubesCursorProps = {
-  title?: string;
-  subtitle?: string;
-  caption?: string;
   initialColors?: string[];
-  lightColors?: string[];
-  lightIntensity?: number;
-  titleSize?: string;
-  subtitleSize?: string;
-  captionSize?: string;
-  enableRandomizeOnClick?: boolean;
-  /**
-   * `fullscreen` = fixed viewport layer (affects everything below — dulls translucent sections).
-   * `hero` = `absolute inset-0` inside a `relative` parent (recommended for landing).
-   */
-  variant?: 'fullscreen' | 'hero';
   className?: string;
-  canvasClassName?: string;
-  showHeroText?: boolean;
 };
 
-const TUBES_MODULE_URL =
-  'https://cdn.jsdelivr.net/npm/threejs-components@0.0.19/build/cursors/tubes1.min.js';
-
-function randomColors(count: number) {
-  return new Array(count).fill(0).map(
-    () =>
-      '#' +
-      Math.floor(Math.random() * 16777215)
-        .toString(16)
-        .padStart(6, '0'),
-  );
-}
+type TrailPoint = { x: number; y: number; timestamp: number };
 
 const TubesCursor = ({
-  title = 'Tubes',
-  subtitle = 'Cursor',
-  caption = 'WebGPU / WebGL',
-  showHeroText = false,
-  variant = 'fullscreen',
-  initialColors = [...LANDING_TUBE_COLORS],
-  lightColors = [...LANDING_LIGHT_COLORS],
-  lightIntensity = showHeroText ? 105 : variant === 'hero' ? 92 : 92,
-  titleSize = 'text-[80px]',
-  subtitleSize = 'text-[60px]',
-  captionSize = 'text-base',
-  enableRandomizeOnClick = false,
-  className,
-  canvasClassName,
+  initialColors = [
+    '#00ffff', // bright cyan
+    '#00ff66', // bright neon green
+    '#ff00ff', // bright magenta
+    '#ffff00', // bright yellow
+    '#0099ff', // bright blue
+    '#ff0066', // hot pink
+    '#66ff00', // lime
+    '#ff6600', // bright orange
+  ],
+  className = '',
 }: TubesCursorProps) => {
   const canvasRef = useRef<HTMLCanvasElement | null>(null);
-  const appRef = useRef<TubesApp | null>(null);
-
-  const tubesKey = initialColors.join(',');
-  const lightsKey = lightColors.join(',');
+  const trailsRef = useRef<TrailPoint[][]>([]);
+  const rafRef = useRef<number>();
+  const smoothMouseRef = useRef({ x: 0, y: 0 });
 
   useEffect(() => {
     if (typeof window === 'undefined') return;
@@ -75,135 +31,137 @@ const TubesCursor = ({
     const reduceMotion = window.matchMedia('(prefers-reduced-motion: reduce)').matches;
     if (reduceMotion) return;
 
-    let removeClick: (() => void) | null = null;
-    let destroyed = false;
+    const canvas = canvasRef.current;
+    if (!canvas) return;
 
-    void (async () => {
-      try {
-        const mod = await import(
-          /* @vite-ignore */
-          TUBES_MODULE_URL
-        );
-        const TubesCursorCtor = (mod as { default?: unknown }).default ?? mod;
-        if (typeof TubesCursorCtor !== 'function') return;
+    const ctx = canvas.getContext('2d', { alpha: true });
+    if (!ctx) return;
 
-        if (!canvasRef.current || destroyed) return;
+    const resize = () => {
+      canvas.width = window.innerWidth;
+      canvas.height = window.innerHeight;
+    };
+    resize();
 
-        const app = (
-          TubesCursorCtor as (
-            el: HTMLCanvasElement,
-            opts: {
-              tubes: {
-                colors: string[];
-                lights: { intensity: number; colors: string[] };
-              };
-            },
-          ) => TubesApp
-        )(canvasRef.current, {
-          tubes: {
-            colors: [...initialColors],
-            lights: {
-              intensity: lightIntensity,
-              colors: [...lightColors],
-            },
-          },
+    const numTubes = initialColors.length;
+    for (let i = 0; i < numTubes; i++) {
+      trailsRef.current[i] = [];
+    }
+
+    const handleMouseMove = (e: MouseEvent) => {
+      const smoothing = 0.15;
+      smoothMouseRef.current.x += (e.clientX - smoothMouseRef.current.x) * smoothing;
+      smoothMouseRef.current.y += (e.clientY - smoothMouseRef.current.y) * smoothing;
+    };
+
+    const updateTrails = () => {
+      const now = Date.now();
+      const { x, y } = smoothMouseRef.current;
+      
+      for (let i = 0; i < numTubes; i++) {
+        const angle = (i / numTubes) * Math.PI * 2;
+        const radius = 8;
+        
+        trailsRef.current[i].push({
+          x: x + Math.cos(angle) * radius,
+          y: y + Math.sin(angle) * radius,
+          timestamp: now,
         });
-
-        appRef.current = app;
-
-        if (enableRandomizeOnClick) {
-          const handler = () => {
-            const colors = randomColors(initialColors.length);
-            const lights = randomColors(lightColors.length);
-            app.tubes?.setColors(colors);
-            app.tubes?.setLightsColors(lights);
-          };
-          document.body.addEventListener('click', handler);
-          removeClick = () => document.body.removeEventListener('click', handler);
+        
+        if (trailsRef.current[i].length > 120) {
+          trailsRef.current[i].shift();
         }
-      } catch {
-        // CDN / WebGL unavailable — fail silently on landing
-      }
-    })();
-
-    return () => {
-      destroyed = true;
-      removeClick?.();
-      try {
-        appRef.current?.dispose?.();
-        appRef.current = null;
-      } catch {
-        // ignore
       }
     };
-  }, [tubesKey, lightsKey, lightIntensity, enableRandomizeOnClick]);
 
-  if (showHeroText) {
-    return (
-      <div className={cn('relative h-screen w-screen overflow-hidden', className)}>
-        <canvas
-          ref={canvasRef}
-          className={cn('fixed inset-0 block h-full w-full', canvasClassName)}
-          aria-hidden
-        />
-        <div className="relative z-10 flex h-full w-full flex-col items-center justify-center gap-2 select-none">
-          <h1
-            className={cn(
-              'm-0 p-0 text-white font-bold uppercase leading-none drop-shadow-[0_0_20px_rgba(0,0,0,1)]',
-              titleSize,
-            )}
-          >
-            {title}
-          </h1>
-          <h2
-            className={cn(
-              'm-0 p-0 text-white font-medium uppercase leading-none drop-shadow-[0_0_20px_rgba(0,0,0,1)]',
-              subtitleSize,
-            )}
-          >
-            {subtitle}
-          </h2>
-          <p
-            className={cn(
-              'm-0 p-0 text-white leading-none drop-shadow-[0_0_20px_rgba(0,0,0,1)]',
-              captionSize,
-            )}
-          >
-            {caption}
-          </p>
-        </div>
-      </div>
-    );
-  }
+    const drawTube = (points: TrailPoint[], color: string) => {
+      if (points.length < 2) return;
 
-  const hero = variant === 'hero';
+      const now = Date.now();
+      const maxAge = 1200;
+
+      for (let layer = 0; layer < 3; layer++) {
+        const lineWidth = layer === 0 ? 1.5 : layer === 1 ? 3 : 6;
+        const alpha = layer === 0 ? 0.95 : layer === 1 ? 0.5 : 0.25;
+
+        ctx.beginPath();
+        ctx.strokeStyle = color;
+        ctx.lineWidth = lineWidth;
+        ctx.lineCap = 'round';
+        ctx.lineJoin = 'round';
+
+        for (let i = 0; i < points.length; i++) {
+          const p = points[i];
+          const age = now - p.timestamp;
+          const life = Math.max(0, 1 - age / maxAge);
+          const easedLife = 1 - Math.pow(1 - life, 2);
+          
+          ctx.globalAlpha = alpha * easedLife;
+
+          if (i === 0) {
+            ctx.moveTo(p.x, p.y);
+          } else {
+            const prev = points[i - 1];
+            const midX = (prev.x + p.x) / 2;
+            const midY = (prev.y + p.y) / 2;
+            ctx.quadraticCurveTo(prev.x, prev.y, midX, midY);
+          }
+        }
+
+        if (layer === 0) {
+          ctx.shadowBlur = 30;
+          ctx.shadowColor = color;
+        } else {
+          ctx.shadowBlur = layer === 1 ? 45 : 70;
+          ctx.shadowColor = color;
+        }
+
+        ctx.stroke();
+      }
+
+      ctx.shadowBlur = 0;
+      ctx.globalAlpha = 1;
+    };
+
+    const animate = () => {
+      ctx.clearRect(0, 0, canvas.width, canvas.height);
+
+      updateTrails();
+
+      const now = Date.now();
+      const maxAge = 1200;
+
+      for (let i = 0; i < numTubes; i++) {
+        trailsRef.current[i] = trailsRef.current[i].filter(
+          (p) => now - p.timestamp < maxAge
+        );
+        
+        if (trailsRef.current[i].length > 1) {
+          drawTube(trailsRef.current[i], initialColors[i % initialColors.length]);
+        }
+      }
+
+      rafRef.current = requestAnimationFrame(animate);
+    };
+
+    window.addEventListener('mousemove', handleMouseMove);
+    window.addEventListener('resize', resize);
+    rafRef.current = requestAnimationFrame(animate);
+
+    return () => {
+      window.removeEventListener('mousemove', handleMouseMove);
+      window.removeEventListener('resize', resize);
+      if (rafRef.current) cancelAnimationFrame(rafRef.current);
+    };
+  }, [initialColors]);
 
   return (
-    <div
-      className={cn(
-        'pointer-events-none isolate overflow-hidden',
-        hero
-          ? 'absolute inset-0 z-0 min-h-full w-full'
-          : 'fixed inset-0 z-0 w-full',
-        className,
-      )}
-      aria-hidden
-    >
-      {/*
-        Fullscreen: landing uses opaque section BGs so UI doesn’t composite over the canvas.
-        Never mix-blend-* — that tints the whole page. Hero variant = local clip only.
-      */}
-      <canvas
-        ref={canvasRef}
-        className={cn(
-          'block max-h-none bg-emerald-50',
-          hero
-            ? 'absolute inset-0 h-full w-full min-h-[280px] opacity-[0.36]'
-            : 'h-full w-full opacity-[0.26]',
-          canvasClassName,
-        )}
-      />
-    </div>
+    <canvas
+      ref={canvasRef}
+      className={`fixed inset-0 block w-full h-full pointer-events-none ${className}`}
+      style={{ zIndex: 1, opacity: 0.9 }}
+      aria-hidden="true"
+    />
   );
 };
 

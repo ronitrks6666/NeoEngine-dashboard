@@ -18,7 +18,8 @@ import {
 } from 'lucide-react';
 import { NeoEngineLogo } from '@/components/NeoEngineLogo';
 import { CpuArchitecture } from '@/components/ui/cpu-architecture';
-import { TubesCursor } from '@/components/ui/tube-cursor';
+// Uncomment to enable neon tubes cursor effect
+// import { TubesCursor } from '@/components/ui/tube-cursor';
 import { fetchLandingConfig, type LandingConfig, type LandingFeature } from '@/api/config';
 import {
   LineChart,
@@ -85,10 +86,14 @@ export function LandingPage() {
   return (
     <div className="relative min-h-screen bg-emerald-50">
       {/* Tubes sit below z-20 UI shell; canvas uses bg-emerald-50 so empty GL pixels don’t read as muddy gray */}
-      <TubesCursor variant="fullscreen" className="z-[1]" />
-      <div className="relative z-20 isolate min-h-screen">
-      <nav className="fixed top-0 left-0 right-0 z-50 border-b border-emerald-100 bg-white shadow-sm">
-        <div className="max-w-6xl mx-auto px-4 sm:px-6 h-16 flex items-center justify-between">
+      {/* <TubesCursor 
+        initialColors={[
+          '#00ffff', '#00ff66', '#ff00ff', '#ffff00',
+          '#0099ff', '#ff0066', '#66ff00', '#ff6600'
+        ]}
+      /> */}
+      <nav className="landing-nav fixed top-0 left-0 right-0 z-50 border-b border-emerald-300/30 backdrop-blur-xl shadow-[0_1px_0_0_rgba(255,255,255,0.55)]">
+        <div className="max-w-screen-2xl mx-auto px-4 sm:px-6 lg:px-8 h-16 flex items-center justify-between">
           <Link to="/" className="flex items-center gap-2">
             <NeoEngineLogo size={36} />
             <span className="font-bold text-xl text-slate-900">NeoEngine</span>
@@ -121,39 +126,36 @@ export function LandingPage() {
         </div>
       </nav>
 
-      <main className="relative z-10 min-h-screen bg-emerald-50 pt-16">
-        {/* 1. Hero — opaque base so decorative layers never composite through to WebGL */}
-        <section className="relative overflow-x-hidden overflow-y-visible bg-gradient-to-br from-emerald-50 via-white to-emerald-50 px-4 sm:px-6 pt-4 sm:pt-6 pb-12 sm:pb-16 md:pb-20">
-          <div className="pointer-events-none absolute inset-0 z-[1] bg-gradient-to-br from-emerald-100/80 via-white to-emerald-50" />
-          <div className="pointer-events-none absolute top-1/4 right-0 z-[1] w-96 h-96 bg-emerald-400/12 rounded-full blur-3xl" />
-          <div className="pointer-events-none absolute bottom-1/4 left-0 z-[1] w-64 h-64 bg-emerald-300/12 rounded-full blur-3xl" />
-          <div className="relative z-10 max-w-6xl mx-auto">
+      <main className="relative z-10 pt-16">
+        {/* 1. Hero — md+: exactly (100svh/100dvh − nav) so copy + CPU fit one screen; phone: min-height, can scroll */}
+        <section className="landing-hero-viewport relative flex flex-col overflow-x-hidden bg-emerald-50 px-4 sm:px-6 lg:px-8 py-2 sm:py-3 md:py-3">
+          <div className="relative z-10 flex h-full min-h-0 w-full max-w-screen-2xl flex-1 flex-col mx-auto md:overflow-hidden">
             <motion.div
               initial={{ opacity: 0, y: 24 }}
               animate={{ opacity: 1, y: 0 }}
               transition={{ duration: 0.6 }}
-              className="text-center max-w-3xl mx-auto"
+              className="shrink-0 text-center w-full max-w-5xl xl:max-w-6xl mx-auto"
             >
-              <h1 className="text-3xl sm:text-4xl md:text-[2.65rem] font-bold tracking-tight text-slate-900 mb-3 sm:mb-4 leading-tight">
+              <h1 className="text-2xl sm:text-3xl md:text-4xl lg:text-[2.5rem] xl:text-[2.75rem] font-bold tracking-tight text-slate-900 mb-1.5 sm:mb-2 md:mb-2 leading-tight">
                 Run your business
                 <span className="block bg-gradient-to-r from-emerald-600 to-emerald-700 bg-clip-text text-transparent mt-0.5">
                   smarter, not harder
                 </span>
               </h1>
-              <p className="text-base sm:text-lg text-slate-600 mb-5 sm:mb-6 max-w-xl mx-auto leading-relaxed">
+              <p className="text-sm sm:text-base md:text-lg text-slate-600 mb-3 sm:mb-3.5 md:mb-4 max-w-3xl xl:max-w-4xl mx-auto leading-snug md:leading-relaxed">
                 NeoEngine automates operations, attendance, tasks, and payroll—so you can focus on what matters.
               </p>
-              <div className="flex flex-col sm:flex-row gap-3 justify-center">
+              <div className="flex flex-col sm:flex-row gap-2 sm:gap-3 justify-center">
                 <Link
                   to={token && role ? (role === 'SUPER_ADMIN' ? '/super-admin/dashboard' : '/owner/dashboard') : '/login'}
-                  className="inline-flex items-center justify-center gap-2 px-6 py-3 rounded-xl bg-gradient-to-r from-emerald-600 to-emerald-700 text-white font-semibold text-base shadow-emerald-lg hover:from-emerald-700 hover:to-emerald-800 transition-all"
+                  className="inline-flex items-center justify-center gap-2 px-5 py-2.5 md:px-6 md:py-2.5 rounded-xl bg-gradient-to-r from-emerald-600 to-emerald-700 text-white font-semibold text-sm md:text-base shadow-emerald-lg hover:from-emerald-700 hover:to-emerald-800 transition-all"
                 >
                   {token && role ? 'Go to Dashboard' : 'Get Started'}
                   <ArrowRight className="h-4 w-4 shrink-0" />
                 </Link>
                 <a
                   href="#demo"
-                  className="inline-flex items-center justify-center gap-2 px-6 py-3 rounded-xl border-2 border-emerald-200 text-slate-700 hover:border-emerald-500 hover:text-emerald-700 font-semibold text-base transition-colors"
+                  className="inline-flex items-center justify-center gap-2 px-5 py-2.5 md:px-6 md:py-2.5 rounded-xl border-2 border-emerald-200 text-slate-700 hover:border-emerald-500 hover:text-emerald-700 font-semibold text-sm md:text-base transition-colors"
                 >
                   <Play className="h-4 w-4 shrink-0" />
                   Watch Demo
@@ -164,21 +166,19 @@ export function LandingPage() {
               initial={{ opacity: 0, y: 20 }}
               animate={{ opacity: 1, y: 0 }}
               transition={{ delay: 0.2, duration: 0.6, ease: [0.22, 1, 0.36, 1] }}
-              className="mt-4 sm:mt-5 md:mt-6 flex justify-center w-full pointer-events-auto"
+              className="mt-0 md:-mt-1 flex min-h-0 min-w-0 flex-1 flex-col w-full pointer-events-auto landing-cpu-slot"
             >
-              <div className="relative w-full max-w-5xl lg:max-w-6xl mx-auto px-0 sm:px-2">
+              {/* Fill flex-1: avoid items-center on flex (it prevents stretch). Inner scale bumps visual size without changing hero height. */}
+              <div className="relative mx-auto min-h-0 min-w-0 h-full w-full flex-1 px-0 sm:px-0 md:px-0 lg:px-1">
                 <div
-                  className="pointer-events-none absolute inset-0 -inset-x-4 sm:-inset-x-8 rounded-[2rem] bg-[radial-gradient(ellipse_85%_75%_at_50%_55%,rgba(16,185,129,0.14),rgba(236,253,245,0.35)_45%,transparent_72%)] opacity-90"
+                  className="pointer-events-none absolute inset-0 -inset-x-3 sm:-inset-x-6 lg:-inset-x-8 rounded-[2rem] bg-[radial-gradient(ellipse_85%_75%_at_50%_55%,rgba(16,185,129,0.14),rgba(236,253,245,0.35)_45%,transparent_72%)] opacity-90"
                   aria-hidden
                 />
-                {/*
-                  Taller CPU region: larger svh + px caps; SVG preserveAspectRatio meet keeps art contained.
-                */}
-                <div className="relative mx-auto flex w-full justify-center h-[min(44svh,400px)] sm:h-[min(50svh,480px)] md:h-[min(54svh,540px)] lg:h-[min(58svh,600px)]">
+                <div className="landing-cpu-frame absolute inset-0 min-h-0 min-w-0">
                   <CpuArchitecture
                     text="Engine"
                     ambient
-                    className="h-full w-full max-w-full drop-shadow-[0_12px_40px_-8px_rgba(5,150,105,0.18)]"
+                    className="landing-cpu-svg h-full w-full max-h-none max-w-none object-contain drop-shadow-[0_12px_40px_-8px_rgba(5,150,105,0.18)]"
                   />
                 </div>
               </div>
@@ -594,7 +594,6 @@ export function LandingPage() {
           </div>
         </footer>
       </main>
-      </div>
     </div>
   );
 }

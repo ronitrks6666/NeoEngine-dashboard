@@ -33,23 +33,22 @@
   }
 }
 
-/* Hero: one screen below fixed nav (h-16 = 4rem). Tablet+ locks to viewport; phone uses min-height + scroll if needed. */
+/* Hero: full viewport (no fixed nav). Tablet+ locks height; phone uses min-height + scroll if needed. */
 .landing-hero-viewport {
-  --landing-nav-h: 4rem;
   box-sizing: border-box;
 }
 
 @media (max-width: 767.98px) {
   .landing-hero-viewport {
-    min-height: calc(100svh - var(--landing-nav-h));
+    min-height: 100svh;
   }
 }
 
 @media (min-width: 768px) {
   .landing-hero-viewport {
-    height: calc(100svh - var(--landing-nav-h));
-    max-height: calc(100svh - var(--landing-nav-h));
-    min-height: calc(100svh - var(--landing-nav-h));
+    height: 100svh;
+    max-height: 100svh;
+    min-height: 100svh;
     overflow: hidden;
   }
 }
@@ -57,9 +56,9 @@
 @supports (height: 100dvh) {
   @media (min-width: 768px) {
     .landing-hero-viewport {
-      height: calc(100dvh - var(--landing-nav-h));
-      max-height: calc(100dvh - var(--landing-nav-h));
-      min-height: calc(100dvh - var(--landing-nav-h));
+      height: 100dvh;
+      max-height: 100dvh;
+      min-height: 100dvh;
     }
   }
 }
@@ -422,6 +421,25 @@ body {
   pointer-events: none;
   user-select: none;
   transition: fill 0.22s ease, font-weight 0.22s ease;
+}
+
+/* Hero on dark shader: readable feature labels + traces (no light “fog” overlay) */
+.landing-hero-diagram .cpu-node-label {
+  fill: rgba(240, 253, 250, 0.94);
+}
+
+.landing-hero-diagram .cpu-node-label-hit:hover .cpu-node-label {
+  fill: #ffffff;
+}
+
+.landing-hero-diagram .cpu-arch-svg-ambient .cpu-trace-ambient {
+  stroke: #5eead4;
+  stroke-opacity: 0.72;
+}
+
+.landing-hero-diagram .cpu-arch-svg-ambient .cpu-node-marker-ambient circle {
+  fill: rgba(236, 253, 245, 0.95);
+  stroke: rgba(52, 211, 153, 0.75);
 }
 
 /* Hero CPU: occupy full flex slot, then scale up (hero section height unchanged). */

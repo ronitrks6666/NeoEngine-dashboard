@@ -13,7 +13,6 @@ export function AttendancePage() {
   const [attendanceSearch, setAttendanceSearch] = useState('');
   const debouncedAttendanceSearch = useDebouncedValue(attendanceSearch, 350);
   const [punchEmployee, setPunchEmployee] = useState<{ id: string; name: string } | null>(null);
-  const [punchAction, setPunchAction] = useState<'in' | 'out' | 'break_start' | 'break_end' | null>(null);
   const queryClient = useQueryClient();
 
   const today = new Date().toISOString().slice(0, 10);
@@ -37,19 +36,26 @@ export function AttendancePage() {
     enabled: !!selectedOutletId,
   });
 
+  type PunchAction = 'in' | 'out' | 'break_start' | 'break_end';
+
   const punchMutation = useMutation({
-    mutationFn: async () => {
-      if (!punchEmployee || !punchAction || !selectedOutletId) return;
-      if (punchAction === 'in') return punchApi.punchInForEmployee(punchEmployee.id, selectedOutletId);
-      if (punchAction === 'out') return punchApi.punchOutForEmployee(punchEmployee.id, selectedOutletId);
-      if (punchAction === 'break_start') return punchApi.breakStartForEmployee(punchEmployee.id, selectedOutletId);
-      if (punchAction === 'break_end') return punchApi.breakEndForEmployee(punchEmployee.id, selectedOutletId);
+    mutationFn: async ({
+      employeeId,
+      action,
+    }: {
+      employeeId: string;
+      action: PunchAction;
+    }) => {
+      if (!selectedOutletId) return;
+      if (action === 'in') return punchApi.punchInForEmployee(employeeId, selectedOutletId);
+      if (action === 'out') return punchApi.punchOutForEmployee(employeeId, selectedOutletId);
+      if (action === 'break_start') return punchApi.breakStartForEmployee(employeeId, selectedOutletId);
+      if (action === 'break_end') return punchApi.breakEndForEmployee(employeeId, selectedOutletId);
     },
     onSuccess: () => {
       queryClient.invalidateQueries({ queryKey: ['manager-dashboard'] });
       queryClient.invalidateQueries({ queryKey: ['attendance'] });
       setPunchEmployee(null);
-      setPunchAction(null);
     },
   });
 
@@ -89,10 +95,8 @@ export function AttendancePage() {
                   {(['in', 'out', 'break_start', 'break_end'] as const).map((action) => (
                     <button
                       key={action}
-                      onClick={() => {
-                        setPunchAction(action);
-                        punchMutation.mutate();
-                      }}
+                      type="button"
+                      onClick={() => punchMutation.mutate({ employeeId: s.id, action })}
                       disabled={punchMutation.isPending}
                       className="px-2 py-1 text-xs bg-primary text-white rounded"
                     >

@@ -183,6 +183,7 @@ export function StaffPage() {
     onSuccess: () => {
       queryClient.invalidateQueries({ queryKey: ['my-employees'] });
       queryClient.invalidateQueries({ queryKey: ['hierarchy'] });
+      queryClient.invalidateQueries({ queryKey: ['available-roles'] });
       setEditing(null);
       editForm.reset();
     },

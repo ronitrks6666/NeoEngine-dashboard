@@ -10,7 +10,14 @@ export function RolesPage() {
   const { selectedOutletId } = useOutletStore();
   const [showCreate, setShowCreate] = useState(false);
   const [newRoleName, setNewRoleName] = useState('');
-  const [editingRole, setEditingRole] = useState<{ _id: string; name?: string; parentRoleId?: { name: string }; assignedEmployeeId?: { name: string }; minHoursPerDay?: number; punchInTime?: string } | null>(null);
+  const [editingRole, setEditingRole] = useState<{
+    _id: string;
+    name?: string;
+    parentRoleId?: { name: string };
+    assignedEmployeeId?: { name?: string; isActive?: boolean } | null;
+    minHoursPerDay?: number;
+    punchInTime?: string;
+  } | null>(null);
   const queryClient = useQueryClient();
 
   const { data: parentRolesData } = useQuery({
@@ -101,7 +108,20 @@ export function RolesPage() {
               <LoadingSpinner className="py-16" />
             ) : availableRoles.length > 0 ? (
               <div className="space-y-3 animate-in-stagger">
-                {availableRoles.map((r: { _id: string; name?: string; parentRoleId?: { name: string }; assignedEmployeeId?: { name: string } }) => (
+                {availableRoles.map((r: {
+                  _id: string;
+                  name?: string;
+                  parentRoleId?: { name: string };
+                  assignedEmployeeId?: { name?: string; isActive?: boolean } | null;
+                }) => {
+                  const a = r.assignedEmployeeId;
+                  const assigneeLabel =
+                    a && typeof a === 'object' && a.name?.trim()
+                      ? a.isActive === false
+                        ? `${a.name.trim()} (inactive)`
+                        : a.name.trim()
+                      : 'Unassigned';
+                  return (
                   <div
                     key={r._id}
                     className="group flex items-center justify-between rounded-xl border border-gray-200 p-4 card-hover bg-white"
@@ -112,7 +132,7 @@ export function RolesPage() {
                       </span>
                       <div>
                         <p className="font-medium text-gray-900">{r.name ?? r.parentRoleId?.name ?? '-'}</p>
-                        <p className="text-sm text-gray-500">{r.assignedEmployeeId?.name ?? 'Unassigned'}</p>
+                        <p className="text-sm text-gray-500">{assigneeLabel}</p>
                       </div>
                     </div>
                     <button
@@ -123,7 +143,8 @@ export function RolesPage() {
                       ✏️
                     </button>
                   </div>
-                ))}
+                  );
+                })}
               </div>
             ) : (
               <div className="text-center py-12 text-gray-500">No active roles for this outlet</div>
@@ -179,7 +200,14 @@ export function RolesPage() {
             </div>
             <button type="button" onClick={() => setEditingRole(null)} className="absolute top-4 right-4 p-2 rounded-lg text-gray-400 hover:text-gray-600 hover:bg-gray-100 transition-colors" aria-label="Close"><X className="h-5 w-5" /></button>
             <div className="p-6">
-              <p className="text-sm text-gray-500">Assigned to: {editingRole.assignedEmployeeId?.name ?? 'Unassigned'}</p>
+              <p className="text-sm text-gray-500">
+                Assigned to:{' '}
+                {editingRole.assignedEmployeeId && typeof editingRole.assignedEmployeeId === 'object' && editingRole.assignedEmployeeId.name?.trim()
+                  ? editingRole.assignedEmployeeId.isActive === false
+                    ? `${editingRole.assignedEmployeeId.name.trim()} (inactive)`
+                    : editingRole.assignedEmployeeId.name.trim()
+                  : 'Unassigned'}
+              </p>
               <p className="text-sm text-gray-400 mt-4">Assign role from Staff page</p>
               <button onClick={() => setEditingRole(null)} className="mt-2 w-full px-4 py-2.5 border border-gray-200 rounded-xl font-medium hover:bg-gray-50">
                 Close

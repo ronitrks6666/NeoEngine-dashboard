@@ -64,6 +64,13 @@ const chartData = [
 const fadeUp = { initial: { opacity: 0, y: 24 }, animate: { opacity: 1, y: 0 }, transition: { duration: 0.5 } };
 const stagger = { animate: { transition: { staggerChildren: 0.08 } } };
 
+/** Avoid hero CPU graphic overlapping and stealing clicks from CTAs */
+function landingDashboardPath(token: string | null, role: string | null): string {
+  if (!token) return '/login';
+  if (role === 'SUPER_ADMIN') return '/super-admin/dashboard';
+  return '/owner/dashboard';
+}
+
 export function LandingPage() {
   const { token, role } = useAuth();
   const [config, setConfig] = useState<LandingConfig | null>(null);
@@ -99,9 +106,9 @@ export function LandingPage() {
             <span className="font-bold text-xl text-slate-900">NeoEngine</span>
           </Link>
           <div className="flex items-center gap-4">
-            {token && role ? (
+            {token ? (
               <Link
-                to={role === 'SUPER_ADMIN' ? '/super-admin/dashboard' : '/owner/dashboard'}
+                to={landingDashboardPath(token, role)}
                 className="px-4 py-2 rounded-xl bg-primary hover:bg-primary-dark text-white font-medium transition-colors"
               >
                 Go to Dashboard
@@ -134,7 +141,7 @@ export function LandingPage() {
               initial={{ opacity: 0, y: 24 }}
               animate={{ opacity: 1, y: 0 }}
               transition={{ duration: 0.6 }}
-              className="shrink-0 text-center w-full max-w-5xl xl:max-w-6xl mx-auto"
+              className="relative z-30 shrink-0 text-center w-full max-w-5xl xl:max-w-6xl mx-auto"
             >
               <h1 className="text-2xl sm:text-3xl md:text-4xl lg:text-[2.5rem] xl:text-[2.75rem] font-bold tracking-tight text-slate-900 mb-1.5 sm:mb-2 md:mb-2 leading-tight">
                 Run your business
@@ -147,10 +154,10 @@ export function LandingPage() {
               </p>
               <div className="flex flex-col sm:flex-row gap-2 sm:gap-3 justify-center">
                 <Link
-                  to={token && role ? (role === 'SUPER_ADMIN' ? '/super-admin/dashboard' : '/owner/dashboard') : '/login'}
+                  to={landingDashboardPath(token, role)}
                   className="inline-flex items-center justify-center gap-2 px-5 py-2.5 md:px-6 md:py-2.5 rounded-xl bg-gradient-to-r from-emerald-600 to-emerald-700 text-white font-semibold text-sm md:text-base shadow-emerald-lg hover:from-emerald-700 hover:to-emerald-800 transition-all"
                 >
-                  {token && role ? 'Go to Dashboard' : 'Get Started'}
+                  {token ? 'Go to Dashboard' : 'Get Started'}
                   <ArrowRight className="h-4 w-4 shrink-0" />
                 </Link>
                 <a
@@ -166,7 +173,7 @@ export function LandingPage() {
               initial={{ opacity: 0, y: 20 }}
               animate={{ opacity: 1, y: 0 }}
               transition={{ delay: 0.2, duration: 0.6, ease: [0.22, 1, 0.36, 1] }}
-              className="mt-0 md:-mt-1 flex min-h-0 min-w-0 flex-1 flex-col w-full pointer-events-auto landing-cpu-slot"
+              className="mt-0 md:-mt-1 flex min-h-0 min-w-0 flex-1 flex-col w-full pointer-events-none landing-cpu-slot"
             >
               {/* Fill flex-1: avoid items-center on flex (it prevents stretch). Inner scale bumps visual size without changing hero height. */}
               <div className="relative mx-auto min-h-0 min-w-0 h-full w-full flex-1 px-0 sm:px-0 md:px-0 lg:px-1">
@@ -551,10 +558,10 @@ export function LandingPage() {
             </p>
             <div className="flex flex-col sm:flex-row gap-4 justify-center">
               <Link
-                to={token && role ? (role === 'SUPER_ADMIN' ? '/super-admin/dashboard' : '/owner/dashboard') : '/login'}
+                to={landingDashboardPath(token, role)}
                 className="inline-flex items-center justify-center gap-2 px-8 py-4 rounded-2xl bg-white text-primary hover:bg-emerald-50 font-semibold text-lg transition-colors"
               >
-                {token && role ? 'Go to Dashboard' : 'Get Started'}
+                {token ? 'Go to Dashboard' : 'Get Started'}
                 <ArrowRight className="h-5 w-5" />
               </Link>
               <a

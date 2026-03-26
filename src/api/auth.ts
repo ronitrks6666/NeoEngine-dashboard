@@ -95,10 +95,13 @@ export function clearAuth() {
 export function getStoredAuth(): { token: string; user: object; role: UserRole } | null {
   const token = localStorage.getItem('neoengine_token');
   const userStr = localStorage.getItem('neoengine_user');
-  const role = localStorage.getItem('neoengine_role') as UserRole | null;
-  if (!token || !userStr || !role) return null;
+  if (!token || !userStr) return null;
   try {
     const user = JSON.parse(userStr);
+    let role = localStorage.getItem('neoengine_role') as UserRole | null;
+    if (!role || (role !== 'OWNER' && role !== 'SUPER_ADMIN')) {
+      role = 'OWNER';
+    }
     return { token, user, role };
   } catch {
     return null;

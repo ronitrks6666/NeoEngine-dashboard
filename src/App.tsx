@@ -23,6 +23,7 @@ import { HierarchyPage } from '@/pages/owner/HierarchyPage';
 import { ReportsPage } from '@/pages/owner/ReportsPage';
 import { PermissionsPage } from '@/pages/owner/PermissionsPage';
 import { useAuth } from '@/hooks/useAuth';
+import { NeoEngineApkDownloadPage } from '@/pages/NeoEngineApkDownloadPage';
 
 function App() {
   const { hydrate } = useAuth();
@@ -86,6 +87,7 @@ function App() {
       />
 
       <Route path="/" element={<LandingPage />} />
+      <Route path="/neoengine-apk" element={<NeoEngineApkDownloadPage />} />
 
       <Route path="*" element={<Navigate to="/" replace />} />
     </Routes>

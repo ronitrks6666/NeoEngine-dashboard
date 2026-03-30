@@ -14,8 +14,10 @@ import {
   UtensilsCrossed,
   Store,
   Wrench,
+  Download,
   type LucideIcon,
 } from 'lucide-react';
+import { NEOENGINE_APK_ROUTE } from '@/constants/downloads';
 import { NeoEngineLogo } from '@/components/NeoEngineLogo';
 import { CpuArchitecture } from '@/components/ui/cpu-architecture';
 // Uncomment to enable neon tubes cursor effect
@@ -556,7 +558,7 @@ export function LandingPage() {
             <p className="text-lg text-emerald-100 mb-10">
               Join hundreds of businesses already using NeoEngine.
             </p>
-            <div className="flex flex-col sm:flex-row gap-4 justify-center">
+            <div className="flex flex-col sm:flex-row gap-4 justify-center flex-wrap">
               <Link
                 to={landingDashboardPath(token, role)}
                 className="inline-flex items-center justify-center gap-2 px-8 py-4 rounded-2xl bg-white text-primary hover:bg-emerald-50 font-semibold text-lg transition-colors"
@@ -564,6 +566,13 @@ export function LandingPage() {
                 {token ? 'Go to Dashboard' : 'Get Started'}
                 <ArrowRight className="h-5 w-5" />
               </Link>
+              <a
+                href={NEOENGINE_APK_ROUTE}
+                className="inline-flex items-center justify-center gap-2 px-8 py-4 rounded-2xl border-2 border-white/80 text-white hover:bg-white/15 font-semibold transition-colors"
+              >
+                <Download className="h-5 w-5" />
+                Download Android app (APK)
+              </a>
               <a
                 href="#demo"
                 className="inline-flex items-center justify-center gap-2 px-8 py-4 rounded-2xl border-2 border-white/50 text-white hover:bg-white/10 font-semibold transition-colors"
@@ -581,7 +590,7 @@ export function LandingPage() {
               <NeoEngineLogo size={28} />
               <span className="font-bold text-slate-900">NeoEngine</span>
             </Link>
-            <nav className="flex flex-wrap gap-6 text-slate-600">
+            <nav className="flex flex-wrap gap-6 text-slate-600 items-center justify-center">
               <a href="#product" className="hover:text-slate-900 transition-colors">
                 Product
               </a>
@@ -593,6 +602,13 @@ export function LandingPage() {
               </a>
               <a href="#privacy" className="hover:text-slate-900 transition-colors">
                 Privacy
+              </a>
+              <a
+                href={NEOENGINE_APK_ROUTE}
+                className="inline-flex items-center gap-1.5 font-semibold text-primary hover:text-primary-dark transition-colors"
+              >
+                <Download className="h-4 w-4" />
+                Download APK
               </a>
             </nav>
           </div>

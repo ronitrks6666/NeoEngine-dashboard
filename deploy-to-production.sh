@@ -38,22 +38,47 @@ pm2 start ecosystem.config.cjs
 pm2 save
 pm2 startup
 
-# 5. Nginx - proxy to PM2 (port 3000)
-sudo tee "$NGINX_CONF" << 'NGINX'
+# 5. Nginx — APKs from disk (correct MIME); everything else → PM2. Preserves Certbot SSL blocks if you merge manually after first HTTPS setup.
+sudo tee "$NGINX_CONF" << NGINX
 server {
-    listen 80;
     server_name dashboard-ne.neuoptic.in;
+
+    location ^~ /app-packages/ {
+        alias $PROJECT_DIR/dist/app-packages/;
+        default_type application/vnd.android.package-archive;
+        add_header Content-Disposition "attachment";
+        add_header Cache-Control "public, max-age=3600";
+        gzip off;
+        sendfile on;
+        tcp_nopush on;
+    }
+
     location / {
         proxy_pass http://127.0.0.1:3000;
         proxy_http_version 1.1;
-        proxy_set_header Upgrade $http_upgrade;
+        proxy_set_header Upgrade \$http_upgrade;
         proxy_set_header Connection 'upgrade';
-        proxy_set_header Host $host;
-        proxy_set_header X-Real-IP $remote_addr;
-        proxy_set_header X-Forwarded-For $proxy_add_x_forwarded_for;
-        proxy_set_header X-Forwarded-Proto $scheme;
-        proxy_cache_bypass $http_upgrade;
+        proxy_set_header Host \$host;
+        proxy_set_header X-Real-IP \$remote_addr;
+        proxy_set_header X-Forwarded-For \$proxy_add_x_forwarded_for;
+        proxy_set_header X-Forwarded-Proto \$scheme;
+        proxy_cache_bypass \$http_upgrade;
     }
+
+    listen 443 ssl;
+    ssl_certificate /etc/letsencrypt/live/dashboard-ne.neuoptic.in/fullchain.pem;
+    ssl_certificate_key /etc/letsencrypt/live/dashboard-ne.neuoptic.in/privkey.pem;
+    include /etc/letsencrypt/options-ssl-nginx.conf;
+    ssl_dhparam /etc/letsencrypt/ssl-dhparams.pem;
+}
+
+server {
+    if (\$host = dashboard-ne.neuoptic.in) {
+        return 301 https://\$host\$request_uri;
+    }
+    listen 80;
+    server_name dashboard-ne.neuoptic.in;
+    return 404;
 }
 NGINX
 
@@ -61,7 +86,7 @@ sudo ln -sf "$NGINX_CONF" /etc/nginx/sites-enabled/
 sudo nginx -t && sudo systemctl reload nginx
 
 echo "=== Done ==="
-echo "Dashboard: http://dashboard-ne.neuoptic.in"
+echo "Dashboard: https://dashboard-ne.neuoptic.in"
 echo "PM2: pm2 status neoengine-dashboard"
 echo "Logs: pm2 logs neoengine-dashboard"
 echo ""

@@ -71,7 +71,12 @@ export function PayrollPage() {
 
   const { data: empData } = useQuery({
     queryKey: ['my-employees', selectedOutletId],
-    queryFn: () => employeeApi.getMyEmployees({ outletId: selectedOutletId ?? undefined, limit: 100 }),
+    queryFn: () =>
+      employeeApi.getMyEmployees({
+        outletId: selectedOutletId ?? undefined,
+        limit: 100,
+        includeInactive: true,
+      }),
     enabled: !!selectedOutletId && !!showAddPayment,
   });
 

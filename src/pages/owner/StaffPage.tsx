@@ -122,6 +122,7 @@ export function StaffPage() {
         outletId: selectedOutletId ?? undefined,
         limit: 100,
         search: debouncedSearch.trim() || undefined,
+        includeInactive: true,
       }),
     enabled: !!selectedOutletId,
   });

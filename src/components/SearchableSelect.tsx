@@ -19,6 +19,8 @@ type SearchableSelectProps = {
   disabled?: boolean;
   allowClear?: boolean;
   className?: string;
+  /** When false, hides the search box (short lists like shift or hour/minute). */
+  showSearch?: boolean;
 };
 
 /**
@@ -36,6 +38,7 @@ export function SearchableSelect({
   disabled = false,
   allowClear = false,
   className = '',
+  showSearch = true,
 }: SearchableSelectProps) {
   const [open, setOpen] = useState(false);
   const [q, setQ] = useState('');
@@ -111,20 +114,22 @@ export function SearchableSelect({
           className="absolute left-0 right-0 top-full z-[60] mt-1.5 overflow-hidden rounded-xl border border-emerald-100 bg-white shadow-lg shadow-emerald-950/10 ring-1 ring-black/5"
           role="listbox"
         >
-          <div className="border-b border-emerald-50 p-2">
-            <div className="relative">
-              <Search className="pointer-events-none absolute left-2.5 top-1/2 h-4 w-4 -translate-y-1/2 text-emerald-500/60" />
-              <input
-                type="search"
-                value={q}
-                onChange={(e) => setQ(e.target.value)}
-                placeholder={searchPlaceholder}
-                className="w-full rounded-lg border border-emerald-100 bg-emerald-50/30 py-2 pl-9 pr-3 text-sm text-gray-900 placeholder:text-gray-400 focus:border-emerald-400 focus:outline-none focus:ring-1 focus:ring-emerald-400/30"
-                autoFocus
-                onClick={(e) => e.stopPropagation()}
-              />
+          {showSearch ? (
+            <div className="border-b border-emerald-50 p-2">
+              <div className="relative">
+                <Search className="pointer-events-none absolute left-2.5 top-1/2 h-4 w-4 -translate-y-1/2 text-emerald-500/60" />
+                <input
+                  type="search"
+                  value={q}
+                  onChange={(e) => setQ(e.target.value)}
+                  placeholder={searchPlaceholder}
+                  className="w-full rounded-lg border border-emerald-100 bg-emerald-50/30 py-2 pl-9 pr-3 text-sm text-gray-900 placeholder:text-gray-400 focus:border-emerald-400 focus:outline-none focus:ring-1 focus:ring-emerald-400/30"
+                  autoFocus
+                  onClick={(e) => e.stopPropagation()}
+                />
+              </div>
             </div>
-          </div>
+          ) : null}
           <ul className="max-h-52 overflow-y-auto py-1">
             {options.length === 0 ? (
               <li className="px-3 py-3 text-center text-sm text-gray-500">{noOptionsText}</li>

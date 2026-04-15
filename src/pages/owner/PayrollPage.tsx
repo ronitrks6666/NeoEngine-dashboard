@@ -1,13 +1,14 @@
-import { useState, useEffect } from 'react';
+import { useState, useEffect, useMemo } from 'react';
 import { useQuery, useMutation, useQueryClient } from '@tanstack/react-query';
 import { useOutletStore } from '@/stores/outletStore';
 import { payrollApi } from '@/api/payroll';
 import { employeeApi } from '@/api/employee';
 import { getApiErrorMessage } from '@/api/auth';
 import { LoadingSpinner } from '@/components/LoadingSpinner';
+import { SearchableSelect } from '@/components/SearchableSelect';
 import { ListSearchBar } from '@/components/ListSearchBar';
 import { useDebouncedValue } from '@/hooks/useDebouncedValue';
-import { X, Wallet, Loader2, ChevronDown, Calendar } from 'lucide-react';
+import { X, Wallet, Loader2, Calendar } from 'lucide-react';
 
 export function PayrollPage() {
   const { selectedOutletId } = useOutletStore();
@@ -85,6 +86,20 @@ export function PayrollPage() {
   });
 
   const periods = periodsData?.data?.periods ?? periodsData?.periods ?? [];
+  const payrollPeriodOptions = useMemo(
+    () =>
+      (periods as { _id: string; periodStart?: string; periodEnd?: string; status?: string }[]).map((p) => ({
+        value: p._id,
+        label:
+          (p.periodStart && p.periodEnd
+            ? `${new Date(p.periodStart).toLocaleDateString('en-IN', { day: 'numeric', month: 'short', year: 'numeric' })} — ${new Date(p.periodEnd).toLocaleDateString('en-IN', { day: 'numeric', month: 'short', year: 'numeric' })}`
+            : 'Period') +
+          (p.status !== 'open'
+            ? ` · ${p.status === 'paid' ? 'Paid' : p.status === 'locked' ? 'Locked' : 'Processed'}`
+            : ''),
+      })),
+    [periods]
+  );
   const employees = empData?.data?.employees ?? [];
   const periodDetail = periodDetailData?.data ?? periodDetailData;
   const periodEmployees = periodDetail?.employees ?? [];
@@ -131,23 +146,22 @@ export function PayrollPage() {
           <div className="mb-6">
             <div className="inline-flex flex-col gap-1.5">
               <label className="text-xs font-medium text-gray-500 uppercase tracking-wide">Payroll period</label>
-              <div className="relative">
-                <Calendar className="absolute left-4 top-1/2 -translate-y-1/2 h-5 w-5 text-teal-500 pointer-events-none" />
-                <select
-                  value={selectedPeriodId ?? ''}
-                  onChange={(e) => setSelectedPeriodId(e.target.value || null)}
-                  className="appearance-none pl-11 pr-10 py-3.5 rounded-xl border border-gray-200 bg-white text-gray-900 font-medium shadow-sm hover:border-teal-300 focus:ring-2 focus:ring-teal-500/20 focus:border-teal-500 min-w-[280px] cursor-pointer transition-colors"
-                >
-                  {periods.map((p: { _id: string; periodStart?: string; periodEnd?: string; status?: string }) => (
-                    <option key={p._id} value={p._id}>
-                      {p.periodStart && p.periodEnd
-                        ? `${new Date(p.periodStart).toLocaleDateString('en-IN', { day: 'numeric', month: 'short', year: 'numeric' })} — ${new Date(p.periodEnd).toLocaleDateString('en-IN', { day: 'numeric', month: 'short', year: 'numeric' })}`
-                        : 'Period'}
-                      {p.status !== 'open' ? ` · ${p.status === 'paid' ? 'Paid' : p.status === 'locked' ? 'Locked' : 'Processed'}` : ''}
-                    </option>
-                  ))}
-                </select>
-                <ChevronDown className="absolute right-3 top-1/2 -translate-y-1/2 h-5 w-5 text-gray-400 pointer-events-none" />
+              <div className="flex items-start gap-2 min-w-[280px]">
+                <div className="flex h-11 w-11 shrink-0 items-center justify-center rounded-xl border border-gray-200 bg-white shadow-sm" title="Selected pay period">
+                  <Calendar className="h-5 w-5 text-teal-500" aria-hidden />
+                </div>
+                <div className="min-w-0 flex-1 min-w-[220px]">
+                  <SearchableSelect
+                    value={selectedPeriodId ?? ''}
+                    onChange={(v) => setSelectedPeriodId(v || null)}
+                    options={payrollPeriodOptions}
+                    placeholder="Select period"
+                    searchPlaceholder="Search periods…"
+                    noOptionsText="No periods"
+                    emptyText="No matches"
+                    className="min-w-[220px]"
+                  />
+                </div>
               </div>
             </div>
           </div>

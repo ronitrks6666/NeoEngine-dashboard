@@ -1,11 +1,12 @@
 import { useState } from 'react';
 import { useNavigate } from 'react-router-dom';
-import { useForm } from 'react-hook-form';
+import { useForm, Controller } from 'react-hook-form';
 import { zodResolver } from '@hookform/resolvers/zod';
 import { z } from 'zod';
 import { useAuth } from '@/hooks/useAuth';
 import { authApi, getApiErrorMessage } from '@/api/auth';
 import { NeoEngineLogo } from '@/components/NeoEngineLogo';
+import { zPhone10 } from '@/lib/phoneValidation';
 
 const superAdminSchema = z.object({
   email: z.string().email('Invalid email'),
@@ -18,7 +19,7 @@ const ownerPasswordSchema = z.object({
 });
 
 const ownerOtpPhoneSchema = z.object({
-  phone: z.string().min(10, 'Enter valid 10-digit phone'),
+  phone: zPhone10,
 });
 
 const ownerOtpVerifySchema = z.object({
@@ -282,11 +283,21 @@ export function LoginPage() {
             <form onSubmit={ownerOtpPhoneForm.handleSubmit(onOwnerOtpSend)} className="space-y-4">
               <div>
                 <label className="block text-sm font-medium text-gray-700 mb-1">Phone Number</label>
-                <input
-                  {...ownerOtpPhoneForm.register('phone')}
-                  type="tel"
-                  className="w-full px-3 py-2 border border-emerald-200 rounded-xl focus:ring-2 focus:ring-emerald-500/30 focus:border-emerald-500"
-                  placeholder="9876543210"
+                <Controller
+                  name="phone"
+                  control={ownerOtpPhoneForm.control}
+                  render={({ field }) => (
+                    <input
+                      {...field}
+                      type="tel"
+                      inputMode="numeric"
+                      autoComplete="tel"
+                      maxLength={10}
+                      onChange={(e) => field.onChange(e.target.value.replace(/\D/g, '').slice(0, 10))}
+                      className="w-full px-3 py-2 border border-emerald-200 rounded-xl focus:ring-2 focus:ring-emerald-500/30 focus:border-emerald-500 tracking-wide"
+                      placeholder="9876543210"
+                    />
+                  )}
                 />
                 {ownerOtpPhoneForm.formState.errors.phone && (
                   <p className="mt-1 text-sm text-red-600">{ownerOtpPhoneForm.formState.errors.phone.message}</p>

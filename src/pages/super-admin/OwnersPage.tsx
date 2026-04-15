@@ -1,17 +1,18 @@
 import { useState } from 'react';
 import { useQuery, useMutation, useQueryClient } from '@tanstack/react-query';
-import { useForm } from 'react-hook-form';
+import { useForm, Controller } from 'react-hook-form';
 import { zodResolver } from '@hookform/resolvers/zod';
 import { z } from 'zod';
 import { adminApi, type Owner } from '@/api/admin';
 import { getApiErrorMessage } from '@/api/auth';
 import { X } from 'lucide-react';
+import { zPhone10 } from '@/lib/phoneValidation';
 
 const createSchema = z.object({
   name: z.string().min(1, 'Name required'),
   email: z.string().email('Invalid email'),
   password: z.string().min(6, 'Min 6 characters'),
-  phone: z.string().min(10, 'Valid phone required'),
+  phone: zPhone10,
 });
 
 type CreateForm = z.infer<typeof createSchema>;
@@ -125,7 +126,22 @@ export function OwnersPage() {
               </div>
               <div>
                 <label className="block text-sm font-medium text-gray-700 mb-1">Phone</label>
-                <input {...form.register('phone')} className="w-full px-3 py-2 border rounded" />
+                <Controller
+                  name="phone"
+                  control={form.control}
+                  render={({ field }) => (
+                    <input
+                      {...field}
+                      type="tel"
+                      inputMode="numeric"
+                      autoComplete="tel"
+                      maxLength={10}
+                      onChange={(e) => field.onChange(e.target.value.replace(/\D/g, '').slice(0, 10))}
+                      className="w-full px-3 py-2 border rounded tracking-wide"
+                      placeholder="10-digit mobile"
+                    />
+                  )}
+                />
                 {form.formState.errors.phone && <p className="text-red-600 text-sm">{form.formState.errors.phone.message}</p>}
               </div>
               <div className="flex gap-2">

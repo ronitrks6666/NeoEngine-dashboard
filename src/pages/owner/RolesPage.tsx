@@ -4,7 +4,7 @@ import { useOutletStore } from '@/stores/outletStore';
 import { employeeApi } from '@/api/employee';
 import { getApiErrorMessage } from '@/api/auth';
 import { LoadingSpinner } from '@/components/LoadingSpinner';
-import { X } from 'lucide-react';
+import { X, Pencil } from 'lucide-react';
 
 export function RolesPage() {
   const { selectedOutletId } = useOutletStore();
@@ -50,13 +50,13 @@ export function RolesPage() {
       <div className="flex flex-col sm:flex-row sm:items-center sm:justify-between gap-4 mb-8">
         <div>
           <h1 className="text-2xl font-bold text-gray-900">Roles</h1>
-          <p className="text-gray-500 mt-0.5">Master roles and outlet assignments</p>
+          <p className="text-gray-500 mt-0.5">Roles and outlet assignments</p>
         </div>
         <button
           onClick={() => setShowCreate(true)}
           className="px-5 py-2.5 bg-teal-600 text-white rounded-xl font-medium hover:bg-teal-700 transition-all shadow-sm hover:shadow-md flex items-center gap-2 w-fit"
         >
-          <span>+</span> Create master role
+          <span>+</span> Create role
         </button>
       </div>
 
@@ -64,7 +64,7 @@ export function RolesPage() {
         {/* Master roles */}
         <div className="bg-white rounded-2xl border border-gray-200 overflow-hidden shadow-sm animate-slide-up">
           <div className="px-6 py-4 border-b border-gray-100 bg-gradient-to-r from-teal-50/50 to-transparent">
-            <h2 className="text-lg font-semibold text-gray-900">Master roles</h2>
+            <h2 className="text-lg font-semibold text-gray-900">Roles</h2>
             <p className="text-sm text-gray-500">Global role types (e.g. Manager, Waiter)</p>
           </div>
           <div className="p-6">
@@ -86,7 +86,7 @@ export function RolesPage() {
               </div>
             ) : (
               <div className="text-center py-12 text-gray-500">
-                <p>No master roles yet</p>
+                <p>No roles yet</p>
                 <button onClick={() => setShowCreate(true)} className="mt-2 text-teal-600 font-medium hover:underline">
                   Create one
                 </button>
@@ -136,11 +136,13 @@ export function RolesPage() {
                       </div>
                     </div>
                     <button
+                      type="button"
                       onClick={() => setEditingRole(r)}
                       className="p-2 rounded-lg hover:bg-teal-50 text-gray-500 hover:text-teal-600 transition-colors opacity-0 group-hover:opacity-100"
-                      title="Edit"
+                      title="Edit role settings"
+                      aria-label="Edit role settings"
                     >
-                      ✏️
+                      <Pencil className="h-4 w-4" />
                     </button>
                   </div>
                   );
@@ -158,7 +160,7 @@ export function RolesPage() {
         <div className="fixed inset-0 bg-black/40 backdrop-blur-sm flex items-center justify-center z-50 animate-fade-in">
           <div className="bg-white rounded-2xl shadow-xl w-full max-w-sm mx-4 animate-slide-up relative">
             <div className="p-6 border-b border-gray-100 pr-12">
-              <h2 className="text-xl font-semibold text-gray-900">Create master role</h2>
+              <h2 className="text-xl font-semibold text-gray-900">Create role</h2>
               <p className="text-sm text-gray-500 mt-0.5">Add a new role type (e.g. WAITER, MANAGER)</p>
             </div>
             <button type="button" onClick={() => setShowCreate(false)} className="absolute top-4 right-4 p-2 rounded-lg text-gray-400 hover:text-gray-600 hover:bg-gray-100 transition-colors" aria-label="Close"><X className="h-5 w-5" /></button>

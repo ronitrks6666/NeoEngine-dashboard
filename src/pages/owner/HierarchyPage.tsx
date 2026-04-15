@@ -6,6 +6,7 @@ import type { Owner } from '@/types/auth';
 import { employeeApi } from '@/api/employee';
 import { getApiErrorMessage } from '@/api/auth';
 import { LoadingSpinner } from '@/components/LoadingSpinner';
+import { SearchableSelect } from '@/components/SearchableSelect';
 import { GripVertical, X, Plus, Crown, ChevronRight } from 'lucide-react';
 
 const DROP_OWNER_KEY = '__owner__';
@@ -373,6 +374,17 @@ export function HierarchyPage() {
     return buildPeopleTree(employees, ownerInfo.id);
   }, [employees, ownerInfo]);
 
+  const directReportStaffOptions = useMemo(() => {
+    if (!directReportPicker) return [];
+    return employees
+      .filter((e) => {
+        if (e.isActive === false) return false;
+        if (directReportPicker.kind === 'employee' && String(e._id) === directReportPicker.managerId) return false;
+        return true;
+      })
+      .map((e) => ({ value: String(e._id), label: e.name }));
+  }, [employees, directReportPicker]);
+
   const clearDragUi = useCallback(() => {
     setDraggedEmployeeId(null);
     setDropTargetId(null);
@@ -599,7 +611,7 @@ export function HierarchyPage() {
           <strong>Owner</strong> at the top. Everyone underneath reports to the person (or owner) above them.
           <strong className="inline-flex items-center gap-0.5 mx-1"><Plus className="h-3.5 w-3.5" /></strong>
           assigns a direct report. <strong>Drag</strong> someone onto the owner or another person to change who they report to.
-          Role labels show <em>master role · outlet role</em> from Staff. The tree updates right away; the server syncs in the
+          Role labels show <em>role · outlet role</em> from Staff. The tree updates right away; the server syncs in the
           background.
         </p>
         {hierarchyNotice && (
@@ -818,25 +830,16 @@ export function HierarchyPage() {
             <div className="p-6 space-y-4">
               <div>
                 <label className="block text-sm font-medium text-gray-700 mb-1">Staff member</label>
-                <select
+                <SearchableSelect
                   value={selectedSubordinateId}
-                  onChange={(e) => setSelectedSubordinateId(e.target.value)}
-                  className="w-full px-4 py-2.5 rounded-xl border border-gray-200 focus:ring-2 focus:ring-emerald-500/20 focus:border-emerald-500"
-                >
-                  <option value="">Select…</option>
-                  {employees
-                    .filter((e) => {
-                      if (e.isActive === false) return false;
-                      if (directReportPicker.kind === 'employee' && String(e._id) === directReportPicker.managerId)
-                        return false;
-                      return true;
-                    })
-                    .map((e) => (
-                      <option key={e._id} value={e._id}>
-                        {e.name}
-                      </option>
-                    ))}
-                </select>
+                  onChange={setSelectedSubordinateId}
+                  options={directReportStaffOptions}
+                  placeholder="Select…"
+                  searchPlaceholder="Search staff…"
+                  allowClear
+                  noOptionsText="No eligible staff"
+                  emptyText="No matches"
+                />
               </div>
               {reportingMutation.isError && (
                 <p className="text-red-600 text-sm">{getApiErrorMessage(reportingMutation.error)}</p>

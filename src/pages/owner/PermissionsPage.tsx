@@ -236,7 +236,7 @@ function TeamByRolePanel({
             <p className="text-[11px] text-emerald-600 font-medium">
               {listLoading
                 ? 'Loading…'
-                : `${filtered.length} shown · ${groups.length} master role${groups.length === 1 ? '' : 's'}`}
+                : `${filtered.length} shown · ${groups.length} role${groups.length === 1 ? '' : 's'}`}
             </p>
           </div>
         </div>
@@ -319,7 +319,7 @@ function TeamByRolePanel({
                       <p className="text-[11px] text-amber-700/90 mt-0.5">Assign a role in Staff</p>
                     )}
                     {g.id !== '__unassigned' && g.id.startsWith('outlet:') && (
-                      <p className="text-[11px] text-emerald-600/90 mt-0.5">No master role on file — grouped by outlet role</p>
+                      <p className="text-[11px] text-emerald-600/90 mt-0.5">No role on file — grouped by outlet role</p>
                     )}
                   </div>
                 </button>

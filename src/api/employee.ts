@@ -13,13 +13,22 @@ export interface Employee {
 }
 
 export const employeeApi = {
-  getMyEmployees: async (params?: { outletId?: string; shiftType?: string; search?: string; page?: number; limit?: number }) => {
+  getMyEmployees: async (params?: {
+    outletId?: string;
+    shiftType?: string;
+    search?: string;
+    page?: number;
+    limit?: number;
+    /** Set true on owner staff/history views to include deactivated staff; omit for active-only (matches mobile app default). */
+    includeInactive?: boolean;
+  }) => {
     const q = new URLSearchParams();
     if (params?.outletId) q.set('outletId', params.outletId);
     if (params?.shiftType) q.set('shiftType', params.shiftType);
     if (params?.search) q.set('search', params.search);
     if (params?.page) q.set('page', String(params.page));
     if (params?.limit) q.set('limit', String(params.limit));
+    if (params?.includeInactive) q.set('includeInactive', '1');
     const { data } = await api.get(`/employee/my-employees?${q.toString()}`);
     return data;
   },

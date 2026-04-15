@@ -363,6 +363,7 @@ export function HierarchyPage() {
       employeeApi.getMyEmployees({
         outletId: selectedOutletId ?? undefined,
         limit: 100,
+        includeInactive: true,
       }),
     enabled: !!selectedOutletId,
   });

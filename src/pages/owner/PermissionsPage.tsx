@@ -592,6 +592,7 @@ export function PermissionsPage() {
       employeeApi.getMyEmployees({
         outletId: selectedOutletId ?? undefined,
         limit: 300,
+        includeInactive: true,
       }),
     enabled: !!selectedOutletId,
   });

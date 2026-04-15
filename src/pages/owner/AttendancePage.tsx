@@ -1,4 +1,4 @@
-import { useState } from 'react';
+import { useState, useRef, useEffect } from 'react';
 import { useQuery, useMutation, useQueryClient } from '@tanstack/react-query';
 import { useOutletStore } from '@/stores/outletStore';
 import { managerApi } from '@/api/manager';
@@ -7,12 +7,29 @@ import { activityApi } from '@/api/activity';
 import { getApiErrorMessage } from '@/api/auth';
 import { ListSearchBar } from '@/components/ListSearchBar';
 import { useDebouncedValue } from '@/hooks/useDebouncedValue';
+import { ChevronDown } from 'lucide-react';
+
+function statusBadgeLabel(status: string) {
+  const s = status?.trim() ?? '';
+  if (!s) return '—';
+  return s.charAt(0).toUpperCase() + s.slice(1).toLowerCase();
+}
+
+type PunchAction = 'in' | 'out' | 'break_start' | 'break_end';
+
+const PUNCH_OPTIONS: { action: PunchAction; label: string }[] = [
+  { action: 'in', label: 'Punch in' },
+  { action: 'out', label: 'Punch out' },
+  { action: 'break_start', label: 'Start break' },
+  { action: 'break_end', label: 'End break' },
+];
 
 export function AttendancePage() {
   const { selectedOutletId } = useOutletStore();
   const [attendanceSearch, setAttendanceSearch] = useState('');
   const debouncedAttendanceSearch = useDebouncedValue(attendanceSearch, 350);
-  const [punchEmployee, setPunchEmployee] = useState<{ id: string; name: string } | null>(null);
+  const [punchMenuOpenId, setPunchMenuOpenId] = useState<string | null>(null);
+  const punchMenuRef = useRef<HTMLDivElement | null>(null);
   const queryClient = useQueryClient();
 
   const today = new Date().toISOString().slice(0, 10);
@@ -36,8 +53,6 @@ export function AttendancePage() {
     enabled: !!selectedOutletId,
   });
 
-  type PunchAction = 'in' | 'out' | 'break_start' | 'break_end';
-
   const punchMutation = useMutation({
     mutationFn: async ({
       employeeId,
@@ -55,9 +70,19 @@ export function AttendancePage() {
     onSuccess: () => {
       queryClient.invalidateQueries({ queryKey: ['manager-dashboard'] });
       queryClient.invalidateQueries({ queryKey: ['attendance'] });
-      setPunchEmployee(null);
+      setPunchMenuOpenId(null);
     },
   });
+
+  useEffect(() => {
+    function onDoc(e: MouseEvent) {
+      if (!punchMenuRef.current?.contains(e.target as Node)) {
+        setPunchMenuOpenId(null);
+      }
+    }
+    document.addEventListener('mousedown', onDoc);
+    return () => document.removeEventListener('mousedown', onDoc);
+  }, []);
 
   const staffStatus = dashboardData?.staffStatus ?? [];
   const events = attendanceData?.data?.events ?? attendanceData?.events ?? [];
@@ -82,36 +107,65 @@ export function AttendancePage() {
 
       <div className="mb-8">
         <h2 className="text-lg font-semibold mb-3 text-gray-800">Punch for staff</h2>
-        <div className="flex flex-wrap gap-2">
-          {staffStatus.map((s) => (
-            <div key={s.id} className="flex items-center gap-2 bg-white border rounded-lg p-3">
-              <span className="font-medium">{s.name}</span>
-              <span className="text-sm text-gray-500">({s.role})</span>
-              <span className={`text-xs px-2 py-0.5 rounded ${s.status === 'working' ? 'bg-green-100' : s.status === 'break' ? 'bg-yellow-100' : 'bg-gray-100'}`}>
-                {s.status}
-              </span>
-              {punchEmployee?.id === s.id ? (
-                <div className="flex gap-1">
-                  {(['in', 'out', 'break_start', 'break_end'] as const).map((action) => (
-                    <button
-                      key={action}
-                      type="button"
-                      onClick={() => punchMutation.mutate({ employeeId: s.id, action })}
-                      disabled={punchMutation.isPending}
-                      className="px-2 py-1 text-xs bg-primary text-white rounded"
+        <div ref={punchMenuRef} className="flex flex-wrap gap-2">
+          {staffStatus.map((s) => {
+            const menuOpen = punchMenuOpenId === s.id;
+            const pendingHere =
+              punchMutation.isPending && punchMutation.variables?.employeeId === s.id;
+            return (
+              <div key={s.id} className="flex items-center gap-2 bg-white border border-gray-200 rounded-xl p-3 shadow-sm">
+                <span className="font-medium text-gray-900">{s.name}</span>
+                <span className="text-sm text-gray-500">({s.role})</span>
+                <span
+                  className={`text-xs font-medium px-2 py-0.5 rounded-lg ${
+                    s.status === 'working'
+                      ? 'bg-emerald-100 text-emerald-800'
+                      : s.status === 'break'
+                        ? 'bg-amber-100 text-amber-800'
+                        : 'bg-gray-100 text-gray-700'
+                  }`}
+                  title={`Status: ${statusBadgeLabel(s.status)}`}
+                >
+                  {statusBadgeLabel(s.status)}
+                </span>
+                <div className="relative">
+                  <button
+                    type="button"
+                    onClick={() => setPunchMenuOpenId((id) => (id === s.id ? null : s.id))}
+                    disabled={pendingHere}
+                    className="inline-flex items-center gap-1.5 rounded-lg bg-emerald-600 px-3 py-1.5 text-xs font-semibold text-white shadow-sm transition-colors hover:bg-emerald-700 disabled:opacity-60"
+                    aria-expanded={menuOpen}
+                    aria-haspopup="listbox"
+                    aria-label={`Punch actions for ${s.name}`}
+                  >
+                    Punch
+                    <ChevronDown className={`h-3.5 w-3.5 transition-transform ${menuOpen ? 'rotate-180' : ''}`} aria-hidden />
+                  </button>
+                  {menuOpen && (
+                    <ul
+                      className="absolute right-0 top-full z-20 mt-1.5 min-w-[10.5rem] overflow-hidden rounded-xl border border-emerald-100 bg-white py-1 shadow-lg shadow-emerald-950/10 ring-1 ring-black/5"
+                      role="listbox"
+                      aria-label="Punch actions"
                     >
-                      {action.replace('_', ' ')}
-                    </button>
-                  ))}
-                  <button onClick={() => setPunchEmployee(null)} className="px-2 py-1 text-xs border rounded">Cancel</button>
+                      {PUNCH_OPTIONS.map(({ action, label }) => (
+                        <li key={action} role="presentation">
+                          <button
+                            type="button"
+                            role="option"
+                            className="flex w-full px-3 py-2 text-left text-sm text-gray-800 transition-colors hover:bg-emerald-50 disabled:opacity-50"
+                            disabled={pendingHere}
+                            onClick={() => punchMutation.mutate({ employeeId: s.id, action })}
+                          >
+                            {label}
+                          </button>
+                        </li>
+                      ))}
+                    </ul>
+                  )}
                 </div>
-              ) : (
-                <button onClick={() => setPunchEmployee({ id: s.id, name: s.name })} className="px-2 py-1 text-xs bg-primary text-white rounded">
-                  Punch
-                </button>
-              )}
-            </div>
-          ))}
+              </div>
+            );
+          })}
         </div>
         {staffStatus.length === 0 && (
           <p className="text-sm text-gray-500">

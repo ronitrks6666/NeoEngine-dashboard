@@ -1,16 +1,18 @@
-import { useState } from 'react';
+import { useState, useMemo } from 'react';
 import { useQuery, useMutation, useQueryClient } from '@tanstack/react-query';
-import { useForm } from 'react-hook-form';
+import { useForm, Controller } from 'react-hook-form';
 import { zodResolver } from '@hookform/resolvers/zod';
 import { z } from 'zod';
 import { adminApi, type Outlet } from '@/api/admin';
 import { getApiErrorMessage } from '@/api/auth';
 import { X } from 'lucide-react';
+import { SearchableSelect } from '@/components/SearchableSelect';
+import { zPhone10 } from '@/lib/phoneValidation';
 
 const createSchema = z.object({
   name: z.string().min(1, 'Name required'),
   address: z.string().min(1, 'Address required'),
-  phone: z.string().min(1, 'Phone required'),
+  phone: zPhone10,
   ownerId: z.string().min(1, 'Select owner'),
 });
 
@@ -44,6 +46,11 @@ export function OutletsPage() {
     resolver: zodResolver(createSchema),
     defaultValues: { name: '', address: '', phone: '', ownerId: '' },
   });
+
+  const ownerSelectOptions = useMemo(
+    () => owners.map((o) => ({ value: o._id, label: o.name })),
+    [owners]
+  );
 
   const getOwnerName = (o: Outlet) => {
     const owner = o.ownerId;
@@ -120,12 +127,15 @@ export function OutletsPage() {
             <form onSubmit={form.handleSubmit(onSubmit)} className="space-y-4">
               <div>
                 <label className="block text-sm font-medium text-gray-700 mb-1">Owner</label>
-                <select {...form.register('ownerId')} className="w-full px-3 py-2 border rounded">
-                  <option value="">Select owner</option>
-                  {owners.map((o) => (
-                    <option key={o._id} value={o._id}>{o.name}</option>
-                  ))}
-                </select>
+                <SearchableSelect
+                  value={form.watch('ownerId') || ''}
+                  onChange={(v) => form.setValue('ownerId', v, { shouldValidate: true })}
+                  options={ownerSelectOptions}
+                  placeholder="Select owner"
+                  searchPlaceholder="Search owners…"
+                  noOptionsText="No owners"
+                  emptyText="No matches"
+                />
                 {form.formState.errors.ownerId && <p className="text-red-600 text-sm">{form.formState.errors.ownerId.message}</p>}
               </div>
               <div>
@@ -140,7 +150,22 @@ export function OutletsPage() {
               </div>
               <div>
                 <label className="block text-sm font-medium text-gray-700 mb-1">Phone</label>
-                <input {...form.register('phone')} className="w-full px-3 py-2 border rounded" />
+                <Controller
+                  name="phone"
+                  control={form.control}
+                  render={({ field }) => (
+                    <input
+                      {...field}
+                      type="tel"
+                      inputMode="numeric"
+                      autoComplete="tel"
+                      maxLength={10}
+                      onChange={(e) => field.onChange(e.target.value.replace(/\D/g, '').slice(0, 10))}
+                      className="w-full px-3 py-2 border rounded tracking-wide"
+                      placeholder="10-digit mobile"
+                    />
+                  )}
+                />
                 {form.formState.errors.phone && <p className="text-red-600 text-sm">{form.formState.errors.phone.message}</p>}
               </div>
               <div className="flex gap-2">

@@ -13,8 +13,10 @@ import { getApiErrorMessage } from '@/api/auth';
 import { LoadingSpinner } from '@/components/LoadingSpinner';
 import { ListSearchBar } from '@/components/ListSearchBar';
 import { SearchableSelect, type SearchableSelectOption } from '@/components/SearchableSelect';
+import { TimePickerField } from '@/components/TimePickerField';
+import { zPhone10 } from '@/lib/phoneValidation';
 import { useDebouncedValue } from '@/hooks/useDebouncedValue';
-import { UserPlus, Pencil, Trash2, FileText, ExternalLink, Plus, Shield, Briefcase, X, Loader2, Eye, EyeOff } from 'lucide-react';
+import { UserPlus, Pencil, Trash2, FileText, ExternalLink, Plus, Shield, Briefcase, X, Loader2 } from 'lucide-react';
 
 function employeeRoleSubtitle(
   activeRoleId?: { name?: string; parentRoleId?: { name?: string } } | string | null
@@ -42,7 +44,7 @@ function managerNameOnCard(e: {
 
 const createSchema = z.object({
   name: z.string().min(1, 'Name required'),
-  phone: z.string().regex(/^\d{10}$/, 'Enter exactly 10 digits'),
+  phone: zPhone10,
   tempPassword: z.string().min(6, 'Min 6 characters'),
   /** Master role — server creates outlet role Chef-1, Chef-2, … */
   parentRoleId: z.string().optional(),
@@ -53,7 +55,7 @@ const createSchema = z.object({
 
 const editSchema = z.object({
   name: z.string().min(1, 'Name required'),
-  phone: z.string().min(10, 'Valid phone required'),
+  phone: zPhone10,
   shiftType: z.enum(['Day', 'Night']).optional(),
   activeRoleId: z.string().optional(),
   salary: z.union([z.number(), z.string()]).optional().transform((v) => {
@@ -110,7 +112,6 @@ export function StaffPage() {
   const [newMasterRoleName, setNewMasterRoleName] = useState('');
   const [newRoleName, setNewRoleName] = useState('');
   const [newRoleParentId, setNewRoleParentId] = useState('');
-  const [showCreatePassword, setShowCreatePassword] = useState(false);
   const prevShowCreateRef = useRef(false);
   const skipNextCreateResetRef = useRef(false);
   const queryClient = useQueryClient();
@@ -258,6 +259,23 @@ export function StaffPage() {
     [parentRoles]
   );
 
+  const outletRoleSelectOptions: SearchableSelectOption[] = useMemo(
+    () =>
+      (roles as { _id: string; name: string }[]).map((r) => ({
+        value: r._id,
+        label: r.name,
+      })),
+    [roles]
+  );
+
+  const shiftSelectOptions: SearchableSelectOption[] = useMemo(
+    () => [
+      { value: 'Day', label: 'Day' },
+      { value: 'Night', label: 'Night' },
+    ],
+    []
+  );
+
   const ownerForReportsOption = useMemo(() => {
     if (authRole !== 'OWNER' || !user || !('id' in user)) return null;
     const o = user as Owner;
@@ -306,7 +324,6 @@ export function StaffPage() {
         reportsToTarget: '',
       });
     }
-    setShowCreatePassword(false);
   }, [showCreate, form]);
 
   // Voice navigation: open create modal with prefilled data
@@ -377,7 +394,7 @@ export function StaffPage() {
             value={search}
             onChange={setSearch}
             placeholder="Search by name or phone"
-            className="sm:max-w-xs flex-1"
+            className="w-full min-w-0 sm:min-w-[19rem] sm:max-w-md flex-1"
             id="staff-search"
             aria-label="Search staff"
           />
@@ -407,24 +424,27 @@ export function StaffPage() {
                 </div>
                 <div className="flex gap-1 opacity-0 group-hover:opacity-100 [.card-hover:hover_&]:opacity-100 transition-opacity">
                   <button
+                    type="button"
                     onClick={() => setDocumentsFor({ _id: e._id, name: e.name })}
                     className="p-2 rounded-lg hover:bg-emerald-50 text-gray-500 hover:text-emerald-600 transition-colors"
-                    title="View documents"
+                    title="View uploaded documents"
                   >
                     <FileText className="h-4 w-4" />
                   </button>
                   <button
+                    type="button"
                     onClick={() => openEdit(e)}
                     className="p-2 rounded-lg hover:bg-emerald-50 text-gray-500 hover:text-emerald-600 transition-colors"
-                    title="Edit"
+                    title="Edit staff member"
                   >
                     <Pencil className="h-4 w-4" />
                   </button>
                   {e.isActive !== false && (
                     <button
+                      type="button"
                       onClick={() => setConfirmRemove({ _id: e._id, name: e.name })}
                       className="p-2 rounded-lg hover:bg-red-50 text-gray-500 hover:text-red-600 transition-colors"
-                      title="Remove"
+                      title="Deactivate staff (remove from roster)"
                     >
                       <Trash2 className="h-4 w-4" />
                     </button>
@@ -539,23 +559,13 @@ export function StaffPage() {
                 </div>
                 <div>
                   <label className="block text-sm font-medium text-gray-700 mb-1.5">Temporary password</label>
-                  <div className="relative">
-                    <input
-                      {...form.register('tempPassword')}
-                      type={showCreatePassword ? 'text' : 'password'}
-                      className="w-full px-4 py-2.5 pr-12 rounded-xl border border-emerald-200 focus:ring-2 focus:ring-emerald-500/20 focus:border-emerald-500"
-                      placeholder="Default: staff123"
-                    />
-                    <button
-                      type="button"
-                      tabIndex={-1}
-                      onClick={() => setShowCreatePassword((v) => !v)}
-                      className="absolute right-2 top-1/2 -translate-y-1/2 p-2 rounded-lg text-gray-500 hover:bg-emerald-50 hover:text-emerald-700"
-                      aria-label={showCreatePassword ? 'Hide password' : 'Show password'}
-                    >
-                      {showCreatePassword ? <EyeOff className="h-5 w-5" /> : <Eye className="h-5 w-5" />}
-                    </button>
-                  </div>
+                  <input
+                    {...form.register('tempPassword')}
+                    type="text"
+                    autoComplete="new-password"
+                    className="w-full px-4 py-2.5 rounded-xl border border-emerald-200 focus:ring-2 focus:ring-emerald-500/20 focus:border-emerald-500 font-mono text-sm"
+                    placeholder="Default: staff123"
+                  />
                   <p className="text-xs text-gray-500 mt-1">Prefilled with <span className="font-mono">staff123</span> — change if needed.</p>
                   {form.formState.errors.tempPassword && (
                     <p className="text-red-600 text-sm mt-1">{form.formState.errors.tempPassword.message}</p>
@@ -581,7 +591,7 @@ export function StaffPage() {
                 <div className="rounded-2xl border border-emerald-100 bg-gradient-to-b from-emerald-50/40 to-white p-4 space-y-3">
                   <div className="flex flex-col gap-2 sm:flex-row sm:items-center sm:justify-between">
                     <div>
-                      <label className="block text-sm font-semibold text-gray-800">Master role</label>
+                      <label className="block text-sm font-semibold text-gray-800">Role</label>
                       <p className="text-xs text-gray-500">
                         Pick the job type (e.g. CHEF, MANAGER). The server creates the outlet role automatically:
                         <span className="font-medium text-gray-700"> Chef-1</span>, <span className="font-medium text-gray-700">Chef-2</span>, etc.
@@ -594,7 +604,7 @@ export function StaffPage() {
                       }}
                       className="inline-flex items-center gap-1.5 px-3 py-2 rounded-xl border border-emerald-200/80 bg-white text-emerald-800 text-sm font-medium shadow-sm hover:bg-emerald-50 transition-colors shrink-0"
                     >
-                      <Shield className="h-4 w-4" /> New master role
+                      <Shield className="h-4 w-4" /> New role
                     </button>
                   </div>
                   <SearchableSelect
@@ -602,8 +612,8 @@ export function StaffPage() {
                     onChange={(v) => form.setValue('parentRoleId', v, { shouldValidate: true })}
                     options={parentRoleSelectOptions}
                     placeholder="No role — assign later"
-                    searchPlaceholder="Search master roles…"
-                    noOptionsText="Create a master role first"
+                    searchPlaceholder="Search roles…"
+                    noOptionsText="Create a role first"
                     emptyText="No matches"
                     allowClear
                   />
@@ -614,7 +624,7 @@ export function StaffPage() {
                         <span className="flex h-8 w-8 items-center justify-center rounded-lg bg-emerald-100 text-emerald-700">
                           <Shield className="h-4 w-4" />
                         </span>
-                        Create master role
+                        Create role
                       </div>
                       <div className="flex flex-col gap-2 sm:flex-row">
                         <input
@@ -727,7 +737,22 @@ export function StaffPage() {
                     </div>
                     <div>
                       <label className="block text-sm font-medium text-gray-600 mb-1.5">Phone</label>
-                      <input {...editForm.register('phone')} className="w-full px-4 py-2.5 rounded-xl border border-emerald-200 bg-gray-50/50 focus:bg-white focus:ring-2 focus:ring-emerald-500/20 focus:border-emerald-500 transition-colors" placeholder="10-digit phone" />
+                      <Controller
+                        name="phone"
+                        control={editForm.control}
+                        render={({ field }) => (
+                          <input
+                            {...field}
+                            type="tel"
+                            inputMode="numeric"
+                            autoComplete="tel"
+                            maxLength={10}
+                            onChange={(e) => field.onChange(e.target.value.replace(/\D/g, '').slice(0, 10))}
+                            className="w-full px-4 py-2.5 rounded-xl border border-emerald-200 bg-gray-50/50 focus:bg-white focus:ring-2 focus:ring-emerald-500/20 focus:border-emerald-500 transition-colors tracking-wide"
+                            placeholder="10-digit phone"
+                          />
+                        )}
+                      />
                       {editForm.formState.errors.phone && <p className="text-red-600 text-xs mt-1">{editForm.formState.errors.phone.message}</p>}
                     </div>
                   </div>
@@ -741,21 +766,27 @@ export function StaffPage() {
                   <div className="space-y-4">
                     <div>
                       <label className="block text-sm font-medium text-gray-600 mb-1.5">Role</label>
-                      <div className="flex gap-2">
-                        <select {...editForm.register('activeRoleId')} className="flex-1 px-4 py-2.5 rounded-xl border border-emerald-200 bg-gray-50/50 focus:bg-white focus:ring-2 focus:ring-emerald-500/20 focus:border-emerald-500">
-                          <option value="">No role</option>
-                          {roles.map((r: { _id: string; name: string }) => (
-                            <option key={r._id} value={r._id}>{r.name}</option>
-                          ))}
-                        </select>
+                      <div className="flex gap-2 min-w-0">
+                        <div className="flex-1 min-w-0">
+                          <SearchableSelect
+                            value={editForm.watch('activeRoleId') || ''}
+                            onChange={(v) => editForm.setValue('activeRoleId', v, { shouldValidate: true })}
+                            options={outletRoleSelectOptions}
+                            placeholder="No role"
+                            searchPlaceholder="Search roles…"
+                            noOptionsText="No roles in this outlet"
+                            emptyText="No matches"
+                            allowClear
+                          />
+                        </div>
                         <div className="flex gap-1.5 shrink-0">
                           <button
                             type="button"
                             onClick={() => { setShowCreateMasterRole(true); setShowCreateRole(false); }}
                             className="px-3 py-2.5 rounded-xl border border-emerald-200 bg-emerald-50 text-emerald-700 hover:bg-emerald-100 transition-colors flex items-center gap-1.5 text-sm font-medium"
-                            title="Create Master role"
+                            title="Create role"
                           >
-                            <Shield className="h-4 w-4" /> Master
+                            <Shield className="h-4 w-4" /> Role
                           </button>
                           <button
                             type="button"
@@ -770,7 +801,7 @@ export function StaffPage() {
 
                       {showCreateMasterRole && (
                         <div className="mt-3 p-4 rounded-xl border border-emerald-100 bg-emerald-50/50">
-                          <p className="text-sm font-medium text-gray-700 mb-2">Create Master role</p>
+                          <p className="text-sm font-medium text-gray-700 mb-2">Create role</p>
                           <div className="flex gap-2">
                             <input
                               value={newMasterRoleName}
@@ -796,23 +827,24 @@ export function StaffPage() {
                         <div className="mt-3 p-4 rounded-xl border border-emerald-100 bg-emerald-50/50">
                           <p className="text-sm font-medium text-gray-700 mb-2">Create role</p>
                           <div className="space-y-2">
-                            <div className="flex gap-2">
-                              <select
-                                value={newRoleParentId}
-                                onChange={(e) => setNewRoleParentId(e.target.value)}
-                                className="flex-1 px-3 py-2 rounded-lg border border-emerald-200 focus:ring-2 focus:ring-emerald-500/20"
-                              >
-                                <option value="">Select Master role</option>
-                                {parentRoles.map((r: { _id: string; name: string }) => (
-                                  <option key={r._id} value={r._id}>{r.name}</option>
-                                ))}
-                              </select>
+                            <div className="flex gap-2 min-w-0">
+                              <div className="flex-1 min-w-0">
+                                <SearchableSelect
+                                  value={newRoleParentId}
+                                  onChange={setNewRoleParentId}
+                                  options={parentRoleSelectOptions}
+                                  placeholder="Select role"
+                                  searchPlaceholder="Search roles…"
+                                  noOptionsText="Create a role first"
+                                  emptyText="No matches"
+                                />
+                              </div>
                               <button
                                 type="button"
                                 onClick={() => { setShowCreateMasterRole(true); setShowCreateRole(false); }}
                                 className="px-2 py-2 rounded-lg border border-dashed border-emerald-300 text-emerald-600 hover:bg-emerald-50 text-xs font-medium flex items-center gap-1"
                               >
-                                <Plus className="h-3.5 w-3.5" /> Master
+                                <Plus className="h-3.5 w-3.5" /> Role
                               </button>
                             </div>
                             <div className="flex gap-2">
@@ -839,10 +871,18 @@ export function StaffPage() {
                     </div>
                     <div>
                       <label className="block text-sm font-medium text-gray-600 mb-1.5">Shift</label>
-                      <select {...editForm.register('shiftType')} className="w-full px-4 py-2.5 rounded-xl border border-emerald-200 bg-gray-50/50 focus:bg-white focus:ring-2 focus:ring-emerald-500/20 focus:border-emerald-500">
-                        <option value="Day">Day</option>
-                        <option value="Night">Night</option>
-                      </select>
+                      <SearchableSelect
+                        value={editForm.watch('shiftType') || 'Day'}
+                        onChange={(v) =>
+                          editForm.setValue('shiftType', v as 'Day' | 'Night', { shouldValidate: true })
+                        }
+                        options={shiftSelectOptions}
+                        placeholder="Shift"
+                        searchPlaceholder="Shift…"
+                        showSearch={false}
+                        noOptionsText="—"
+                        emptyText="—"
+                      />
                     </div>
                   </div>
                 </section>
@@ -877,15 +917,19 @@ export function StaffPage() {
                         placeholder="e.g. 8"
                       />
                     </div>
-                    <div>
-                      <label className="block text-sm font-medium text-gray-600 mb-1.5">Punch-in time (HH:mm)</label>
-                      <input
-                        type="time"
-                        {...editForm.register('punchInTime')}
-                        className="w-full px-4 py-2.5 rounded-xl border border-emerald-200 bg-gray-50/50 focus:bg-white focus:ring-2 focus:ring-emerald-500/20 focus:border-emerald-500"
+                    <div className="sm:col-span-2">
+                      <label className="block text-sm font-medium text-gray-600 mb-1.5">
+                        Punch-in time <span className="text-gray-400 font-normal">(12-hour)</span>
+                      </label>
+                      <Controller
+                        name="punchInTime"
+                        control={editForm.control}
+                        render={({ field }) => (
+                          <TimePickerField use12Hour value={field.value ?? ''} onChange={field.onChange} />
+                        )}
                       />
                     </div>
-                    <div>
+                    <div className="sm:col-span-2">
                       <label className="block text-sm font-medium text-gray-600 mb-1.5">UPI ID (for payout)</label>
                       <input
                         {...editForm.register('upiId')}

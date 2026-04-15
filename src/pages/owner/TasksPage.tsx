@@ -1,14 +1,18 @@
-import { useState, useRef, useEffect } from 'react';
+import { useState, useRef, useEffect, useMemo } from 'react';
 import { useLocation, useNavigate } from 'react-router-dom';
 import { useQuery, useMutation, useQueryClient } from '@tanstack/react-query';
-import { useForm } from 'react-hook-form';
+import { useForm, Controller } from 'react-hook-form';
 import { zodResolver } from '@hookform/resolvers/zod';
 import { z } from 'zod';
+import { startOfDay } from 'date-fns';
 import { useOutletStore } from '@/stores/outletStore';
 import { taskApi } from '@/api/task';
 import { employeeApi } from '@/api/employee';
 import { getApiErrorMessage } from '@/api/auth';
 import { LoadingSpinner } from '@/components/LoadingSpinner';
+import { SearchableSelect } from '@/components/SearchableSelect';
+import { TimePickerField } from '@/components/TimePickerField';
+import { CalendarDateField } from '@/components/CalendarDateField';
 import { ListSearchBar } from '@/components/ListSearchBar';
 import { useDebouncedValue } from '@/hooks/useDebouncedValue';
 import { VoiceInputButton } from '@/components/VoiceInputButton';
@@ -18,7 +22,6 @@ import {
   Clock,
   Users,
   User,
-  Store,
   ImagePlus,
   Sun,
   Moon,
@@ -42,17 +45,11 @@ const taskSchema = z.object({
   timeLimitMinutes: z.string().optional(),
   assignToType: z.enum(['role', 'staff']).optional(),
   assignToEmployeeId: z.string().optional(),
-  outletId: z.string().optional(),
 });
 
 type TaskForm = z.infer<typeof taskSchema>;
 
 const DAY_NAMES = ['Sun', 'Mon', 'Tue', 'Wed', 'Thu', 'Fri', 'Sat'];
-
-function todayYMD() {
-  const d = new Date();
-  return `${d.getFullYear()}-${String(d.getMonth() + 1).padStart(2, '0')}-${String(d.getDate()).padStart(2, '0')}`;
-}
 
 export function TasksPage() {
   const { selectedOutletId, outlets } = useOutletStore();
@@ -167,7 +164,6 @@ export function TasksPage() {
     timeLimitMinutes: '',
     assignToType: 'role',
     assignToEmployeeId: '',
-    outletId: selectedOutletId || '',
   };
 
   const form = useForm<TaskForm>({
@@ -183,13 +179,32 @@ export function TasksPage() {
   const templates = data?.data?.templates ?? [];
   const parentRoles = rolesData?.data?.parentRoles ?? [];
   const employees = (employeesData as { data?: { employees?: unknown[] } })?.data?.employees ?? [];
-  const outletOptions = outlets.length > 0 ? outlets : [{ _id: selectedOutletId!, name: 'Current' }];
+  const assigneeEmployeeOptions = useMemo(
+    () =>
+      (employees as { _id: string; name: string; activeRoleId?: { name?: string; parentRoleId?: { name?: string } } }[]).map(
+        (emp) => ({
+          value: emp._id,
+          label: `${emp.activeRoleId?.name || emp.activeRoleId?.parentRoleId?.name || 'Staff'} — ${emp.name}`,
+        })
+      ),
+    [employees]
+  );
 
-  useEffect(() => {
-    if (showCreate && outlets.length === 1 && outlets[0]?._id) {
-      form.setValue('outletId', outlets[0]._id);
-    }
-  }, [showCreate, outlets]);
+  const parentRoleSelectOptions = useMemo(
+    () => (parentRoles as { _id: string; name: string }[]).map((r) => ({ value: r._id, label: r.name })),
+    [parentRoles]
+  );
+
+  const taskShiftEditOptions = useMemo(
+    () => [
+      { value: 'Both', label: 'Both' },
+      { value: 'Day', label: 'Day' },
+      { value: 'Night', label: 'Night' },
+    ],
+    []
+  );
+
+  const minOneTimeTaskDate = useMemo(() => startOfDay(new Date()), []);
 
   // Voice navigation: open create modal with prefilled data
   useEffect(() => {
@@ -210,7 +225,6 @@ export function TasksPage() {
       if (t.assignToEmployeeId) form.setValue('assignToEmployeeId', String(t.assignToEmployeeId));
       if (t.startTime) form.setValue('startTime', String(t.startTime));
       if (t.timeLimitMinutes != null) form.setValue('timeLimitMinutes', String(t.timeLimitMinutes));
-      if (selectedOutletId) form.setValue('outletId', selectedOutletId);
       navigate(location.pathname, { replace: true, state: {} });
     }
   }, [location.state, navigate, location.pathname, selectedOutletId]);
@@ -228,7 +242,6 @@ export function TasksPage() {
       description: t.description ?? '',
       parentRoleId: (t.parentRoleId as { _id?: string })?._id ?? '',
       shiftType: (t.shiftType as 'Day' | 'Night' | 'Both') ?? 'Both',
-      outletId: selectedOutletId || '',
     });
   };
 
@@ -249,7 +262,7 @@ export function TasksPage() {
   };
 
   const handleCreateSubmit = form.handleSubmit((d) => {
-    const outletId = d.outletId || selectedOutletId || outlets[0]?._id;
+    const outletId = selectedOutletId || outlets[0]?._id;
     if (!outletId) return;
     const assignToType = d.assignToType ?? 'role';
     if (assignToType === 'role' && !d.parentRoleId) {
@@ -303,7 +316,7 @@ export function TasksPage() {
           </div>
           <button
             onClick={() => {
-              form.reset({ ...defaultFormValues, outletId: selectedOutletId || outlets[0]?._id || '' });
+              form.reset({ ...defaultFormValues });
               setVoiceError(null);
               setShowCreate(true);
             }}
@@ -393,7 +406,7 @@ export function TasksPage() {
                     </h3>
                     <VoiceInputButton
                       onResult={async (blob) => {
-                        const outletId = form.watch('outletId') || selectedOutletId || outlets[0]?._id;
+                        const outletId = selectedOutletId || outlets[0]?._id;
                         if (!outletId) {
                           setVoiceError('Select an outlet first');
                           return;
@@ -465,11 +478,17 @@ export function TasksPage() {
                   {form.watch('taskType') === 'onetime' && (
                     <div>
                       <label className="block text-sm font-medium text-gray-700 mb-1.5">Date</label>
-                      <input
-                        type="date"
-                        {...form.register('specificDate')}
-                        min={todayYMD()}
-                        className="w-full px-4 py-3 rounded-xl border border-gray-200 focus:ring-2 focus:ring-emerald-500/20 focus:border-emerald-500"
+                      <Controller
+                        name="specificDate"
+                        control={form.control}
+                        render={({ field }) => (
+                          <CalendarDateField
+                            value={field.value ?? ''}
+                            onChange={field.onChange}
+                            minDate={minOneTimeTaskDate}
+                            placeholder="Choose date for this task"
+                          />
+                        )}
                       />
                     </div>
                   )}
@@ -580,13 +599,6 @@ export function TasksPage() {
                     <div>
                       <label className="block text-sm font-medium text-gray-700 mb-2">Role</label>
                       <div className="flex flex-wrap gap-2 items-center">
-                        <button
-                          type="button"
-                          onClick={() => setShowCreateRole(true)}
-                          className="flex items-center gap-2 px-3 py-2 rounded-lg border-2 border-dashed border-emerald-400 text-emerald-600 text-sm font-medium hover:bg-emerald-50"
-                        >
-                          + Create role
-                        </button>
                         {parentRoles.map((r: { _id: string; name: string }) => (
                           <button
                             key={r._id}
@@ -599,6 +611,13 @@ export function TasksPage() {
                             {r.name}
                           </button>
                         ))}
+                        <button
+                          type="button"
+                          onClick={() => setShowCreateRole(true)}
+                          className="flex items-center gap-2 px-3 py-2 rounded-lg border-2 border-dashed border-emerald-400 text-emerald-600 text-sm font-medium hover:bg-emerald-50"
+                        >
+                          + Create role
+                        </button>
                       </div>
                       {form.formState.errors.parentRoleId && form.watch('assignToType') === 'role' && (
                         <p className="text-red-600 text-sm mt-1">Select a role</p>
@@ -608,14 +627,15 @@ export function TasksPage() {
                   {form.watch('assignToType') === 'staff' && (
                     <div>
                       <label className="block text-sm font-medium text-gray-700 mb-1.5">Staff member</label>
-                      <select {...form.register('assignToEmployeeId')} className="w-full px-4 py-3 rounded-xl border border-gray-200 focus:ring-2 focus:ring-emerald-500/20 focus:border-emerald-500">
-                        <option value="">Select staff</option>
-                        {(employees as { _id: string; name: string; activeRoleId?: { name?: string; parentRoleId?: { name?: string } } }[]).map((emp) => (
-                          <option key={emp._id} value={emp._id}>
-                            {(emp.activeRoleId?.name || emp.activeRoleId?.parentRoleId?.name || 'Staff')} - {emp.name}
-                          </option>
-                        ))}
-                      </select>
+                      <SearchableSelect
+                        value={form.watch('assignToEmployeeId') || ''}
+                        onChange={(v) => form.setValue('assignToEmployeeId', v, { shouldValidate: true })}
+                        options={assigneeEmployeeOptions}
+                        placeholder="Select staff"
+                        searchPlaceholder="Search staff…"
+                        noOptionsText="No staff loaded"
+                        emptyText="No matches"
+                      />
                     </div>
                   )}
                 </section>
@@ -627,8 +647,16 @@ export function TasksPage() {
                   </h3>
                   <div className="grid grid-cols-1 sm:grid-cols-2 gap-4">
                     <div>
-                      <label className="block text-sm font-medium text-gray-700 mb-1.5">Start time</label>
-                      <input type="time" {...form.register('startTime')} className="w-full px-4 py-3 rounded-xl border border-gray-200 focus:ring-2 focus:ring-emerald-500/20" />
+                      <label className="block text-sm font-medium text-gray-700 mb-1.5">
+                        Start time <span className="text-gray-400 font-normal">(12-hour)</span>
+                      </label>
+                      <Controller
+                        name="startTime"
+                        control={form.control}
+                        render={({ field }) => (
+                          <TimePickerField use12Hour value={field.value ?? ''} onChange={field.onChange} />
+                        )}
+                      />
                     </div>
                     <div>
                       <label className="block text-sm font-medium text-gray-700 mb-1.5">Time limit (minutes)</label>
@@ -670,20 +698,6 @@ export function TasksPage() {
                   )}
                 </section>
 
-                {/* Outlet */}
-                {outlets.length > 1 && (
-                  <section className="space-y-4">
-                    <h3 className="text-sm font-semibold text-gray-500 uppercase tracking-wider flex items-center gap-2">
-                      <Store className="h-4 w-4" /> Outlet
-                    </h3>
-                    <select {...form.register('outletId')} className="w-full px-4 py-3 rounded-xl border border-gray-200 focus:ring-2 focus:ring-emerald-500/20 focus:border-emerald-500">
-                      {outletOptions.map((o) => (
-                        <option key={o._id} value={o._id}>{o.name}</option>
-                      ))}
-                    </select>
-                  </section>
-                )}
-
                 <div className="flex gap-3 pt-4 border-t border-gray-100">
                   <button type="submit" disabled={createMutation.isPending} className="flex-1 px-5 py-3 bg-emerald-600 text-white rounded-xl font-semibold hover:bg-emerald-700 disabled:opacity-50 transition-all">
                     {createMutation.isPending ? 'Creating...' : 'Create task'}
@@ -703,7 +717,7 @@ export function TasksPage() {
         <div className="fixed inset-0 bg-black/50 flex items-center justify-center z-[60] p-4">
           <div className="bg-white rounded-2xl shadow-xl w-full max-w-sm p-6 animate-slide-up relative">
             <button type="button" onClick={() => setShowCreateRole(false)} className="absolute top-4 right-4 p-2 rounded-lg text-gray-400 hover:text-gray-600 hover:bg-gray-100 transition-colors" aria-label="Close"><X className="h-5 w-5" /></button>
-            <h3 className="text-lg font-semibold text-gray-900 mb-2 pr-8">Create master role</h3>
+            <h3 className="text-lg font-semibold text-gray-900 mb-2 pr-8">Create role</h3>
             <p className="text-sm text-gray-500 mb-4">Add a new role type (e.g. CHEF-3, CASHIER)</p>
             <input
               value={newRoleName}
@@ -744,19 +758,29 @@ export function TasksPage() {
                 </div>
                 <div>
                   <label className="block text-sm font-medium text-gray-700 mb-1">Role</label>
-                  <select {...editForm.register('parentRoleId')} className="w-full px-4 py-2.5 rounded-xl border border-gray-200 focus:ring-2 focus:ring-emerald-500/20 focus:border-emerald-500">
-                    {parentRoles.map((r: { _id: string; name: string }) => (
-                      <option key={r._id} value={r._id}>{r.name}</option>
-                    ))}
-                  </select>
+                  <SearchableSelect
+                    value={editForm.watch('parentRoleId') || ''}
+                    onChange={(v) => editForm.setValue('parentRoleId', v, { shouldValidate: true })}
+                    options={parentRoleSelectOptions}
+                    placeholder="Role"
+                    searchPlaceholder="Search roles…"
+                    noOptionsText="No roles"
+                    emptyText="No matches"
+                  />
                 </div>
                 <div>
                   <label className="block text-sm font-medium text-gray-700 mb-1">Shift</label>
-                  <select {...editForm.register('shiftType')} className="w-full px-4 py-2.5 rounded-xl border border-gray-200 focus:ring-2 focus:ring-emerald-500/20 focus:border-emerald-500">
-                    <option value="Both">Both</option>
-                    <option value="Day">Day</option>
-                    <option value="Night">Night</option>
-                  </select>
+                  <SearchableSelect
+                    value={editForm.watch('shiftType') || 'Both'}
+                    onChange={(v) =>
+                      editForm.setValue('shiftType', v as 'Day' | 'Night' | 'Both', { shouldValidate: true })
+                    }
+                    options={taskShiftEditOptions}
+                    placeholder="Shift"
+                    showSearch={false}
+                    noOptionsText="—"
+                    emptyText="—"
+                  />
                 </div>
                 <div className="flex gap-3 pt-2">
                   <button type="submit" disabled={updateMutation.isPending} className="flex-1 px-4 py-2.5 bg-emerald-600 text-white rounded-xl font-medium hover:bg-emerald-700 disabled:opacity-50">Save</button>

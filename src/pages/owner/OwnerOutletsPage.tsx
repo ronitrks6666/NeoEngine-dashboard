@@ -1,16 +1,52 @@
 import { useState, useEffect } from 'react';
 import { useSearchParams } from 'react-router-dom';
 import { useQuery, useMutation, useQueryClient } from '@tanstack/react-query';
-import { useForm } from 'react-hook-form';
+import { useForm, Controller } from 'react-hook-form';
 import { zodResolver } from '@hookform/resolvers/zod';
 import { z } from 'zod';
 import { ownerApi, type Outlet } from '@/api/owner';
 import { getApiErrorMessage } from '@/api/auth';
 import { LoadingSpinner } from '@/components/LoadingSpinner';
 import { AddressSearchInput } from '@/components/AddressSearchInput';
-import { Store, Phone, Locate, X } from 'lucide-react';
+import { Store, Phone, Locate, X, Pencil, Trash2 } from 'lucide-react';
+import { zPhone10 } from '@/lib/phoneValidation';
 import { useDebouncedValue } from '@/hooks/useDebouncedValue';
 import { ListSearchBar } from '@/components/ListSearchBar';
+
+/** Lat/lng while typing: optional leading '-', digits, one decimal point. */
+function sanitizeCoordTyping(raw: string): string {
+  let out = '';
+  let dot = false;
+  for (let i = 0; i < raw.length; i++) {
+    const c = raw[i];
+    if (i === 0 && c === '-') {
+      out += '-';
+      continue;
+    }
+    if (c === '.' && !dot) {
+      dot = true;
+      out += '.';
+      continue;
+    }
+    if (c >= '0' && c <= '9') out += c;
+  }
+  return out;
+}
+
+/** Radius: digits and at most one '.' (positive). */
+function sanitizePositiveDecimalTyping(raw: string): string {
+  let out = '';
+  let dot = false;
+  for (const c of raw) {
+    if (c === '.' && !dot) {
+      dot = true;
+      out += '.';
+      continue;
+    }
+    if (c >= '0' && c <= '9') out += c;
+  }
+  return out;
+}
 
 function UseCurrentLocationButton({ onLocation }: { onLocation: (lat: number, lng: number) => void }) {
   const [loading, setLoading] = useState(false);
@@ -39,6 +75,7 @@ function UseCurrentLocationButton({ onLocation }: { onLocation: (lat: number, ln
       type="button"
       onClick={handleClick}
       disabled={loading}
+      title="Fill latitude and longitude from this device"
       className="mt-2 flex items-center gap-2 px-4 py-2.5 rounded-xl border border-teal-200 bg-teal-50/50 text-teal-700 text-sm font-medium hover:bg-teal-100 transition-colors disabled:opacity-50"
     >
       <Locate className="h-4 w-4" />
@@ -51,7 +88,7 @@ function UseCurrentLocationButton({ onLocation }: { onLocation: (lat: number, ln
 const createSchema = z.object({
   name: z.string().min(1, 'Name required'),
   address: z.string().min(1, 'Address required'),
-  phone: z.string().min(1, 'Phone required'),
+  phone: zPhone10,
 });
 
 const editSchema = createSchema.extend({
@@ -166,7 +203,7 @@ export function OwnerOutletsPage() {
             value={listSearch}
             onChange={setListSearch}
             placeholder="Search by name, address, or phone"
-            className="sm:w-72"
+            className="sm:min-w-[20rem] sm:max-w-md flex-1"
             id="outlets-search"
             aria-label="Search outlets"
           />
@@ -186,23 +223,30 @@ export function OwnerOutletsPage() {
           {outlets.map((o) => (
             <div key={o._id} className="group rounded-2xl border border-gray-200 p-5 card-hover bg-white overflow-hidden">
               <div className="flex items-start justify-between mb-3">
-                <div className="w-12 h-12 rounded-xl bg-gradient-to-br from-teal-500/20 to-cyan-500/20 flex items-center justify-center text-xl font-bold text-teal-600">
-                  🏪
+                <div
+                  className="w-12 h-12 rounded-xl bg-gradient-to-br from-teal-500/20 to-cyan-500/20 flex items-center justify-center text-teal-600"
+                  title="Outlet location"
+                >
+                  <Store className="h-6 w-6" aria-hidden />
                 </div>
                 <div className="flex gap-1 opacity-0 group-hover:opacity-100 transition-opacity">
                   <button
+                    type="button"
                     onClick={() => openEdit(o)}
                     className="p-2 rounded-lg hover:bg-teal-50 text-gray-500 hover:text-teal-600 transition-colors"
-                    title="Edit"
+                    title="Edit outlet details"
+                    aria-label="Edit outlet details"
                   >
-                    ✏️
+                    <Pencil className="h-4 w-4" />
                   </button>
                   <button
+                    type="button"
                     onClick={() => setConfirmDelete(o)}
                     className="p-2 rounded-lg hover:bg-red-50 text-gray-500 hover:text-red-600 transition-colors"
-                    title="Remove"
+                    title="Remove outlet"
+                    aria-label="Remove outlet"
                   >
-                    🗑️
+                    <Trash2 className="h-4 w-4" />
                   </button>
                 </div>
               </div>
@@ -213,8 +257,9 @@ export function OwnerOutletsPage() {
                 type="button"
                 onClick={() => openEdit(o)}
                 className="mt-3 inline-flex items-center gap-1.5 text-sm font-medium text-teal-600 hover:text-teal-700"
+                title="Edit address and map location (geofence)"
               >
-                <Locate className="h-4 w-4" />
+                <Locate className="h-4 w-4" aria-hidden />
                 Edit location (GPS)
               </button>
             </div>
@@ -224,7 +269,9 @@ export function OwnerOutletsPage() {
 
       {outlets.length === 0 && !isLoading && (
         <div className="text-center py-16 animate-fade-in">
-          <div className="text-6xl mb-4 opacity-30">🏪</div>
+          <div className="w-16 h-16 rounded-2xl bg-teal-100 flex items-center justify-center mx-auto mb-4 opacity-80">
+            <Store className="h-8 w-8 text-teal-600" aria-hidden />
+          </div>
           <p className="text-gray-500">
             {debouncedListSearch.trim() ? 'No outlets match your search.' : 'No outlets yet'}
           </p>
@@ -324,11 +371,22 @@ export function OwnerOutletsPage() {
                 <div>
                   <label className="block text-sm font-semibold text-gray-700 mb-2">Phone</label>
                   <div className="relative">
-                    <Phone className="absolute left-4 top-1/2 -translate-y-1/2 h-5 w-5 text-gray-400" />
-                    <input
-                      {...createForm.register('phone')}
-                      className="w-full pl-12 pr-4 py-3 rounded-xl border border-gray-200 bg-gray-50/50 focus:ring-2 focus:ring-teal-500/20 focus:border-teal-500 focus:bg-white transition-colors"
-                      placeholder="10-digit contact number"
+                    <Phone className="absolute left-4 top-1/2 -translate-y-1/2 h-5 w-5 text-gray-400 pointer-events-none" aria-hidden />
+                    <Controller
+                      name="phone"
+                      control={createForm.control}
+                      render={({ field }) => (
+                        <input
+                          {...field}
+                          type="tel"
+                          inputMode="numeric"
+                          autoComplete="tel"
+                          maxLength={10}
+                          onChange={(e) => field.onChange(e.target.value.replace(/\D/g, '').slice(0, 10))}
+                          className="w-full pl-12 pr-4 py-3 rounded-xl border border-gray-200 bg-gray-50/50 focus:ring-2 focus:ring-teal-500/20 focus:border-teal-500 focus:bg-white transition-colors tracking-wide"
+                          placeholder="10-digit contact number"
+                        />
+                      )}
                     />
                   </div>
                   {createForm.formState.errors.phone && <p className="text-red-600 text-sm mt-1">{createForm.formState.errors.phone.message}</p>}
@@ -428,7 +486,9 @@ export function OwnerOutletsPage() {
                           type="text"
                           inputMode="decimal"
                           value={editGeofence.geofenceLat}
-                          onChange={(e) => setEditGeofence((p) => ({ ...p, geofenceLat: e.target.value }))}
+                          onChange={(e) =>
+                            setEditGeofence((p) => ({ ...p, geofenceLat: sanitizeCoordTyping(e.target.value) }))
+                          }
                           className="w-full mt-0.5 px-3 py-2 rounded-lg border border-teal-200 text-sm"
                           placeholder="e.g. 12.9716"
                         />
@@ -439,7 +499,9 @@ export function OwnerOutletsPage() {
                           type="text"
                           inputMode="decimal"
                           value={editGeofence.geofenceLng}
-                          onChange={(e) => setEditGeofence((p) => ({ ...p, geofenceLng: e.target.value }))}
+                          onChange={(e) =>
+                            setEditGeofence((p) => ({ ...p, geofenceLng: sanitizeCoordTyping(e.target.value) }))
+                          }
                           className="w-full mt-0.5 px-3 py-2 rounded-lg border border-teal-200 text-sm"
                           placeholder="e.g. 77.5946"
                         />
@@ -450,7 +512,12 @@ export function OwnerOutletsPage() {
                           type="text"
                           inputMode="numeric"
                           value={editGeofence.geofenceRadius}
-                          onChange={(e) => setEditGeofence((p) => ({ ...p, geofenceRadius: e.target.value }))}
+                          onChange={(e) =>
+                            setEditGeofence((p) => ({
+                              ...p,
+                              geofenceRadius: sanitizePositiveDecimalTyping(e.target.value),
+                            }))
+                          }
                           className="w-full mt-0.5 px-3 py-2 rounded-lg border border-teal-200 text-sm"
                           placeholder="100"
                         />
@@ -471,8 +538,23 @@ export function OwnerOutletsPage() {
                 <div>
                   <label className="block text-sm font-semibold text-gray-700 mb-2">Phone</label>
                   <div className="relative">
-                    <Phone className="absolute left-4 top-1/2 -translate-y-1/2 h-5 w-5 text-gray-400" />
-                    <input {...editForm.register('phone')} className="w-full pl-12 pr-4 py-3 rounded-xl border border-gray-200 bg-gray-50/50 focus:ring-2 focus:ring-teal-500/20 focus:border-teal-500 focus:bg-white" />
+                    <Phone className="absolute left-4 top-1/2 -translate-y-1/2 h-5 w-5 text-gray-400 pointer-events-none" aria-hidden />
+                    <Controller
+                      name="phone"
+                      control={editForm.control}
+                      render={({ field }) => (
+                        <input
+                          {...field}
+                          type="tel"
+                          inputMode="numeric"
+                          autoComplete="tel"
+                          maxLength={10}
+                          onChange={(e) => field.onChange(e.target.value.replace(/\D/g, '').slice(0, 10))}
+                          className="w-full pl-12 pr-4 py-3 rounded-xl border border-gray-200 bg-gray-50/50 focus:ring-2 focus:ring-teal-500/20 focus:border-teal-500 focus:bg-white tracking-wide"
+                          placeholder="10-digit contact number"
+                        />
+                      )}
+                    />
                   </div>
                   {editForm.formState.errors.phone && <p className="text-red-600 text-sm mt-1">{editForm.formState.errors.phone.message}</p>}
                 </div>

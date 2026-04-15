@@ -158,19 +158,24 @@ export function OwnerDashboardPage() {
                     {s.status === 'working' ? <Clock className="h-5 w-5" /> : s.status === 'break' ? <Coffee className="h-5 w-5" /> : (s.name ?? '?').charAt(0).toUpperCase()}
                   </div>
                   <div className="flex-1 min-w-0">
-                    <p className="font-medium text-gray-900 truncate">
-                      {s.name}
-                      {s.isLate && <span className="text-amber-600 text-xs ml-1">(Late)</span>}
-                    </p>
-                    <p className="text-sm text-gray-500">{s.role}</p>
+                    <div className="flex flex-wrap items-center gap-2 min-w-0">
+                      <p className="font-medium text-gray-900 truncate">
+                        {s.name}
+                        {s.isLate && <span className="text-amber-600 text-xs ml-1">(Late)</span>}
+                      </p>
+                      <span
+                        className={`px-2 py-0.5 rounded-lg text-xs font-medium shrink-0 capitalize ${
+                          s.status === 'working' ? 'bg-emerald-100 text-emerald-700' :
+                          s.status === 'break' ? 'bg-amber-100 text-amber-700' :
+                          s.status === 'absent' ? 'bg-red-100 text-red-700' : 'bg-gray-200 text-gray-600'
+                        }`}
+                        title={`Status: ${s.status}`}
+                      >
+                        {s.status}
+                      </span>
+                    </div>
+                    <p className="text-sm text-gray-500 mt-0.5">{s.role}</p>
                   </div>
-                  <span className={`px-2 py-0.5 rounded-lg text-xs font-medium shrink-0 capitalize ${
-                    s.status === 'working' ? 'bg-emerald-100 text-emerald-700' :
-                    s.status === 'break' ? 'bg-amber-100 text-amber-700' :
-                    s.status === 'absent' ? 'bg-red-100 text-red-700' : 'bg-gray-200 text-gray-600'
-                  }`}>
-                    {s.status}
-                  </span>
                 </div>
               ))}
             </div>

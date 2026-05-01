@@ -35,7 +35,7 @@ export const leaveApi = {
     return data;
   },
 
-  assign: async (payload: { outletId: string; employeeId: string; startDate: string; endDate: string; reason?: string }) => {
+  assign: async (payload: { outletId: string; employeeId?: string; isOwner?: boolean; date?: string; startDate?: string; endDate?: string; reason?: string }) => {
     const { data } = await api.post('/leave/assign', payload);
     return data;
   },
@@ -47,6 +47,30 @@ export const leaveApi = {
 
   updateRules: async (outletId: string, payload: object) => {
     const { data } = await api.put(`/leave/rules/${outletId}`, payload);
+    return data;
+  },
+
+  // ── Outlet calendar events ──────────────────────────────────────────
+  getOutletEvents: async (outletId: string) => {
+    const { data } = await api.get(`/leave/outlet-events/${outletId}`);
+    return data;
+  },
+
+  createOutletEvent: async (
+    outletId: string,
+    payload: { name: string; date: string; startTime?: string; endTime?: string }
+  ) => {
+    const { data } = await api.post(`/leave/outlet-events/${outletId}`, payload);
+    return data;
+  },
+
+  deleteOutletEvent: async (outletId: string, eventId: string) => {
+    const { data } = await api.delete(`/leave/outlet-events/${outletId}/${eventId}`);
+    return data;
+  },
+
+  getCalendarificHolidays: async (outletId: string, year?: number) => {
+    const { data } = await api.get(`/leave/calendarific-holidays/${outletId}${year ? `?year=${year}` : ''}`);
     return data;
   },
 };

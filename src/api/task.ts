@@ -1,5 +1,12 @@
 import { api } from './client';
 
+export interface ChecklistItem {
+  text: string;
+  order: number;
+  referenceMediaUrl?: string;
+  referenceMediaKind?: 'image' | 'gif' | 'video';
+}
+
 export interface TaskTemplatePayload {
   title: string;
   description?: string;
@@ -16,6 +23,8 @@ export interface TaskTemplatePayload {
   assignToEmployeeId?: string;
   startTime?: string;
   timeLimitMinutes?: number;
+  escalationEnabled?: boolean;
+  checklistItems?: ChecklistItem[];
 }
 
 export const taskApi = {

@@ -24,7 +24,14 @@ import {
   ChevronLeft,
   ChevronRight,
   User,
+  AlertTriangle,
+  Clock,
+  CalendarPlus,
+  Activity,
+  Settings,
+  BookOpen,
 } from 'lucide-react';
+
 import { NeoEngineLogo } from '@/components/NeoEngineLogo';
 import { DashboardVoiceButton } from '@/components/DashboardVoiceButton';
 import { SiteSearchTypeahead } from '@/components/SiteSearchTypeahead';
@@ -49,11 +56,17 @@ const ownerNav: { to: string; label: string; icon: LucideIcon }[] = [
   { to: '/owner/staff', label: 'Staff', icon: Users },
   { to: '/owner/roles', label: 'Roles', icon: UserCog },
   { to: '/owner/tasks', label: 'Tasks', icon: CheckSquare },
+  { to: '/owner/issues', label: 'Issues', icon: AlertTriangle },
   { to: '/owner/attendance', label: 'Attendance', icon: CalendarCheck },
+  { to: '/owner/overtime', label: 'Overtime', icon: Clock },
   { to: '/owner/briefing-pool', label: 'Briefing Pool', icon: MessageSquare },
   { to: '/owner/hierarchy', label: 'Hierarchy', icon: GitBranch },
   { to: '/owner/leave', label: 'Leave', icon: CalendarDays },
+  { to: '/owner/leave-rules', label: 'Leave Rules', icon: BookOpen },
+  { to: '/owner/events', label: 'Events', icon: CalendarPlus },
   { to: '/owner/payroll', label: 'Payroll', icon: Wallet },
+  { to: '/owner/payroll-settings', label: 'Pay Settings', icon: Settings },
+  { to: '/owner/activity', label: 'Activity', icon: Activity },
   { to: '/owner/analytics', label: 'Analytics', icon: BarChart3 },
   { to: '/owner/reports', label: 'Reports', icon: FileText },
   { to: '/owner/permissions', label: 'Permissions', icon: Shield },

@@ -22,6 +22,12 @@ import { BriefingPoolPage } from '@/pages/owner/BriefingPoolPage';
 import { HierarchyPage } from '@/pages/owner/HierarchyPage';
 import { ReportsPage } from '@/pages/owner/ReportsPage';
 import { PermissionsPage } from '@/pages/owner/PermissionsPage';
+import { IssuesPage } from '@/pages/owner/IssuesPage';
+import { OvertimePage } from '@/pages/owner/OvertimePage';
+import { EventsPage } from '@/pages/owner/EventsPage';
+import { ActivityPage } from '@/pages/owner/ActivityPage';
+import { PayrollSettingsPage } from '@/pages/owner/PayrollSettingsPage';
+import { LeaveRulesPage } from '@/pages/owner/LeaveRulesPage';
 import { useAuth } from '@/hooks/useAuth';
 import { NeoEngineApkDownloadPage } from '@/pages/NeoEngineApkDownloadPage';
 
@@ -72,9 +78,15 @@ function App() {
                 <Route path="staff" element={<StaffPage />} />
                 <Route path="roles" element={<RolesPage />} />
                 <Route path="tasks" element={<TasksPage />} />
+                <Route path="issues" element={<IssuesPage />} />
                 <Route path="attendance" element={<AttendancePage />} />
+                <Route path="overtime" element={<OvertimePage />} />
                 <Route path="leave" element={<LeavePage />} />
+                <Route path="leave-rules" element={<LeaveRulesPage />} />
+                <Route path="events" element={<EventsPage />} />
                 <Route path="payroll" element={<PayrollPage />} />
+                <Route path="payroll-settings" element={<PayrollSettingsPage />} />
+                <Route path="activity" element={<ActivityPage />} />
                 <Route path="analytics" element={<OwnerAnalyticsPage />} />
                 <Route path="briefing-pool" element={<BriefingPoolPage />} />
                 <Route path="hierarchy" element={<HierarchyPage />} />
@@ -95,3 +107,4 @@ function App() {
 }
 
 export default App;
+

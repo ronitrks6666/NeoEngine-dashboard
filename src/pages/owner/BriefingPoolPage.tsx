@@ -1,4 +1,4 @@
-import { useState } from 'react';
+import { useState, useMemo } from 'react';
 import { useQuery, useMutation, useQueryClient } from '@tanstack/react-query';
 import { useOutletStore } from '@/stores/outletStore';
 import { managerApi } from '@/api/manager';
@@ -7,20 +7,55 @@ import { getApiErrorMessage } from '@/api/auth';
 import { LoadingSpinner } from '@/components/LoadingSpinner';
 import { ListSearchBar } from '@/components/ListSearchBar';
 import { useDebouncedValue } from '@/hooks/useDebouncedValue';
+import {
+  ChevronDown,
+  ChevronUp,
+  Search,
+  Calendar,
+  Clock,
+  AlertCircle,
+  CheckCircle2,
+  ChevronLeft,
+  ChevronRight,
+  Filter,
+} from 'lucide-react';
+import { format, subDays, startOfDay, endOfDay } from 'date-fns';
+import { CalendarDateField } from '@/components/CalendarDateField';
 
 export function BriefingPoolPage() {
   const { selectedOutletId } = useOutletStore();
   const [expandedId, setExpandedId] = useState<string | null>(null);
   const [poolSearch, setPoolSearch] = useState('');
   const debouncedPoolSearch = useDebouncedValue(poolSearch, 350);
+  const [selectedDate, setSelectedDate] = useState(new Date().toISOString().slice(0, 10));
+  const [dateRangeMode, setDateRangeMode] = useState<'daily' | '7d' | '15d' | '30d'>('daily');
   const queryClient = useQueryClient();
 
+  const getRange = () => {
+    const end = new Date();
+    let start = new Date();
+    if (dateRangeMode === '7d') start = subDays(end, 7);
+    else if (dateRangeMode === '15d') start = subDays(end, 15);
+    else if (dateRangeMode === '30d') start = subDays(end, 30);
+    else return { start: selectedDate, end: selectedDate };
+
+    return {
+      start: start.toISOString().slice(0, 10),
+      end: end.toISOString().slice(0, 10),
+    };
+  };
+
+  const { start, end } = getRange();
+
   const { data, isLoading } = useQuery({
-    queryKey: ['briefing-pool', selectedOutletId, debouncedPoolSearch],
+    queryKey: ['briefing-pool', selectedOutletId, debouncedPoolSearch, start, end],
     queryFn: () =>
       managerApi.getBriefingPool(selectedOutletId!, {
-        limit: 50,
+        limit: 100,
         search: debouncedPoolSearch.trim() || undefined,
+        dateRange: dateRangeMode === '7d' ? 'last7' : dateRangeMode === '30d' ? 'last30' : dateRangeMode === 'daily' ? 'today' : 'custom',
+        startDate: start,
+        endDate: end,
       }),
     enabled: !!selectedOutletId,
   });
@@ -60,54 +95,150 @@ export function BriefingPoolPage() {
 
   const employees = data?.data?.employees ?? data?.employees ?? [];
   const raw = tasksData?.data ?? tasksData ?? {};
-  const tasks = [...(raw.notCompleted ?? []), ...(raw.escalated ?? [])];
+  
+  // Deduplicate tasks by ID to avoid showing same escalated task twice
+  const tasks = useMemo(() => {
+    const taskMap = new Map();
+    [...(raw.notCompleted ?? []), ...(raw.escalated ?? [])].forEach(t => {
+      if (t.id) taskMap.set(String(t.id), t);
+    });
+    return Array.from(taskMap.values());
+  }, [raw.notCompleted, raw.escalated]);
 
   if (!selectedOutletId) {
     return <div className="p-6 text-amber-600">Select an outlet first.</div>;
   }
 
   return (
-    <div className="p-6 max-w-4xl mx-auto animate-fade-in">
-      <div className="flex flex-col sm:flex-row sm:items-end sm:justify-between gap-4 mb-6">
+    <div className="p-6 max-w-5xl mx-auto animate-fade-in">
+      <div className="flex flex-col lg:flex-row lg:items-center lg:justify-between gap-6 mb-8">
         <div>
-          <h1 className="text-2xl font-bold text-emerald-900 mb-2">Briefing Pool</h1>
-          <p className="text-emerald-700 font-medium">Staff with not-done or escalated tasks</p>
+          <h1 className="text-2xl font-bold text-gray-900">Briefing Pool</h1>
+          <p className="text-gray-500 mt-0.5">Staff with pending or escalated tasks in selected period</p>
         </div>
-        <ListSearchBar
-          value={poolSearch}
-          onChange={setPoolSearch}
-          placeholder="Search by staff name or phone"
-          className="sm:max-w-sm w-full"
-          id="briefing-pool-search"
-          aria-label="Search briefing pool"
-        />
+        <div className="relative w-full lg:w-80">
+          <Search className="absolute left-3.5 top-1/2 -translate-y-1/2 h-4 w-4 text-gray-400" />
+          <input
+            value={poolSearch}
+            onChange={(e) => setPoolSearch(e.target.value)}
+            placeholder="Search staff..."
+            className="w-full pl-10 pr-4 py-2.5 rounded-xl border border-gray-200 focus:ring-2 focus:ring-emerald-500/20 focus:border-emerald-500 bg-white text-sm"
+          />
+        </div>
+      </div>
+
+      {/* Filters & Navigation */}
+      <div className="bg-white rounded-2xl border border-gray-100 p-2 mb-8 shadow-sm">
+        <div className="flex flex-col md:flex-row items-stretch md:items-center gap-2">
+          <div className="flex p-1 bg-gray-50 rounded-xl">
+            {[
+              { id: 'daily', label: 'Daily' },
+              { id: '7d', label: 'Last 7d' },
+              { id: '15d', label: 'Last 15d' },
+              { id: '30d', label: 'Last 30d' },
+            ].map((mode) => (
+              <button
+                key={mode.id}
+                onClick={() => setDateRangeMode(mode.id as any)}
+                className={`px-4 py-2 rounded-lg text-xs font-bold transition-all ${
+                  dateRangeMode === mode.id
+                    ? 'bg-white text-emerald-600 shadow-sm'
+                    : 'text-gray-500 hover:text-gray-700'
+                }`}
+              >
+                {mode.label}
+              </button>
+            ))}
+          </div>
+
+          <div className="hidden md:block w-px h-8 bg-gray-100 mx-2" />
+
+          {dateRangeMode === 'daily' ? (
+            <div className="flex-1 flex items-center justify-between gap-4">
+              <div className="flex items-center gap-1">
+                <button
+                  onClick={() => setSelectedDate(subDays(new Date(selectedDate), 1).toISOString().slice(0, 10))}
+                  className="p-2 rounded-lg hover:bg-gray-100 text-gray-500"
+                >
+                  <ChevronLeft className="h-5 w-5" />
+                </button>
+                <div className="flex items-center gap-2 px-3">
+                  <Calendar className="h-4 w-4 text-emerald-600" />
+                  <span className="text-sm font-bold text-gray-900 min-w-[120px] text-center">
+                    {format(new Date(selectedDate), 'EEE, MMM dd')}
+                  </span>
+                </div>
+                <button
+                  onClick={() => setSelectedDate(subDays(subDays(new Date(selectedDate), -1), 0).toISOString().slice(0, 10))}
+                  className="p-2 rounded-lg hover:bg-gray-100 text-gray-500"
+                >
+                  <ChevronRight className="h-5 w-5" />
+                </button>
+              </div>
+              <div className="w-40">
+                <CalendarDateField
+                  value={selectedDate}
+                  onChange={setSelectedDate}
+                  placeholder="Pick date"
+                />
+              </div>
+            </div>
+          ) : (
+            <div className="flex-1 flex items-center gap-2 px-4 text-sm text-gray-500">
+              <Filter className="h-4 w-4" />
+              Showing activity from <span className="font-semibold text-gray-900">{format(new Date(start), 'MMM dd')}</span> to <span className="font-semibold text-gray-900">{format(new Date(end), 'MMM dd')}</span>
+            </div>
+          )}
+        </div>
       </div>
 
       {isLoading ? (
         <LoadingSpinner className="py-16" />
       ) : (
         <div className="space-y-4">
-          {employees.map((emp: { _id: string; name: string; notCompletedCount?: number; escalatedCount?: number }) => (
-            <div key={emp._id} className="bg-white rounded-2xl border border-emerald-100 shadow-sm overflow-hidden">
-              <div className="flex justify-between items-center p-4">
-                <div>
-                  <h3 className="font-semibold text-gray-900">{emp.name}</h3>
-                  <div className="flex gap-3 mt-1">
-                    <span className="text-sm text-amber-600 font-medium">Not done: {emp.notCompletedCount ?? 0}</span>
-                    <span className="text-sm text-red-600 font-medium">Escalated: {emp.escalatedCount ?? 0}</span>
+          {employees.map((emp: { _id: string; name: string; notCompletedCount?: number; escalatedCount?: number; phone?: string }) => (
+            <div key={emp._id} className="bg-white rounded-2xl border border-gray-100 shadow-sm overflow-hidden hover:border-emerald-200 transition-colors">
+              <div className="p-5 flex items-center justify-between gap-4">
+                <div className="flex items-center gap-4">
+                  <div className="w-12 h-12 rounded-2xl bg-emerald-50 flex items-center justify-center text-emerald-600 font-bold text-lg">
+                    {emp.name.charAt(0)}
+                  </div>
+                  <div>
+                    <h3 className="font-bold text-gray-900">{emp.name}</h3>
+                    <p className="text-xs text-gray-500">{emp.phone || 'No phone'}</p>
                   </div>
                 </div>
-                <button
-                  onClick={() => setExpandedId(expandedId === emp._id ? null : emp._id)}
-                  className="px-4 py-2 text-sm font-medium bg-emerald-600 text-white rounded-xl hover:bg-emerald-700 transition-colors"
-                >
-                  {expandedId === emp._id ? 'Hide tasks' : 'View tasks'}
-                </button>
+                
+                <div className="flex items-center gap-6">
+                  <div className="text-center">
+                    <p className="text-[10px] font-bold text-amber-500 uppercase tracking-widest mb-0.5">Pending</p>
+                    <p className="text-lg font-black text-gray-900 leading-none">{emp.notCompletedCount ?? 0}</p>
+                  </div>
+                  <div className="text-center">
+                    <p className="text-[10px] font-bold text-red-500 uppercase tracking-widest mb-0.5">Escalated</p>
+                    <p className="text-lg font-black text-gray-900 leading-none">{emp.escalatedCount ?? 0}</p>
+                  </div>
+                  <button
+                    onClick={() => setExpandedId(expandedId === emp._id ? null : emp._id)}
+                    className={`w-10 h-10 rounded-xl flex items-center justify-center transition-all ${
+                      expandedId === emp._id ? 'bg-gray-900 text-white' : 'bg-gray-100 text-gray-500 hover:bg-gray-200'
+                    }`}
+                  >
+                    {expandedId === emp._id ? <ChevronUp className="h-5 w-5" /> : <ChevronDown className="h-5 w-5" />}
+                  </button>
+                </div>
               </div>
+
               {expandedId === emp._id && (
-                <div className="px-4 pb-4 pt-0 space-y-3 border-t border-gray-100">
+                <div className="px-5 pb-5 pt-0 space-y-3 bg-gray-50/50 border-t border-gray-100 animate-slide-up">
+                  <div className="pt-4 pb-2">
+                    <p className="text-xs font-bold text-gray-400 uppercase tracking-widest">Tasks Overview</p>
+                  </div>
                   {tasks.length === 0 ? (
-                    <p className="text-gray-500 text-sm">Loading tasks...</p>
+                    <div className="py-8 flex flex-col items-center justify-center text-gray-400 italic">
+                      <LoadingSpinner className="h-5 w-5 mb-2" />
+                      <p className="text-xs">Loading tasks...</p>
+                    </div>
                   ) : (
                     tasks
                       .filter((t: { isCompleted?: boolean }) => !t.isCompleted)
@@ -119,35 +250,53 @@ export function BriefingPoolPage() {
                         escalationLevel?: number;
                         escalationHistory?: { escalatedAt?: string }[];
                       }) => {
-                        const dueStr = t.dueAt ? new Date(t.dueAt).toLocaleString('en-IN', { dateStyle: 'short', timeStyle: 'short' }) : null;
+                        const dueStr = t.dueAt ? format(new Date(t.dueAt), 'MMM dd, hh:mm a') : null;
                         const lastEscalated = t.escalationHistory?.length ? t.escalationHistory[t.escalationHistory.length - 1]?.escalatedAt : null;
-                        const escalatedStr = lastEscalated ? new Date(lastEscalated).toLocaleString('en-IN', { dateStyle: 'short', timeStyle: 'short' }) : null;
-                        const dateStr = t.date ? new Date(t.date + 'T12:00:00').toLocaleDateString('en-IN', { weekday: 'short', day: 'numeric', month: 'short' }) : null;
+                        const escalatedStr = lastEscalated ? format(new Date(lastEscalated), 'MMM dd, hh:mm a') : null;
+                        const dateStr = t.date ? format(new Date(t.date + 'T12:00:00'), 'EEE, MMM dd') : null;
+                        
                         return (
-                          <div key={t.id} className="rounded-xl border border-gray-200 bg-white p-4 shadow-sm">
-                            <div className="flex justify-between items-start gap-4">
-                              <div className="min-w-0 flex-1">
-                                <p className="font-semibold text-gray-900">{t.title ?? 'Task'}</p>
-                                <div className="mt-2 space-y-1 text-sm text-gray-500">
-                                  {dateStr && <p className="flex items-center gap-1.5"><span className="text-gray-400">Started:</span> {dateStr}</p>}
-                                  {dueStr && <p className="flex items-center gap-1.5"><span className="text-gray-400">Due:</span> {dueStr}</p>}
-                                  {escalatedStr && <p className="flex items-center gap-1.5 text-amber-600"><span className="text-amber-500">Escalated:</span> {escalatedStr}</p>}
-                                </div>
+                          <div key={t.id} className="bg-white rounded-xl border border-gray-100 p-4 flex items-center justify-between gap-4 group shadow-sm hover:border-emerald-100 transition-all">
+                            <div className="flex-1 min-w-0">
+                              <p className="font-bold text-gray-900 text-sm">{t.title ?? 'Untitled Task'}</p>
+                              <div className="mt-1.5 flex flex-wrap items-center gap-x-4 gap-y-1">
+                                {dateStr && (
+                                  <div className="flex items-center gap-1.5 text-xs text-gray-500 font-medium">
+                                    <Calendar className="h-3 w-3 text-gray-400" />
+                                    {dateStr}
+                                  </div>
+                                )}
+                                {dueStr && (
+                                  <div className="flex items-center gap-1.5 text-xs text-amber-600 font-medium">
+                                    <Clock className="h-3 w-3 text-amber-400" />
+                                    Due: {dueStr}
+                                  </div>
+                                )}
+                                {escalatedStr && (
+                                  <div className="flex items-center gap-1.5 text-xs text-red-600 font-bold">
+                                    <AlertCircle className="h-3 w-3" />
+                                    Escalated: {escalatedStr}
+                                  </div>
+                                )}
                               </div>
-                              <button
-                                onClick={() => completeMutation.mutate(t.id)}
-                                disabled={completeMutation.isPending}
-                                className="shrink-0 px-4 py-2 text-sm font-semibold bg-emerald-600 text-white rounded-lg hover:bg-emerald-700 disabled:opacity-50 transition-colors"
-                              >
-                                Complete
-                              </button>
                             </div>
+                            <button
+                              onClick={() => completeMutation.mutate(t.id)}
+                              disabled={completeMutation.isPending}
+                              className="px-4 py-2 bg-emerald-600 text-white rounded-lg text-xs font-bold hover:bg-emerald-700 disabled:opacity-50 transition-all flex items-center gap-2"
+                            >
+                              <CheckCircle2 className="h-3.5 w-3.5" />
+                              {completeMutation.isPending ? 'Done...' : 'Done'}
+                            </button>
                           </div>
                         );
                       })
                   )}
                   {tasks.length > 0 && tasks.every((t: { isCompleted?: boolean }) => t.isCompleted) && (
-                    <p className="text-gray-500 text-sm py-4">All tasks completed</p>
+                    <div className="py-8 flex flex-col items-center justify-center text-emerald-500">
+                      <CheckCircle2 className="h-10 w-10 mb-2 opacity-20" />
+                      <p className="text-sm font-bold">All tasks cleared!</p>
+                    </div>
                   )}
                 </div>
               )}

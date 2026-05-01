@@ -10,6 +10,42 @@ export interface Employee {
   isActive?: boolean;
   reportsToEmployeeId?: { name?: string } | string | null;
   reportsToOwnerId?: { name?: string } | string | null;
+  // Personal
+  profilePhotoUrl?: string;
+  dateOfBirth?: string;
+  gender?: 'male' | 'female' | 'other' | 'prefer_not_to_say';
+  secondaryPhone?: string;
+  guardianPhone?: string;
+  department?: string;
+  joiningDate?: string;
+  previousExperience?: string;
+  // Addresses
+  localAddress?: string;
+  temporaryAddress?: string;
+  permanentAddress?: string;
+  locationLink?: string;
+  // Financial / Payroll
+  salary?: number;
+  upiId?: string;
+  bankAccountNumber?: string;
+  ifscCode?: string;
+  panNumber?: string;
+  pfNumber?: string;
+  esicNumber?: string;
+  // Scheduling
+  minHoursPerDay?: number;
+  punchInTime?: string;
+  // Medical
+  hasMedicalCondition?: boolean;
+  medicalConditionNotes?: string;
+  bodyMarks?: string;
+  bodyMarksPhotoUrl?: string;
+  // Compliance
+  policeVerificationStatus?: 'pending' | 'verified' | 'not_required';
+  policeVerificationNotes?: string;
+  // Status
+  userStatus?: 'active' | 'on_hold';
+  userStatusReason?: string;
 }
 
 export const employeeApi = {
@@ -67,6 +103,35 @@ export const employeeApi = {
     upiId?: string | null;
     reportsToEmployeeId?: string | null;
     reportsToOwnerId?: string | null;
+    // Personal
+    dateOfBirth?: string | null;
+    gender?: 'male' | 'female' | 'other' | 'prefer_not_to_say';
+    secondaryPhone?: string | null;
+    guardianPhone?: string | null;
+    department?: string | null;
+    joiningDate?: string | null;
+    previousExperience?: string | null;
+    // Addresses
+    localAddress?: string | null;
+    temporaryAddress?: string | null;
+    permanentAddress?: string | null;
+    locationLink?: string | null;
+    // Financial
+    bankAccountNumber?: string | null;
+    ifscCode?: string | null;
+    panNumber?: string | null;
+    pfNumber?: string | null;
+    esicNumber?: string | null;
+    // Medical
+    hasMedicalCondition?: boolean;
+    medicalConditionNotes?: string | null;
+    bodyMarks?: string | null;
+    // Compliance
+    policeVerificationStatus?: 'pending' | 'verified' | 'not_required';
+    policeVerificationNotes?: string | null;
+    // Status
+    userStatus?: 'active' | 'on_hold';
+    userStatusReason?: string | null;
   }>) => {
     const { data } = await api.put(`/employee/staff/${employeeId}`, payload);
     return data;

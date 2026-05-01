@@ -70,6 +70,34 @@ const editSchema = z.object({
   }),
   punchInTime: z.string().optional(),
   upiId: z.string().optional(),
+  // Personal
+  dateOfBirth: z.string().optional(),
+  gender: z.enum(['male', 'female', 'other', 'prefer_not_to_say']).optional(),
+  secondaryPhone: z.string().optional(),
+  guardianPhone: z.string().optional(),
+  department: z.string().optional(),
+  joiningDate: z.string().optional(),
+  previousExperience: z.string().optional(),
+  // Addresses
+  localAddress: z.string().optional(),
+  temporaryAddress: z.string().optional(),
+  permanentAddress: z.string().optional(),
+  locationLink: z.string().optional(),
+  // Financial
+  bankAccountNumber: z.string().optional(),
+  ifscCode: z.string().optional(),
+  panNumber: z.string().optional(),
+  pfNumber: z.string().optional(),
+  esicNumber: z.string().optional(),
+  // Medical & Compliance
+  hasMedicalCondition: z.boolean().optional(),
+  medicalConditionNotes: z.string().optional(),
+  bodyMarks: z.string().optional(),
+  policeVerificationStatus: z.enum(['pending', 'verified', 'not_required']).optional(),
+  policeVerificationNotes: z.string().optional(),
+  // Status
+  userStatus: z.enum(['active', 'on_hold']).optional(),
+  userStatusReason: z.string().optional(),
 });
 
 type CreateForm = z.infer<typeof createSchema>;
@@ -104,8 +132,40 @@ export function StaffPage() {
     minHoursPerDay?: number | null;
     punchInTime?: string | null;
     upiId?: string | null;
+    // Personal
+    dateOfBirth?: string;
+    gender?: string;
+    secondaryPhone?: string;
+    guardianPhone?: string;
+    department?: string;
+    joiningDate?: string;
+    previousExperience?: string;
+    // Addresses
+    localAddress?: string;
+    temporaryAddress?: string;
+    permanentAddress?: string;
+    locationLink?: string;
+    // Financial
+    bankAccountNumber?: string;
+    ifscCode?: string;
+    panNumber?: string;
+    pfNumber?: string;
+    esicNumber?: string;
+    // Medical
+    hasMedicalCondition?: boolean;
+    medicalConditionNotes?: string;
+    bodyMarks?: string;
+    // Compliance
+    policeVerificationStatus?: string;
+    policeVerificationNotes?: string;
+    // Status
+    userStatus?: string;
+    userStatusReason?: string;
   } | null>(null);
+  const [editActiveTab, setEditActiveTab] = useState<'basic' | 'personal' | 'financial' | 'medical'>('basic');
   const [confirmRemove, setConfirmRemove] = useState<{ _id: string; name: string } | null>(null);
+  const [reassignToId, setReassignToId] = useState<string>('');
+  const [isReassigning, setIsReassigning] = useState(false);
   const [documentsFor, setDocumentsFor] = useState<{ _id: string; name: string } | null>(null);
   const [showCreateMasterRole, setShowCreateMasterRole] = useState(false);
   const [showCreateRole, setShowCreateRole] = useState(false);
@@ -192,10 +252,27 @@ export function StaffPage() {
   });
 
   const deactivateMutation = useMutation({
-    mutationFn: (id: string) => employeeApi.update(id, { isActive: false }),
+    mutationFn: async ({ id, newManagerId }: { id: string; newManagerId?: string }) => {
+      // 1. Reassign subordinates if provided
+      if (newManagerId) {
+        const subs = (employees as StaffCardRow[]).filter(
+          (e) => (typeof e.reportsToEmployeeId === 'string' ? e.reportsToEmployeeId : (e.reportsToEmployeeId as any)?._id) === id
+        );
+        const payload = newManagerId.startsWith(REPORTS_TO_OWNER_PREFIX)
+          ? { reportsToOwnerId: newManagerId.slice(REPORTS_TO_OWNER_PREFIX.length), reportsToEmployeeId: null }
+          : { reportsToEmployeeId: newManagerId, reportsToOwnerId: null };
+
+        await Promise.all(subs.map((s) => employeeApi.update(s._id, payload)));
+      }
+      // 2. Deactivate
+      return employeeApi.update(id, { isActive: false });
+    },
     onSuccess: () => {
       queryClient.invalidateQueries({ queryKey: ['my-employees'] });
+      queryClient.invalidateQueries({ queryKey: ['hierarchy'] });
       setConfirmRemove(null);
+      setReassignToId('');
+      setIsReassigning(false);
     },
   });
 
@@ -342,18 +419,10 @@ export function StaffPage() {
     }
   }, [location.state, navigate, location.pathname, form]);
 
-  const openEdit = (e: {
-    _id: string;
-    name: string;
-    phone: string;
-    shiftType?: string;
-    activeRoleId?: { _id?: string; name?: string; parentRoleId?: { name?: string } } | string;
-    salary?: number | null;
-    minHoursPerDay?: number | null;
-    punchInTime?: string | null;
-    upiId?: string | null;
-  }) => {
+  const openEdit = (e: typeof editing & { _id: string; name: string; phone: string }) => {
+    if (!e) return;
     setEditing(e);
+    setEditActiveTab('basic');
     setShowCreateMasterRole(false);
     setShowCreateRole(false);
     setNewMasterRoleName('');
@@ -369,6 +438,29 @@ export function StaffPage() {
       minHoursPerDay: e.minHoursPerDay ?? undefined,
       punchInTime: e.punchInTime ?? '',
       upiId: e.upiId ?? '',
+      dateOfBirth: e.dateOfBirth ?? '',
+      gender: (e.gender as 'male' | 'female' | 'other' | 'prefer_not_to_say') ?? undefined,
+      secondaryPhone: e.secondaryPhone ?? '',
+      guardianPhone: e.guardianPhone ?? '',
+      department: e.department ?? '',
+      joiningDate: e.joiningDate ?? '',
+      previousExperience: e.previousExperience ?? '',
+      localAddress: e.localAddress ?? '',
+      temporaryAddress: e.temporaryAddress ?? '',
+      permanentAddress: e.permanentAddress ?? '',
+      locationLink: e.locationLink ?? '',
+      bankAccountNumber: e.bankAccountNumber ?? '',
+      ifscCode: e.ifscCode ?? '',
+      panNumber: e.panNumber ?? '',
+      pfNumber: e.pfNumber ?? '',
+      esicNumber: e.esicNumber ?? '',
+      hasMedicalCondition: e.hasMedicalCondition ?? false,
+      medicalConditionNotes: e.medicalConditionNotes ?? '',
+      bodyMarks: e.bodyMarks ?? '',
+      policeVerificationStatus: (e.policeVerificationStatus as 'pending' | 'verified' | 'not_required') ?? 'not_required',
+      policeVerificationNotes: e.policeVerificationNotes ?? '',
+      userStatus: (e.userStatus as 'active' | 'on_hold') ?? 'active',
+      userStatusReason: e.userStatusReason ?? '',
     });
   };
 
@@ -887,59 +979,195 @@ export function StaffPage() {
                   </div>
                 </section>
 
-                <section>
-                  <h3 className="text-sm font-semibold text-gray-700 mb-3 flex items-center gap-2">
-                    <span className="w-6 h-6 rounded-lg bg-emerald-100 flex items-center justify-center text-emerald-600 text-xs">3</span>
-                    Payroll & attendance
-                  </h3>
-                  <p className="text-xs text-gray-500 mb-3">Salary is per pay cycle (set in outlet settings). Payout uses approved overtime only.</p>
-                  <div className="grid grid-cols-1 sm:grid-cols-2 gap-4">
-                    <div>
-                      <label className="block text-sm font-medium text-gray-600 mb-1.5">Salary (per pay cycle)</label>
-                      <input
-                        type="number"
-                        min={0}
-                        step={0.01}
-                        {...editForm.register('salary', { valueAsNumber: true })}
-                        className="w-full px-4 py-2.5 rounded-xl border border-emerald-200 bg-gray-50/50 focus:bg-white focus:ring-2 focus:ring-emerald-500/20 focus:border-emerald-500"
-                        placeholder="e.g. 15000"
-                      />
-                    </div>
-                    <div>
-                      <label className="block text-sm font-medium text-gray-600 mb-1.5">Min hours per day</label>
-                      <input
-                        type="number"
-                        min={0.5}
-                        max={24}
-                        step={0.5}
-                        {...editForm.register('minHoursPerDay', { valueAsNumber: true })}
-                        className="w-full px-4 py-2.5 rounded-xl border border-emerald-200 bg-gray-50/50 focus:bg-white focus:ring-2 focus:ring-emerald-500/20 focus:border-emerald-500"
-                        placeholder="e.g. 8"
-                      />
-                    </div>
-                    <div className="sm:col-span-2">
-                      <label className="block text-sm font-medium text-gray-600 mb-1.5">
-                        Punch-in time <span className="text-gray-400 font-normal">(12-hour)</span>
-                      </label>
-                      <Controller
-                        name="punchInTime"
-                        control={editForm.control}
-                        render={({ field }) => (
-                          <TimePickerField use12Hour value={field.value ?? ''} onChange={field.onChange} />
-                        )}
-                      />
-                    </div>
-                    <div className="sm:col-span-2">
-                      <label className="block text-sm font-medium text-gray-600 mb-1.5">UPI ID (for payout)</label>
-                      <input
-                        {...editForm.register('upiId')}
-                        className="w-full px-4 py-2.5 rounded-xl border border-emerald-200 bg-gray-50/50 focus:bg-white focus:ring-2 focus:ring-emerald-500/20 focus:border-emerald-500"
-                        placeholder="e.g. user@okaxis"
-                      />
-                    </div>
+                {/* Tab Navigation for extra sections */}
+                <div className="border-t border-gray-100 pt-4">
+                  <div className="flex gap-1 p-1 bg-gray-100 rounded-xl mb-5">
+                    {(['basic', 'personal', 'financial', 'medical'] as const).map((tab) => (
+                      <button
+                        key={tab}
+                        type="button"
+                        onClick={() => setEditActiveTab(tab)}
+                        className={`flex-1 px-2 py-1.5 rounded-lg text-xs font-medium transition-all capitalize ${editActiveTab === tab ? 'bg-white text-emerald-600 shadow-sm' : 'text-gray-500 hover:text-gray-700'}`}
+                      >
+                        {tab}
+                      </button>
+                    ))}
                   </div>
-                </section>
 
+                  {/* Basic tab = payroll + attendance (existing) */}
+                  {editActiveTab === 'basic' && (
+                    <div className="grid grid-cols-1 sm:grid-cols-2 gap-4">
+                      <div>
+                        <label className="block text-sm font-medium text-gray-600 mb-1.5">Salary (per cycle)</label>
+                        <input type="number" min={0} step={0.01} {...editForm.register('salary', { valueAsNumber: true })} className="w-full px-4 py-2.5 rounded-xl border border-emerald-200 bg-gray-50/50 focus:bg-white focus:ring-2 focus:ring-emerald-500/20 focus:border-emerald-500" placeholder="e.g. 15000" />
+                      </div>
+                      <div>
+                        <label className="block text-sm font-medium text-gray-600 mb-1.5">Min hours / day</label>
+                        <input type="number" min={0.5} max={24} step={0.5} {...editForm.register('minHoursPerDay', { valueAsNumber: true })} className="w-full px-4 py-2.5 rounded-xl border border-emerald-200 bg-gray-50/50 focus:bg-white focus:ring-2 focus:ring-emerald-500/20 focus:border-emerald-500" placeholder="e.g. 8" />
+                      </div>
+                      <div className="sm:col-span-2">
+                        <label className="block text-sm font-medium text-gray-600 mb-1.5">Punch-in time</label>
+                        <Controller name="punchInTime" control={editForm.control} render={({ field }) => (
+                          <TimePickerField use12Hour value={field.value ?? ''} onChange={field.onChange} />
+                        )} />
+                      </div>
+                      <div className="sm:col-span-2">
+                        <label className="block text-sm font-medium text-gray-600 mb-1.5">UPI ID</label>
+                        <input {...editForm.register('upiId')} className="w-full px-4 py-2.5 rounded-xl border border-emerald-200 bg-gray-50/50 focus:bg-white focus:ring-2 focus:ring-emerald-500/20 focus:border-emerald-500" placeholder="e.g. user@okaxis" />
+                      </div>
+                      <div className="sm:col-span-2">
+                        <label className="block text-sm font-medium text-gray-600 mb-1.5">Status</label>
+                        <div className="flex gap-2">
+                          {(['active', 'on_hold'] as const).map((s) => (
+                            <button key={s} type="button"
+                              onClick={() => editForm.setValue('userStatus', s)}
+                              className={`px-4 py-2 rounded-lg text-sm font-medium capitalize transition-all border ${
+                                editForm.watch('userStatus') === s ? 'bg-emerald-600 text-white border-emerald-600' : 'bg-white text-gray-600 border-gray-200 hover:border-emerald-300'
+                              }`}>
+                              {s.replace('_', ' ')}
+                            </button>
+                          ))}
+                        </div>
+                        {editForm.watch('userStatus') === 'on_hold' && (
+                          <input {...editForm.register('userStatusReason')} className="mt-2 w-full px-4 py-2.5 rounded-xl border border-gray-200 text-sm" placeholder="Reason for hold" />
+                        )}
+                      </div>
+                    </div>
+                  )}
+
+                  {/* Personal tab */}
+                  {editActiveTab === 'personal' && (
+                    <div className="grid grid-cols-1 sm:grid-cols-2 gap-4">
+                      <div>
+                        <label className="block text-sm font-medium text-gray-600 mb-1.5">Date of Birth</label>
+                        <input type="date" {...editForm.register('dateOfBirth')} className="w-full px-4 py-2.5 rounded-xl border border-gray-200 focus:ring-2 focus:ring-emerald-500/20 focus:border-emerald-500" />
+                      </div>
+                      <div>
+                        <label className="block text-sm font-medium text-gray-600 mb-1.5">Gender</label>
+                        <select {...editForm.register('gender')} className="w-full px-4 py-2.5 rounded-xl border border-gray-200 focus:ring-2 focus:ring-emerald-500/20 focus:border-emerald-500 bg-white text-sm">
+                          <option value="">Select gender</option>
+                          <option value="male">Male</option>
+                          <option value="female">Female</option>
+                          <option value="other">Other</option>
+                          <option value="prefer_not_to_say">Prefer not to say</option>
+                        </select>
+                      </div>
+                      <div>
+                        <label className="block text-sm font-medium text-gray-600 mb-1.5">Secondary Phone</label>
+                        <input {...editForm.register('secondaryPhone')} className="w-full px-4 py-2.5 rounded-xl border border-gray-200 focus:ring-2 focus:ring-emerald-500/20 focus:border-emerald-500" placeholder="Optional" />
+                      </div>
+                      <div>
+                        <label className="block text-sm font-medium text-gray-600 mb-1.5">Guardian Phone</label>
+                        <input {...editForm.register('guardianPhone')} className="w-full px-4 py-2.5 rounded-xl border border-gray-200 focus:ring-2 focus:ring-emerald-500/20 focus:border-emerald-500" placeholder="Emergency contact" />
+                      </div>
+                      <div>
+                        <label className="block text-sm font-medium text-gray-600 mb-1.5">Department</label>
+                        <input {...editForm.register('department')} className="w-full px-4 py-2.5 rounded-xl border border-gray-200 focus:ring-2 focus:ring-emerald-500/20 focus:border-emerald-500" placeholder="e.g. Kitchen, Front of House" />
+                      </div>
+                      <div>
+                        <label className="block text-sm font-medium text-gray-600 mb-1.5">Joining Date</label>
+                        <input type="date" {...editForm.register('joiningDate')} className="w-full px-4 py-2.5 rounded-xl border border-gray-200 focus:ring-2 focus:ring-emerald-500/20 focus:border-emerald-500" />
+                      </div>
+                      <div className="sm:col-span-2">
+                        <label className="block text-sm font-medium text-gray-600 mb-1.5">Previous Experience</label>
+                        <textarea {...editForm.register('previousExperience')} rows={2} className="w-full px-4 py-2.5 rounded-xl border border-gray-200 focus:ring-2 focus:ring-emerald-500/20 focus:border-emerald-500 text-sm" placeholder="Brief work history" />
+                      </div>
+                      <div className="sm:col-span-2">
+                        <label className="block text-sm font-medium text-gray-600 mb-1.5">Local Address</label>
+                        <textarea {...editForm.register('localAddress')} rows={2} className="w-full px-4 py-2.5 rounded-xl border border-gray-200 focus:ring-2 focus:ring-emerald-500/20 focus:border-emerald-500 text-sm" placeholder="Current local address" />
+                      </div>
+                      <div className="sm:col-span-2">
+                        <label className="block text-sm font-medium text-gray-600 mb-1.5">Permanent Address</label>
+                        <textarea {...editForm.register('permanentAddress')} rows={2} className="w-full px-4 py-2.5 rounded-xl border border-gray-200 focus:ring-2 focus:ring-emerald-500/20 focus:border-emerald-500 text-sm" placeholder="Permanent / home address" />
+                      </div>
+                      <div className="sm:col-span-2">
+                        <label className="block text-sm font-medium text-gray-600 mb-1.5">Location Link</label>
+                        <input {...editForm.register('locationLink')} className="w-full px-4 py-2.5 rounded-xl border border-gray-200 focus:ring-2 focus:ring-emerald-500/20 focus:border-emerald-500" placeholder="Google Maps or any link" />
+                      </div>
+                    </div>
+                  )}
+
+                  {/* Financial tab */}
+                  {editActiveTab === 'financial' && (
+                    <div className="grid grid-cols-1 sm:grid-cols-2 gap-4">
+                      <div className="sm:col-span-2">
+                        <label className="block text-sm font-medium text-gray-600 mb-1.5">Bank Account Number</label>
+                        <input {...editForm.register('bankAccountNumber')} className="w-full px-4 py-2.5 rounded-xl border border-gray-200 focus:ring-2 focus:ring-emerald-500/20 focus:border-emerald-500 font-mono" placeholder="Account number" />
+                      </div>
+                      <div>
+                        <label className="block text-sm font-medium text-gray-600 mb-1.5">IFSC Code</label>
+                        <input {...editForm.register('ifscCode')} className="w-full px-4 py-2.5 rounded-xl border border-gray-200 focus:ring-2 focus:ring-emerald-500/20 focus:border-emerald-500 font-mono uppercase" placeholder="e.g. SBIN0001234" />
+                      </div>
+                      <div>
+                        <label className="block text-sm font-medium text-gray-600 mb-1.5">PAN Number</label>
+                        <input {...editForm.register('panNumber')} className="w-full px-4 py-2.5 rounded-xl border border-gray-200 focus:ring-2 focus:ring-emerald-500/20 focus:border-emerald-500 font-mono uppercase" placeholder="ABCDE1234F" />
+                      </div>
+                      <div>
+                        <label className="block text-sm font-medium text-gray-600 mb-1.5">PF Number</label>
+                        <input {...editForm.register('pfNumber')} className="w-full px-4 py-2.5 rounded-xl border border-gray-200 focus:ring-2 focus:ring-emerald-500/20 focus:border-emerald-500 font-mono" placeholder="PF account number" />
+                      </div>
+                      <div>
+                        <label className="block text-sm font-medium text-gray-600 mb-1.5">ESIC Number</label>
+                        <input {...editForm.register('esicNumber')} className="w-full px-4 py-2.5 rounded-xl border border-gray-200 focus:ring-2 focus:ring-emerald-500/20 focus:border-emerald-500 font-mono" placeholder="ESIC number" />
+                      </div>
+                    </div>
+                  )}
+
+                  {/* Medical & Compliance tab */}
+                  {editActiveTab === 'medical' && (
+                    <div className="space-y-4">
+                      <div className="flex items-center justify-between p-4 rounded-xl border border-gray-200">
+                        <div>
+                          <p className="text-sm font-medium text-gray-900">Has Medical Condition</p>
+                          <p className="text-xs text-gray-500 mt-0.5">Staff has a known medical condition</p>
+                        </div>
+                        <button
+                          type="button"
+                          onClick={() => editForm.setValue('hasMedicalCondition', !editForm.watch('hasMedicalCondition'))}
+                          className={`relative inline-flex h-6 w-11 shrink-0 rounded-full border-2 border-transparent transition-colors ${
+                            editForm.watch('hasMedicalCondition') ? 'bg-emerald-600' : 'bg-gray-200'
+                          }`}
+                        >
+                          <span className={`inline-block h-5 w-5 rounded-full bg-white shadow transition-transform ${
+                            editForm.watch('hasMedicalCondition') ? 'translate-x-5' : 'translate-x-0'
+                          }`} />
+                        </button>
+                      </div>
+                      {editForm.watch('hasMedicalCondition') && (
+                        <div>
+                          <label className="block text-sm font-medium text-gray-600 mb-1.5">Medical Condition Notes</label>
+                          <textarea {...editForm.register('medicalConditionNotes')} rows={3} className="w-full px-4 py-2.5 rounded-xl border border-gray-200 focus:ring-2 focus:ring-emerald-500/20 focus:border-emerald-500 text-sm" placeholder="Describe the condition" />
+                        </div>
+                      )}
+                      <div>
+                        <label className="block text-sm font-medium text-gray-600 mb-1.5">Body Marks / Identification</label>
+                        <textarea {...editForm.register('bodyMarks')} rows={2} className="w-full px-4 py-2.5 rounded-xl border border-gray-200 focus:ring-2 focus:ring-emerald-500/20 focus:border-emerald-500 text-sm" placeholder="Tattoos, scars, birthmarks" />
+                      </div>
+                      <div>
+                        <label className="block text-sm font-medium text-gray-600 mb-1.5">Police Verification Status</label>
+                        <div className="flex gap-2 flex-wrap">
+                          {(['not_required', 'pending', 'verified'] as const).map((s) => (
+                            <button key={s} type="button"
+                              onClick={() => editForm.setValue('policeVerificationStatus', s)}
+                              className={`px-4 py-2 rounded-lg text-sm font-medium capitalize transition-all border ${
+                                editForm.watch('policeVerificationStatus') === s
+                                  ? s === 'verified' ? 'bg-emerald-600 text-white border-emerald-600'
+                                  : s === 'pending' ? 'bg-amber-500 text-white border-amber-500'
+                                  : 'bg-gray-600 text-white border-gray-600'
+                                  : 'bg-white text-gray-600 border-gray-200 hover:border-gray-400'
+                              }`}>
+                              {s.replace('_', ' ')}
+                            </button>
+                          ))}
+                        </div>
+                      </div>
+                      <div>
+                        <label className="block text-sm font-medium text-gray-600 mb-1.5">Police Verification Notes</label>
+                        <textarea {...editForm.register('policeVerificationNotes')} rows={2} className="w-full px-4 py-2.5 rounded-xl border border-gray-200 focus:ring-2 focus:ring-emerald-500/20 focus:border-emerald-500 text-sm" placeholder="Reference number, date, etc." />
+                      </div>
+                    </div>
+                  )}
+                </div>
                 {(overtimeData?.data?.requests ?? []).length > 0 && (
                   <section>
                     <h3 className="text-sm font-semibold text-gray-700 mb-3 flex items-center gap-2">
@@ -1023,20 +1251,87 @@ export function StaffPage() {
 
       {/* Remove confirm */}
       {confirmRemove && (
-        <div className="fixed inset-0 bg-black/40 backdrop-blur-sm flex items-center justify-center z-50 animate-fade-in">
-          <div className="bg-white rounded-2xl shadow-xl w-full max-w-sm mx-4 p-6 animate-slide-up relative">
-            <button type="button" onClick={() => setConfirmRemove(null)} className="absolute top-4 right-4 p-2 rounded-lg text-gray-400 hover:text-gray-600 hover:bg-gray-100 transition-colors" aria-label="Close"><X className="h-5 w-5" /></button>
-            <p className="text-gray-900 font-medium pr-8">Remove {confirmRemove.name}?</p>
-            <p className="text-sm text-gray-500 mt-1">They will be marked inactive and won&apos;t be able to punch in.</p>
-            <div className="flex gap-3 mt-6">
+        <div className="fixed inset-0 bg-black/40 backdrop-blur-sm flex items-center justify-center z-50 animate-fade-in p-4">
+          <div className="bg-white rounded-2xl shadow-xl w-full max-w-sm p-6 animate-slide-up relative">
+            <button
+              type="button"
+              onClick={() => {
+                setConfirmRemove(null);
+                setIsReassigning(false);
+                setReassignToId('');
+              }}
+              className="absolute top-4 right-4 p-2 rounded-lg text-gray-400 hover:text-gray-600 hover:bg-gray-100 transition-colors"
+              aria-label="Close"
+            >
+              <X className="h-5 w-5" />
+            </button>
+            <div className="w-12 h-12 rounded-xl bg-red-50 flex items-center justify-center text-red-600 mb-4">
+              <Trash2 className="h-6 w-6" />
+            </div>
+            <p className="text-lg font-bold text-gray-900">Remove {confirmRemove.name}?</p>
+            <p className="text-sm text-gray-500 mt-1">
+              They will be marked inactive and won&apos;t be able to access the app or punch in.
+            </p>
+
+            {(() => {
+              const subs = (employees as StaffCardRow[]).filter(
+                (e) => (typeof e.reportsToEmployeeId === 'string' ? e.reportsToEmployeeId : (e.reportsToEmployeeId as any)?._id) === confirmRemove._id
+              );
+              if (subs.length === 0) return null;
+
+              return (
+                <div className="mt-6 p-4 rounded-xl bg-amber-50 border border-amber-100">
+                  <div className="flex items-center gap-2 text-amber-800 font-bold text-sm mb-2">
+                    <Shield className="h-4 w-4" />
+                    Manager detected
+                  </div>
+                  <p className="text-xs text-amber-700 leading-relaxed">
+                    <strong>{confirmRemove.name}</strong> has <strong>{subs.length}</strong> subordinates. Choose a new manager for them before removing.
+                  </p>
+                  <div className="mt-3">
+                    <SearchableSelect
+                      value={reassignToId}
+                      onChange={setReassignToId}
+                      options={reportsToSelectOptions.filter((o) => o.value !== confirmRemove._id)}
+                      placeholder="Select new manager..."
+                      className="bg-white"
+                    />
+                  </div>
+                </div>
+              );
+            })()}
+
+            <div className="flex gap-3 mt-8">
               <button
-                onClick={() => deactivateMutation.mutate(confirmRemove._id)}
-                disabled={deactivateMutation.isPending}
-                className="flex-1 px-4 py-2.5 bg-red-600 text-white rounded-xl font-medium hover:bg-red-700 disabled:opacity-50"
+                onClick={() => {
+                  const subs = (employees as StaffCardRow[]).filter(
+                    (e) => (typeof e.reportsToEmployeeId === 'string' ? e.reportsToEmployeeId : (e.reportsToEmployeeId as any)?._id) === confirmRemove._id
+                  );
+                  if (subs.length > 0 && !reassignToId) {
+                    return;
+                  }
+                  deactivateMutation.mutate({ id: confirmRemove._id, newManagerId: reassignToId || undefined });
+                }}
+                disabled={
+                  deactivateMutation.isPending ||
+                  ((employees as StaffCardRow[]).some(
+                    (e) => (typeof e.reportsToEmployeeId === 'string' ? e.reportsToEmployeeId : (e.reportsToEmployeeId as any)?._id) === confirmRemove._id
+                  ) &&
+                    !reassignToId)
+                }
+                className="flex-1 px-4 py-2.5 bg-red-600 text-white rounded-xl font-bold hover:bg-red-700 disabled:opacity-50 transition-all shadow-sm shadow-red-200"
               >
-                Remove
+                {deactivateMutation.isPending ? 'Removing...' : 'Remove staff'}
               </button>
-              <button onClick={() => setConfirmRemove(null)} className="px-4 py-2.5 border border-gray-200 rounded-xl font-medium hover:bg-gray-50">
+              <button
+                onClick={() => {
+                  setConfirmRemove(null);
+                  setIsReassigning(false);
+                  setReassignToId('');
+                }}
+                disabled={deactivateMutation.isPending}
+                className="px-4 py-2.5 border border-gray-200 rounded-xl font-semibold hover:bg-gray-50 transition-all"
+              >
                 Cancel
               </button>
             </div>

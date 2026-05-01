@@ -13,6 +13,7 @@ export interface OvertimeRequest {
   approvedBy?: string;
   rejectedAt?: string;
   rejectedBy?: string;
+  rejectionReason?: string;
 }
 
 export const overtimeApi = {
@@ -28,6 +29,28 @@ export const overtimeApi = {
     const { data } = await api.get<{ success: boolean; data: { requests: OvertimeRequest[]; pendingCount: number } }>(
       `/overtime/outlet/${outletId}?${q.toString()}`
     );
+    return data;
+  },
+
+  getRequestDetail: async (requestId: string) => {
+    const { data } = await api.get<{ success: boolean; data: { request: OvertimeRequest; canUnapprove: boolean } }>(
+      `/overtime/request/${requestId}`
+    );
+    return data;
+  },
+
+  approve: async (requestId: string) => {
+    const { data } = await api.post(`/overtime/${requestId}/approve`);
+    return data;
+  },
+
+  reject: async (requestId: string, reason?: string) => {
+    const { data } = await api.post(`/overtime/${requestId}/reject`, { reason });
+    return data;
+  },
+
+  unapprove: async (requestId: string, reason?: string) => {
+    const { data } = await api.post(`/overtime/${requestId}/unapprove`, { reason });
     return data;
   },
 };

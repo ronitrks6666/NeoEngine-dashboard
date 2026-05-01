@@ -33,6 +33,11 @@ export const payrollApi = {
     const { data } = await api.post(`/payroll/outlet/${outletId}/employee/${employeeId}/payment-v2`, payload);
     return data;
   },
+  
+  addAdjustment: async (outletId: string, employeeId: string, payload: { amount: number; type: string; notes?: string; payrollPeriodId?: string }) => {
+    const { data } = await api.post(`/payroll/outlet/${outletId}/employee/${employeeId}/adjustment`, payload);
+    return data;
+  },
 
   exportPayroll: async (outletId: string, periodId?: string) => {
     const q = periodId ? `?periodId=${periodId}` : '';

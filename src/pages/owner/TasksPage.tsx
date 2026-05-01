@@ -1,7 +1,7 @@
 import { useState, useRef, useEffect, useMemo } from 'react';
 import { useLocation, useNavigate } from 'react-router-dom';
 import { useQuery, useMutation, useQueryClient } from '@tanstack/react-query';
-import { useForm, Controller } from 'react-hook-form';
+import { useForm, Controller, useFieldArray } from 'react-hook-form';
 import { zodResolver } from '@hookform/resolvers/zod';
 import { z } from 'zod';
 import { startOfDay } from 'date-fns';
@@ -32,19 +32,23 @@ import {
 } from 'lucide-react';
 
 const taskSchema = z.object({
-  title: z.string().min(1, 'Title required'),
+  title: z.string().min(1, 'Title is required'),
   description: z.string().optional(),
-  parentRoleId: z.string().optional(),
-  shiftType: z.enum(['Day', 'Night', 'Both']).optional(),
-  taskType: z.enum(['daily', 'onetime', 'specific-days']).optional(),
+  parentRoleId: z.string().min(1, 'Role is required'),
+  assignToType: z.enum(['role', 'staff']),
+  assignToEmployeeId: z.string().optional(),
+  shiftType: z.enum(['Day', 'Night', 'Both']),
+  taskType: z.enum(['daily', 'weekly', 'specific-days', 'onetime']),
   specificDate: z.string().optional(),
   specificDays: z.array(z.number()).optional(),
-  multipleTimesPerDay: z.boolean().optional(),
-  intervalMinutes: z.string().optional(),
+  multipleTimesPerDay: z.boolean().default(false),
+  intervalMinutes: z.coerce.number().optional(),
   startTime: z.string().optional(),
-  timeLimitMinutes: z.string().optional(),
-  assignToType: z.enum(['role', 'staff']).optional(),
-  assignToEmployeeId: z.string().optional(),
+  timeLimitMinutes: z.coerce.number().optional(),
+  checklistItems: z.array(z.object({
+    text: z.string().min(1, 'Item text required'),
+    referenceMediaUrl: z.string().optional(),
+  })).optional(),
 });
 
 type TaskForm = z.infer<typeof taskSchema>;
@@ -164,6 +168,7 @@ export function TasksPage() {
     timeLimitMinutes: '',
     assignToType: 'role',
     assignToEmployeeId: '',
+    checklistItems: [],
   };
 
   const form = useForm<TaskForm>({
@@ -175,6 +180,18 @@ export function TasksPage() {
     resolver: zodResolver(taskSchema),
     defaultValues: defaultFormValues,
   });
+
+  const { fields: checklistFields, append: appendChecklistItem, remove: removeChecklistItem } = useFieldArray({
+    control: form.control,
+    name: 'checklistItems',
+  });
+
+  const { fields: editChecklistFields, append: appendEditChecklistItem, remove: removeEditChecklistItem } = useFieldArray({
+    control: editForm.control,
+    name: 'checklistItems',
+  });
+
+  const [checklistImageLoading, setChecklistImageLoading] = useState<Record<number, boolean>>({});
 
   const templates = data?.data?.templates ?? [];
   const parentRoles = rolesData?.data?.parentRoles ?? [];
@@ -292,6 +309,10 @@ export function TasksPage() {
       parentRoleId: assignToType === 'role' ? d.parentRoleId : undefined,
       startTime: d.startTime || undefined,
       timeLimitMinutes: d.timeLimitMinutes ? parseInt(d.timeLimitMinutes, 10) : undefined,
+      checklistItems: d.checklistItems?.map((item, idx) => ({
+        ...item,
+        order: idx,
+      })),
     };
     createMutation.mutate(payload);
   });
@@ -388,7 +409,7 @@ export function TasksPage() {
                   <CheckSquare className="h-6 w-6 text-white" />
                 </div>
                 <div>
-                  <h2 className="text-xl font-bold text-white">Create task template</h2>
+                  <h2 className="text-xl font-bold text-white">Create Task</h2>
                   <p className="text-emerald-100 text-sm mt-0.5">Define a new task with all options</p>
                 </div>
               </div>
@@ -643,25 +664,124 @@ export function TasksPage() {
                 {/* Timing */}
                 <section className="space-y-4">
                   <h3 className="text-sm font-semibold text-gray-500 uppercase tracking-wider flex items-center gap-2">
-                    <Clock className="h-4 w-4" /> Timing (optional)
+                    <Clock className="h-4 w-4" /> Time settings
                   </h3>
                   <div className="grid grid-cols-1 sm:grid-cols-2 gap-4">
                     <div>
-                      <label className="block text-sm font-medium text-gray-700 mb-1.5">
-                        Start time <span className="text-gray-400 font-normal">(12-hour)</span>
-                      </label>
+                      <label className="block text-sm font-medium text-gray-700 mb-1.5">Start time</label>
                       <Controller
                         name="startTime"
                         control={form.control}
                         render={({ field }) => (
-                          <TimePickerField use12Hour value={field.value ?? ''} onChange={field.onChange} />
+                          <TimePickerField
+                            value={field.value ?? ''}
+                            onChange={field.onChange}
+                            placeholder="09:00"
+                            use12Hour={true}
+                          />
                         )}
                       />
                     </div>
                     <div>
-                      <label className="block text-sm font-medium text-gray-700 mb-1.5">Time limit (minutes)</label>
-                      <input type="number" {...form.register('timeLimitMinutes')} placeholder="e.g. 5, 10" min={1} className="w-full px-4 py-3 rounded-xl border border-gray-200 focus:ring-2 focus:ring-emerald-500/20" />
+                      <label className="block text-sm font-medium text-gray-700 mb-1.5">Time limit (mins)</label>
+                      <input type="number" {...form.register('timeLimitMinutes')} placeholder="e.g. 30" className="w-full px-4 py-2.5 rounded-xl border border-gray-200 focus:ring-2 focus:ring-emerald-500/20 focus:border-emerald-500" />
                     </div>
+                  </div>
+                </section>
+
+                {/* Checklist Builder */}
+                <section className="space-y-4">
+                  <div className="flex items-center justify-between">
+                    <h3 className="text-sm font-semibold text-gray-500 uppercase tracking-wider flex items-center gap-2">
+                      <ListTodo className="h-4 w-4" /> Checklist items
+                    </h3>
+                    <button
+                      type="button"
+                      onClick={() => appendChecklistItem({ text: '' })}
+                      className="text-xs font-semibold text-emerald-600 hover:text-emerald-700 flex items-center gap-1"
+                    >
+                      <Plus className="h-3.5 w-3.5" /> Add item
+                    </button>
+                  </div>
+                  <div className="space-y-3">
+                    {checklistFields.map((field, index) => (
+                      <div key={field.id} className="p-4 rounded-xl border border-gray-100 bg-gray-50/50 space-y-3 animate-slide-up">
+                        <div className="flex items-start gap-3">
+                          <span className="mt-2.5 w-6 h-6 flex-shrink-0 rounded-full bg-emerald-100 text-emerald-600 text-[10px] font-bold flex items-center justify-center">
+                            {index + 1}
+                          </span>
+                          <textarea
+                            {...form.register(`checklistItems.${index}.text` as const)}
+                            placeholder="What needs to be done?"
+                            className="flex-1 px-3 py-2 rounded-lg border border-gray-200 text-sm focus:ring-2 focus:ring-emerald-500/20 focus:border-emerald-500 bg-white"
+                            rows={1}
+                          />
+                          <button
+                            type="button"
+                            onClick={() => removeChecklistItem(index)}
+                            className="p-2 text-gray-400 hover:text-red-500 transition-colors"
+                          >
+                            <Trash2 className="h-4 w-4" />
+                          </button>
+                        </div>
+                        <div className="pl-9 flex items-center gap-4">
+                          <div className="relative group">
+                            <input
+                              type="file"
+                              id={`checklist-img-${index}`}
+                              className="hidden"
+                              accept="image/*"
+                              onChange={async (e) => {
+                                const file = e.target.files?.[0];
+                                if (!file) return;
+                                setChecklistImageLoading(prev => ({ ...prev, [index]: true }));
+                                try {
+                                  const { url } = await taskApi.uploadTaskImage(file);
+                                  form.setValue(`checklistItems.${index}.referenceMediaUrl`, url);
+                                } finally {
+                                  setChecklistImageLoading(prev => ({ ...prev, [index]: false }));
+                                }
+                              }}
+                            />
+                            <label
+                              htmlFor={`checklist-img-${index}`}
+                              className="flex items-center gap-2 px-3 py-1.5 rounded-lg border border-gray-200 bg-white text-xs font-medium text-gray-600 hover:border-emerald-400 hover:text-emerald-600 cursor-pointer transition-all"
+                            >
+                              {checklistImageLoading[index] ? (
+                                <LoadingSpinner className="h-3 w-3" />
+                              ) : form.watch(`checklistItems.${index}.referenceMediaUrl`) ? (
+                                <>
+                                  <ImagePlus className="h-3.5 w-3.5 text-emerald-500" />
+                                  Change image
+                                </>
+                              ) : (
+                                <>
+                                  <ImagePlus className="h-3.5 w-3.5" />
+                                  Add image
+                                </>
+                              )}
+                            </label>
+                          </div>
+                          {form.watch(`checklistItems.${index}.referenceMediaUrl`) && (
+                            <div className="relative h-10 w-10 rounded-lg overflow-hidden border border-gray-200 group">
+                              <img src={form.watch(`checklistItems.${index}.referenceMediaUrl`)} className="h-full w-full object-cover" alt="" />
+                              <button
+                                type="button"
+                                onClick={() => form.setValue(`checklistItems.${index}.referenceMediaUrl`, '')}
+                                className="absolute inset-0 bg-black/40 text-white opacity-0 group-hover:opacity-100 flex items-center justify-center transition-opacity"
+                              >
+                                <X className="h-4 w-4" />
+                              </button>
+                            </div>
+                          )}
+                        </div>
+                      </div>
+                    ))}
+                    {checklistFields.length === 0 && (
+                      <p className="text-center py-4 text-sm text-gray-400 border-2 border-dashed border-gray-100 rounded-xl">
+                        No checklist items added yet.
+                      </p>
+                    )}
                   </div>
                 </section>
 

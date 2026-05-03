@@ -600,9 +600,12 @@ export function LandingPage() {
               <a href="#contact" className="hover:text-slate-900 transition-colors">
                 Contact
               </a>
-              <a href="#privacy" className="hover:text-slate-900 transition-colors">
-                Privacy
-              </a>
+              <Link to="/privacy-policy" className="hover:text-slate-900 transition-colors">
+                Privacy Policy
+              </Link>
+              <Link to="/terms-of-service" className="hover:text-slate-900 transition-colors">
+                Terms of Service
+              </Link>
               <a
                 href={NEOENGINE_APK_ROUTE}
                 className="inline-flex items-center gap-1.5 font-semibold text-primary hover:text-primary-dark transition-colors"

@@ -30,6 +30,8 @@ import { PayrollSettingsPage } from '@/pages/owner/PayrollSettingsPage';
 import { LeaveRulesPage } from '@/pages/owner/LeaveRulesPage';
 import { useAuth } from '@/hooks/useAuth';
 import { NeoEngineApkDownloadPage } from '@/pages/NeoEngineApkDownloadPage';
+import { PrivacyPolicyPage } from '@/pages/legal/PrivacyPolicyPage';
+import { TermsOfServicePage } from '@/pages/legal/TermsOfServicePage';
 
 function App() {
   const { hydrate } = useAuth();
@@ -99,6 +101,8 @@ function App() {
       />
 
       <Route path="/" element={<LandingPage />} />
+      <Route path="/privacy-policy" element={<PrivacyPolicyPage />} />
+      <Route path="/terms-of-service" element={<TermsOfServicePage />} />
       <Route path="/neoengine-apk" element={<NeoEngineApkDownloadPage />} />
 
       <Route path="*" element={<Navigate to="/" replace />} />

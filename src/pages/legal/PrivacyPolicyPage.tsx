@@ -464,6 +464,14 @@ export function PrivacyPolicyPage() {
           </a>
           . Enterprise customers may also use the support channel set out in their subscription agreement.
         </p>
+        <p>
+          To request deletion of your account and associated personal data, use our{' '}
+          <Link to="/account-deletion" className="text-primary font-medium hover:underline">
+            account deletion
+          </Link>{' '}
+          page or email us at the address above with the subject line &quot;Account &amp; personal data
+          deletion request&quot;.
+        </p>
       </LegalSection>
     </LegalMarketingShell>
   );

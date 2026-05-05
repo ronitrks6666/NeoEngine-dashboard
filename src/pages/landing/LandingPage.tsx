@@ -23,6 +23,7 @@ import { CpuArchitecture } from '@/components/ui/cpu-architecture';
 // Uncomment to enable neon tubes cursor effect
 // import { TubesCursor } from '@/components/ui/tube-cursor';
 import { fetchLandingConfig, type LandingConfig, type LandingFeature } from '@/api/config';
+import { LEGAL_COMPANY_NAME } from '@/constants/legal';
 import {
   LineChart,
   Line,
@@ -616,7 +617,7 @@ export function LandingPage() {
             </nav>
           </div>
           <div className="max-w-6xl mx-auto mt-8 pt-8 border-t border-emerald-100 text-center text-sm text-slate-500">
-            © {new Date().getFullYear()} NeoEngine. All rights reserved.
+            © {new Date().getFullYear()} {LEGAL_COMPANY_NAME}. All rights reserved.
           </div>
         </footer>
       </main>

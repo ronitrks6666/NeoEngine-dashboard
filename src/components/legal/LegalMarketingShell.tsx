@@ -14,12 +14,14 @@ function dashboardPath(token: string | null, role: string | null): string {
 interface LegalMarketingShellProps {
   title: string;
   children: React.ReactNode;
+  /** Footer-style meta under H1. Omit for default legal line; pass string or false to override/hide. */
+  metaLine?: string | false | null;
 }
 
 /**
  * Shell for public legal pages: matches landing emerald/stone theme and nav patterns.
  */
-export function LegalMarketingShell({ title, children }: LegalMarketingShellProps) {
+export function LegalMarketingShell({ title, children, metaLine }: LegalMarketingShellProps) {
   const { token, role } = useAuth();
 
   return (
@@ -58,10 +60,18 @@ export function LegalMarketingShell({ title, children }: LegalMarketingShellProp
           <h1 className="font-display text-3xl sm:text-4xl font-bold text-slate-900 mb-2 tracking-tight">
             {title}
           </h1>
-          <p className="text-sm text-slate-500 mb-10">
-            Last updated: May 2, 2026. NeoEngine is operated by {LEGAL_COMPANY_NAME} (&quot;we&quot;,
-            &quot;us&quot;, &quot;our&quot;).
-          </p>
+          {metaLine !== false && metaLine !== null && (
+            <p className="text-sm text-slate-500 mb-10">
+              {typeof metaLine === 'string' ? (
+                metaLine
+              ) : (
+                <>
+                  Last updated: May 2, 2026. NeoEngine is operated by {LEGAL_COMPANY_NAME} (&quot;we&quot;,
+                  &quot;us&quot;, &quot;our&quot;).
+                </>
+              )}
+            </p>
+          )}
           <div className="rounded-2xl border border-emerald-100 bg-white shadow-emerald p-6 sm:p-10 text-slate-700 space-y-8">
             {children}
           </div>

@@ -194,6 +194,15 @@ export function TermsOfServicePage() {
             {LEGAL_CONTACT_EMAIL}
           </a>
         </p>
+        <p>
+          To request deletion of your account and associated personal data, follow the instructions on our{' '}
+          <Link to="/account-deletion" className="text-primary font-medium hover:underline">
+            account deletion
+          </Link>{' '}
+          page (also linked from our Privacy Policy). Availability of instant self-service deletion may
+          depend on your role and your organization’s agreement with us; we may verify identity before
+          completing a request.
+        </p>
       </LegalSection>
     </LegalMarketingShell>
   );

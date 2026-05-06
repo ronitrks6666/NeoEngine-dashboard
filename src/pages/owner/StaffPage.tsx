@@ -172,6 +172,7 @@ export function StaffPage() {
   const [newMasterRoleName, setNewMasterRoleName] = useState('');
   const [newRoleName, setNewRoleName] = useState('');
   const [newRoleParentId, setNewRoleParentId] = useState('');
+  const [showInactive, setShowInactive] = useState(false);
   const prevShowCreateRef = useRef(false);
   const skipNextCreateResetRef = useRef(false);
   const queryClient = useQueryClient();
@@ -183,7 +184,7 @@ export function StaffPage() {
         outletId: selectedOutletId ?? undefined,
         limit: 100,
         search: debouncedSearch.trim() || undefined,
-        includeInactive: true,
+        includeInactive: showInactive,
       }),
     enabled: !!selectedOutletId,
   });
@@ -499,6 +500,22 @@ export function StaffPage() {
         </div>
       </div>
 
+      <div className="flex items-center justify-between mb-4 bg-white/50 p-3 rounded-2xl border border-emerald-50">
+        <div className="flex items-center gap-2">
+          <button
+            onClick={() => setShowInactive(!showInactive)}
+            className={`flex items-center gap-2 px-3 py-1.5 rounded-lg text-sm font-medium transition-colors ${
+              showInactive ? 'bg-emerald-100 text-emerald-700' : 'bg-gray-100 text-gray-600 hover:bg-gray-200'
+            }`}
+          >
+            {showInactive ? 'Showing Inactive' : 'Show Inactive Staff'}
+          </button>
+        </div>
+        <p className="text-sm text-gray-500">
+          Showing <span className="font-semibold text-gray-900">{employees.length}</span> staff members
+        </p>
+      </div>
+
       {isLoading ? (
         <LoadingSpinner className="py-16" />
       ) : (
@@ -535,8 +552,8 @@ export function StaffPage() {
                     <button
                       type="button"
                       onClick={() => setConfirmRemove({ _id: e._id, name: e.name })}
-                      className="p-2 rounded-lg hover:bg-red-50 text-gray-500 hover:text-red-600 transition-colors"
-                      title="Deactivate staff (remove from roster)"
+                      className="p-2 rounded-lg hover:bg-red-50 text-red-600 transition-colors"
+                      title="Delete staff member"
                     >
                       <Trash2 className="h-4 w-4" />
                     </button>
@@ -1268,9 +1285,9 @@ export function StaffPage() {
             <div className="w-12 h-12 rounded-xl bg-red-50 flex items-center justify-center text-red-600 mb-4">
               <Trash2 className="h-6 w-6" />
             </div>
-            <p className="text-lg font-bold text-gray-900">Remove {confirmRemove.name}?</p>
+            <p className="text-lg font-bold text-gray-900">Delete {confirmRemove.name}?</p>
             <p className="text-sm text-gray-500 mt-1">
-              They will be marked inactive and won&apos;t be able to access the app or punch in.
+              This will deactivate their account and remove them from the active roster. They won&apos;t be able to access the app or punch in.
             </p>
 
             {(() => {
@@ -1321,7 +1338,7 @@ export function StaffPage() {
                 }
                 className="flex-1 px-4 py-2.5 bg-red-600 text-white rounded-xl font-bold hover:bg-red-700 disabled:opacity-50 transition-all shadow-sm shadow-red-200"
               >
-                {deactivateMutation.isPending ? 'Removing...' : 'Remove staff'}
+                {deactivateMutation.isPending ? 'Deleting...' : 'Delete staff'}
               </button>
               <button
                 onClick={() => {

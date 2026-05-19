@@ -1,5 +1,5 @@
 /** Served from site root after build (see vite copy: app-packages → dist). */
-export const NEOENGINE_APK_FILE = 'neoengine-1.2.4.apk';
+export const NEOENGINE_APK_FILE = 'neoengine-2.0.2.apk';
 /** `?v=` busts Cloudflare edge cache if the bare APK path was ever cached as SPA HTML. */
 export const NEOENGINE_APK_PATH = `/app-packages/${NEOENGINE_APK_FILE}?v=${encodeURIComponent(
   NEOENGINE_APK_FILE.replace(/\.apk$/i, ''),

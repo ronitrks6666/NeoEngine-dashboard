@@ -16,7 +16,7 @@ import { SearchableSelect, type SearchableSelectOption } from '@/components/Sear
 import { TimePickerField } from '@/components/TimePickerField';
 import { zPhone10 } from '@/lib/phoneValidation';
 import { useDebouncedValue } from '@/hooks/useDebouncedValue';
-import { UserPlus, Pencil, Trash2, FileText, ExternalLink, Plus, Shield, Briefcase, X, Loader2 } from 'lucide-react';
+import { UserPlus, Pencil, Trash2, FileText, ExternalLink, Plus, Shield, Briefcase, X, Loader2, Info } from 'lucide-react';
 
 function employeeRoleSubtitle(
   activeRoleId?: { name?: string; parentRoleId?: { name?: string } } | string | null
@@ -58,14 +58,14 @@ const editSchema = z.object({
   phone: zPhone10,
   shiftType: z.enum(['Day', 'Night']).optional(),
   activeRoleId: z.string().optional(),
-  salary: z.union([z.number(), z.string()]).optional().transform((v) => {
+  salary: z.any().optional().transform((v) => {
     if (v === '' || v == null) return undefined;
-    const n = typeof v === 'string' ? parseFloat(v) : v;
+    const n = typeof v === 'string' ? parseFloat(v) : Number(v);
     return isNaN(n) ? undefined : n;
   }),
-  minHoursPerDay: z.union([z.number(), z.string()]).optional().transform((v) => {
+  minHoursPerDay: z.any().optional().transform((v) => {
     if (v === '' || v == null) return undefined;
-    const n = typeof v === 'string' ? parseFloat(v) : v;
+    const n = typeof v === 'string' ? parseFloat(v) : Number(v);
     return isNaN(n) ? undefined : n;
   }),
   punchInTime: z.string().optional(),
@@ -165,26 +165,26 @@ export function StaffPage() {
   const [editActiveTab, setEditActiveTab] = useState<'basic' | 'personal' | 'financial' | 'medical'>('basic');
   const [confirmRemove, setConfirmRemove] = useState<{ _id: string; name: string } | null>(null);
   const [reassignToId, setReassignToId] = useState<string>('');
-  const [isReassigning, setIsReassigning] = useState(false);
   const [documentsFor, setDocumentsFor] = useState<{ _id: string; name: string } | null>(null);
   const [showCreateMasterRole, setShowCreateMasterRole] = useState(false);
   const [showCreateRole, setShowCreateRole] = useState(false);
   const [newMasterRoleName, setNewMasterRoleName] = useState('');
   const [newRoleName, setNewRoleName] = useState('');
   const [newRoleParentId, setNewRoleParentId] = useState('');
-  const [showInactive, setShowInactive] = useState(false);
+  const [showDeleted, setShowDeleted] = useState(false);
   const prevShowCreateRef = useRef(false);
   const skipNextCreateResetRef = useRef(false);
   const queryClient = useQueryClient();
 
   const { data: empData, isLoading } = useQuery({
-    queryKey: ['my-employees', selectedOutletId, debouncedSearch],
+    // showDeleted MUST be in the key so toggling triggers a fresh fetch
+    queryKey: ['my-employees', selectedOutletId, debouncedSearch, showDeleted],
     queryFn: () =>
       employeeApi.getMyEmployees({
         outletId: selectedOutletId ?? undefined,
         limit: 100,
         search: debouncedSearch.trim() || undefined,
-        includeInactive: showInactive,
+        includeInactive: showDeleted,
       }),
     enabled: !!selectedOutletId,
   });
@@ -213,6 +213,7 @@ export function StaffPage() {
     enabled: !!selectedOutletId && !!editing?._id,
   });
 
+
   const createMutation = useMutation({
     mutationFn: (d: CreateForm) => {
       const rt = d.reportsToTarget?.trim();
@@ -230,10 +231,12 @@ export function StaffPage() {
             : {}),
       });
     },
-    onSuccess: () => {
-      queryClient.invalidateQueries({ queryKey: ['my-employees'] });
-      queryClient.invalidateQueries({ queryKey: ['hierarchy'] });
-      queryClient.invalidateQueries({ queryKey: ['available-roles'] });
+    onSuccess: async () => {
+      await Promise.all([
+        queryClient.invalidateQueries({ queryKey: ['my-employees'] }),
+        queryClient.invalidateQueries({ queryKey: ['hierarchy'] }),
+        queryClient.invalidateQueries({ queryKey: ['available-roles'] })
+      ]);
       setShowCreate(false);
       setShowCreateMasterRole(false);
       setShowCreateRole(false);
@@ -243,12 +246,18 @@ export function StaffPage() {
 
   const updateMutation = useMutation({
     mutationFn: ({ id, data }: { id: string; data: EditForm }) => employeeApi.update(id, data),
-    onSuccess: () => {
-      queryClient.invalidateQueries({ queryKey: ['my-employees'] });
-      queryClient.invalidateQueries({ queryKey: ['hierarchy'] });
-      queryClient.invalidateQueries({ queryKey: ['available-roles'] });
+    onSuccess: async () => {
+      await Promise.all([
+        queryClient.invalidateQueries({ queryKey: ['my-employees'] }),
+        queryClient.invalidateQueries({ queryKey: ['hierarchy'] }),
+        queryClient.invalidateQueries({ queryKey: ['available-roles'] }),
+        queryClient.invalidateQueries({ queryKey: ['my-employees-suggestions'] })
+      ]);
       setEditing(null);
       editForm.reset();
+    },
+    onError: (err) => {
+      console.error('[updateMutation] failed:', err);
     },
   });
 
@@ -268,20 +277,34 @@ export function StaffPage() {
       // 2. Deactivate
       return employeeApi.update(id, { isActive: false });
     },
-    onSuccess: () => {
-      queryClient.invalidateQueries({ queryKey: ['my-employees'] });
-      queryClient.invalidateQueries({ queryKey: ['hierarchy'] });
+    onSuccess: async () => {
+      await Promise.all([
+        queryClient.invalidateQueries({ queryKey: ['my-employees'] }),
+        queryClient.invalidateQueries({ queryKey: ['hierarchy'] })
+      ]);
       setConfirmRemove(null);
       setReassignToId('');
       setIsReassigning(false);
     },
   });
 
+  const restoreMutation = useMutation({
+    mutationFn: (id: string) => employeeApi.update(id, { isActive: true }),
+    onSuccess: async () => {
+      await Promise.all([
+        queryClient.invalidateQueries({ queryKey: ['my-employees'] }),
+        queryClient.invalidateQueries({ queryKey: ['hierarchy'] })
+      ]);
+    },
+  });
+
   const createParentRoleMutation = useMutation({
     mutationFn: (name: string) => employeeApi.createParentRole(name, selectedOutletId ?? undefined),
-    onSuccess: (res) => {
-      queryClient.invalidateQueries({ queryKey: ['parent-roles'] });
-      queryClient.invalidateQueries({ queryKey: ['hierarchy'] });
+    onSuccess: async (res) => {
+      await Promise.all([
+        queryClient.invalidateQueries({ queryKey: ['parent-roles'] }),
+        queryClient.invalidateQueries({ queryKey: ['hierarchy'] })
+      ]);
       setShowCreateMasterRole(false);
       setNewMasterRoleName('');
       const newId = (res as { data?: { parentRole?: { _id?: string } } })?.data?.parentRole?._id;
@@ -294,9 +317,11 @@ export function StaffPage() {
   const createRoleMutation = useMutation({
     mutationFn: (payload: { name: string; parentRoleId: string; outletId: string }) =>
       employeeApi.createRole({ ...payload, outletId: selectedOutletId! }),
-    onSuccess: (res) => {
-      queryClient.invalidateQueries({ queryKey: ['available-roles', selectedOutletId] });
-      queryClient.invalidateQueries({ queryKey: ['hierarchy'] });
+    onSuccess: async (res) => {
+      await Promise.all([
+        queryClient.invalidateQueries({ queryKey: ['available-roles', selectedOutletId] }),
+        queryClient.invalidateQueries({ queryKey: ['hierarchy'] })
+      ]);
       setShowCreateRole(false);
       setNewRoleName('');
       setNewRoleParentId('');
@@ -432,7 +457,8 @@ export function StaffPage() {
     const roleId = (e.activeRoleId as { _id?: string })?._id ?? (typeof e.activeRoleId === 'string' ? e.activeRoleId : '');
     editForm.reset({
       name: e.name,
-      phone: e.phone,
+      // Always normalise to last 10 digits — backend may store with country code prefix
+      phone: String(e.phone ?? '').replace(/\D/g, '').slice(-10),
       shiftType: (e.shiftType as 'Day' | 'Night') || 'Day',
       activeRoleId: roleId || '',
       salary: e.salary ?? undefined,
@@ -460,8 +486,8 @@ export function StaffPage() {
       bodyMarks: e.bodyMarks ?? '',
       policeVerificationStatus: (e.policeVerificationStatus as 'pending' | 'verified' | 'not_required') ?? 'not_required',
       policeVerificationNotes: e.policeVerificationNotes ?? '',
-      userStatus: (e.userStatus as 'active' | 'on_hold') ?? 'active',
-      userStatusReason: e.userStatusReason ?? '',
+      userStatus: (typeof e.userStatus === 'string' ? e.userStatus : (e.userStatus as any)?.status) ?? 'active',
+      userStatusReason: (typeof e.userStatus === 'string' ? '' : (e.userStatus as any)?.reason) ?? e.userStatusReason ?? '',
     });
   };
 
@@ -497,22 +523,40 @@ export function StaffPage() {
           >
             <UserPlus className="h-5 w-5" /> Add staff
           </button>
+          <div className="flex items-center gap-2">
+            <button
+              onClick={() => setShowDeleted(!showDeleted)}
+              className={`px-5 py-2.5 rounded-xl font-semibold transition-all flex items-center gap-2 shrink-0 ${
+                showDeleted 
+                  ? 'bg-amber-500 text-white shadow-amber' 
+                  : 'bg-gray-100 text-gray-600 hover:bg-gray-200'
+              }`}
+            >
+              <Trash2 className="h-5 w-5" /> {showDeleted ? 'Showing Deleted' : 'See Deleted Staff'}
+            </button>
+            {showDeleted && (
+              <button
+                onClick={() => setShowDeleted(false)}
+                className="p-2.5 bg-gray-100 text-gray-400 hover:text-gray-600 rounded-xl transition-colors"
+                title="Clear filter"
+              >
+                <X className="h-5 w-5" />
+              </button>
+            )}
+          </div>
         </div>
       </div>
 
       <div className="flex items-center justify-between mb-4 bg-white/50 p-3 rounded-2xl border border-emerald-50">
-        <div className="flex items-center gap-2">
-          <button
-            onClick={() => setShowInactive(!showInactive)}
-            className={`flex items-center gap-2 px-3 py-1.5 rounded-lg text-sm font-medium transition-colors ${
-              showInactive ? 'bg-emerald-100 text-emerald-700' : 'bg-gray-100 text-gray-600 hover:bg-gray-200'
-            }`}
-          >
-            {showInactive ? 'Showing Inactive' : 'Show Inactive Staff'}
-          </button>
-        </div>
         <p className="text-sm text-gray-500">
-          Showing <span className="font-semibold text-gray-900">{employees.length}</span> staff members
+          {showDeleted ? 'Showing deleted staff' : 'Active roster'}
+        </p>
+        <p className="text-sm text-gray-500">
+          Showing <span className="font-semibold text-gray-900">
+            {showDeleted 
+              ? employees.filter((e: any) => e.isActive === false).length 
+              : employees.filter((e: any) => e.isActive !== false).length}
+          </span> staff members
         </p>
       </div>
 
@@ -520,18 +564,23 @@ export function StaffPage() {
         <LoadingSpinner className="py-16" />
       ) : (
         <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-3 xl:grid-cols-4 gap-4 animate-in-stagger">
-          {(employees as StaffCardRow[]).map((e) => (
+          {(employees as StaffCardRow[])
+            .filter((e) => showDeleted ? e.isActive === false : e.isActive !== false)
+            .map((e) => (
             <div
               key={e._id}
               className={`group rounded-2xl border p-5 card-hover overflow-hidden ${
-                e.isActive === false ? 'bg-gray-50 border-gray-200 opacity-75' : 'bg-white border-emerald-100'
+                e.isActive === false ? 'bg-amber-50/50 border-amber-200' : 'bg-white border-emerald-100'
               }`}
             >
               <div className="flex items-start justify-between mb-3">
-                <div className="w-12 h-12 rounded-xl bg-emerald-100 flex items-center justify-center text-xl font-bold text-emerald-600">
+                <div className={`w-12 h-12 rounded-xl flex items-center justify-center text-xl font-bold ${
+                  e.isActive === false ? 'bg-amber-100 text-amber-600' : 'bg-emerald-100 text-emerald-600'
+                }`}>
                   {e.name?.charAt(0)?.toUpperCase() || '?'}
                 </div>
-                <div className="flex gap-1 opacity-0 group-hover:opacity-100 [.card-hover:hover_&]:opacity-100 transition-opacity">
+              <div className="flex gap-1">
+                  {/* Always show docs + edit + delete buttons */}
                   <button
                     type="button"
                     onClick={() => setDocumentsFor({ _id: e._id, name: e.name })}
@@ -548,7 +597,7 @@ export function StaffPage() {
                   >
                     <Pencil className="h-4 w-4" />
                   </button>
-                  {e.isActive !== false && (
+                  {e.isActive !== false ? (
                     <button
                       type="button"
                       onClick={() => setConfirmRemove({ _id: e._id, name: e.name })}
@@ -556,6 +605,16 @@ export function StaffPage() {
                       title="Delete staff member"
                     >
                       <Trash2 className="h-4 w-4" />
+                    </button>
+                  ) : (
+                    /* Reactivate button — always visible for deleted staff */
+                    <button
+                      type="button"
+                      onClick={() => restoreMutation.mutate(e._id)}
+                      className="px-3 py-1.5 bg-emerald-600 text-white rounded-lg text-xs font-semibold hover:bg-emerald-700 transition-colors flex items-center gap-1.5"
+                      title="Reactivate staff member"
+                    >
+                      <Plus className="h-3 w-3" /> Reactivate
                     </button>
                   )}
                 </div>
@@ -570,7 +629,9 @@ export function StaffPage() {
                   </span>
                 </p>
                 <div className="flex flex-wrap gap-2 mt-3">
-                  <span className="px-2.5 py-0.5 rounded-lg text-xs font-medium bg-emerald-100 text-emerald-700">
+                  <span className={`px-2.5 py-0.5 rounded-lg text-xs font-medium ${
+                    e.isActive === false ? 'bg-amber-100 text-amber-700' : 'bg-emerald-100 text-emerald-700'
+                  }`}>
                     {(e.activeRoleId as { name?: string; parentRoleId?: { name?: string } })?.name ??
                       (e.activeRoleId as { parentRoleId?: { name?: string } })?.parentRoleId?.name ?? 'No role'}
                   </span>
@@ -579,7 +640,10 @@ export function StaffPage() {
                   </span>
                 </div>
                 {e.isActive === false && (
-                  <p className="mt-2 text-xs text-amber-600 font-medium">Inactive</p>
+                  <div className="mt-3 pt-3 border-t border-amber-100 flex items-center gap-1.5 text-amber-700">
+                    <Info className="h-3.5 w-3.5" />
+                    <p className="text-xs font-medium">Deleted Staff</p>
+                  </div>
                 )}
               </div>
             </div>
@@ -817,19 +881,34 @@ export function StaffPage() {
               {updateMutation.isError && (
                 <p className="mb-4 p-3 rounded-xl bg-red-50 text-red-600 text-sm border border-red-100">{getApiErrorMessage(updateMutation.error)}</p>
               )}
+              {Object.keys(editForm.formState.errors).length > 0 && (
+                <div className="mb-4 p-3 rounded-xl bg-amber-50 text-amber-700 text-sm border border-amber-100">
+                  <p className="font-semibold mb-1">Please fix the following before saving:</p>
+                  <ul className="list-disc list-inside space-y-0.5">
+                    {Object.entries(editForm.formState.errors).map(([field, err]) => (
+                      <li key={field}><span className="capitalize">{field}</span>: {(err as any)?.message ?? 'Invalid value'}</li>
+                    ))}
+                  </ul>
+                </div>
+              )}
               <form
-                onSubmit={editForm.handleSubmit((d) =>
-                  updateMutation.mutate({
-                    id: editing._id,
-                    data: {
-                      ...d,
-                      activeRoleId: d.activeRoleId || undefined,
-                      salary: d.salary ?? undefined,
-                      minHoursPerDay: d.minHoursPerDay ?? undefined,
-                      punchInTime: d.punchInTime?.trim() || undefined,
-                      upiId: d.upiId?.trim() || undefined,
-                    },
-                  })
+                onSubmit={editForm.handleSubmit(
+                  (d) =>
+                    updateMutation.mutate({
+                      id: editing._id,
+                      data: {
+                        ...d,
+                        activeRoleId: d.activeRoleId || undefined,
+                        salary: d.salary ?? undefined,
+                        minHoursPerDay: d.minHoursPerDay ?? undefined,
+                        punchInTime: d.punchInTime?.trim() || undefined,
+                        upiId: d.upiId?.trim() || undefined,
+                      },
+                    }),
+                  (validationErrors) => {
+                    // Log validation errors so they're visible in the console during debugging
+                    console.warn('[EditForm] Validation failed, fix these fields before submit:', validationErrors);
+                  }
                 )}
                 className="space-y-6"
               >

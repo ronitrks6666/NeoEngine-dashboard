@@ -37,6 +37,7 @@ export interface Issue {
   unreadMentions: number;
   participants: IssueAssignee[];
   isReadByAll?: boolean;
+  pinnedMessageIds?: string[];
 }
 
 export interface IssueMessage {
@@ -50,6 +51,8 @@ export interface IssueMessage {
   replyToMessageId?: string | null;
   mentions: { userId: string; userType: string; offset: number; length: number }[];
   systemEvent?: { type: string;[key: string]: unknown } | null;
+  locationMeta?: { lat: number; lng: number; label: string } | null;
+  contactMeta?: { name: string; phone?: string; email?: string } | null;
   createdAt: string;
   updatedAt: string;
 }
@@ -153,6 +156,8 @@ export const issueApi = {
     payload: {
       text: string;
       attachments?: IssueAttachment[];
+      locationMeta?: { lat: number; lng: number; label: string } | null;
+      contactMeta?: { name: string; phone?: string; email?: string } | null;
       replyToMessageId?: string;
       mentions?: { userId: string; userType: string; offset: number; length: number }[];
     }
@@ -161,8 +166,8 @@ export const issueApi = {
     return data;
   },
 
-  markRead: async (issueId: string) => {
-    const { data } = await api.post(`/issues/${issueId}/read`);
+  markRead: async (issueId: string, lastReadMessageId: string) => {
+    const { data } = await api.post(`/issues/${issueId}/read`, { lastReadMessageId });
     return data;
   },
 

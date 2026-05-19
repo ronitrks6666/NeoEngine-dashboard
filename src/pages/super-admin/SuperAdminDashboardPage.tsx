@@ -5,7 +5,7 @@ import { BarChart, Bar, XAxis, YAxis, CartesianGrid, Tooltip, ResponsiveContaine
 export function SuperAdminDashboardPage() {
   const { data, isLoading, error } = useQuery({
     queryKey: ['admin-analytics'],
-    queryFn: adminApi.getAnalytics,
+    queryFn: () => adminApi.getAnalytics(),
   });
 
   if (isLoading) return <div className="p-6">Loading...</div>;
@@ -15,7 +15,11 @@ export function SuperAdminDashboardPage() {
     { label: 'Total Owners', value: data?.totalOwners ?? 0, color: 'bg-primary' },
     { label: 'Total Outlets', value: data?.totalOutlets ?? 0, color: 'bg-primary-light' },
     { label: 'Total Employees', value: data?.totalEmployees ?? 0, color: 'bg-primary-dark' },
-    { label: 'Punches (30 days)', value: data?.punchesLast30Days ?? 0, color: 'bg-teal-600' },
+    { label: 'Punches (30 days)', value: data?.punchesDateRange ?? 0, color: 'bg-teal-600' },
+    { label: 'Total Issues', value: data?.totalIssues ?? 0, color: 'bg-amber-600' },
+    { label: 'Open Issues', value: data?.openIssues ?? 0, color: 'bg-amber-500' },
+    { label: 'Total Tickets', value: data?.totalTickets ?? 0, color: 'bg-blue-600' },
+    { label: 'Open Tickets', value: data?.openTickets ?? 0, color: 'bg-blue-500' },
   ];
 
   return (

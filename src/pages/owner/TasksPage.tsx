@@ -29,12 +29,13 @@ import {
   Pencil,
   Trash2,
   X,
+  Plus,
 } from 'lucide-react';
 
 const taskSchema = z.object({
   title: z.string().min(1, 'Title is required'),
   description: z.string().optional(),
-  parentRoleId: z.string().min(1, 'Role is required'),
+  parentRoleId: z.string().optional(), // Now optional at schema level
   assignToType: z.enum(['role', 'staff']),
   assignToEmployeeId: z.string().optional(),
   shiftType: z.enum(['Day', 'Night', 'Both']),
@@ -49,6 +50,18 @@ const taskSchema = z.object({
     text: z.string().min(1, 'Item text required'),
     referenceMediaUrl: z.string().optional(),
   })).optional(),
+}).refine((data) => {
+  if (data.assignToType === 'role' && !data.parentRoleId) return false;
+  return true;
+}, {
+  message: 'Role is required for role-based assignment',
+  path: ['parentRoleId'],
+}).refine((data) => {
+  if (data.assignToType === 'staff' && !data.assignToEmployeeId) return false;
+  return true;
+}, {
+  message: 'Staff member is required for staff-based assignment',
+  path: ['assignToEmployeeId'],
 });
 
 type TaskForm = z.infer<typeof taskSchema>;
@@ -117,9 +130,9 @@ export function TasksPage() {
 
   const createMutation = useMutation({
     mutationFn: (payload: Parameters<typeof taskApi.createTemplate>[0]) => taskApi.createTemplate(payload),
-    onSuccess: () => {
+    onSuccess: async () => {
       if (selectedOutletId) {
-        queryClient.invalidateQueries({ queryKey: ['task-templates', selectedOutletId] });
+        await queryClient.invalidateQueries({ queryKey: ['task-templates', selectedOutletId] });
       }
       setShowCreate(false);
       form.reset(defaultFormValues);
@@ -129,26 +142,42 @@ export function TasksPage() {
   });
 
   const updateMutation = useMutation({
-    mutationFn: ({ id, data }: { id: string; data: Partial<TaskForm> }) =>
-      taskApi.updateTemplate(id, {
+    mutationFn: ({ id, data }: { id: string; data: TaskForm }) => {
+      const assignToType = data.assignToType ?? 'role';
+      const payload: any = {
         ...data,
-        assignToType: 'role',
-        timeLimitMinutes: data.timeLimitMinutes ? parseInt(String(data.timeLimitMinutes), 10) : undefined,
-      }),
-    onSuccess: () => {
+        imageUrl: imageUrl || undefined,
+        hourlyFrequency:
+          data.multipleTimesPerDay && data.intervalMinutes
+            ? Math.max(1, Math.floor(60 / (Number(data.intervalMinutes) || 60)))
+            : 1,
+        assignToRoleId: assignToType === 'role' ? data.parentRoleId : undefined,
+        assignToEmployeeId: assignToType === 'staff' ? data.assignToEmployeeId : undefined,
+        parentRoleId: assignToType === 'role' ? data.parentRoleId : undefined,
+        timeLimitMinutes: data.timeLimitMinutes ? Number(data.timeLimitMinutes) : undefined,
+        checklistItems: data.checklistItems?.map((item, idx) => ({
+          ...item,
+          order: idx,
+        })),
+      };
+      return taskApi.updateTemplate(id, payload);
+    },
+    onSuccess: async () => {
       if (selectedOutletId) {
-        queryClient.invalidateQueries({ queryKey: ['task-templates', selectedOutletId] });
+        await queryClient.invalidateQueries({ queryKey: ['task-templates', selectedOutletId] });
       }
       setEditing(null);
       editForm.reset();
+      setImageUrl('');
+      setImageFile(null);
     },
   });
 
   const deleteMutation = useMutation({
     mutationFn: (id: string) => taskApi.deleteTemplate(id),
-    onSuccess: () => {
+    onSuccess: async () => {
       if (selectedOutletId) {
-        queryClient.invalidateQueries({ queryKey: ['task-templates', selectedOutletId] });
+        await queryClient.invalidateQueries({ queryKey: ['task-templates', selectedOutletId] });
       }
       setConfirmDelete(null);
     },
@@ -163,9 +192,9 @@ export function TasksPage() {
     specificDate: '',
     specificDays: [],
     multipleTimesPerDay: false,
-    intervalMinutes: '60',
+    intervalMinutes: 60,
     startTime: '',
-    timeLimitMinutes: '',
+    timeLimitMinutes: undefined,
     assignToType: 'role',
     assignToEmployeeId: '',
     checklistItems: [],
@@ -207,19 +236,6 @@ export function TasksPage() {
     [employees]
   );
 
-  const parentRoleSelectOptions = useMemo(
-    () => (parentRoles as { _id: string; name: string }[]).map((r) => ({ value: r._id, label: r.name })),
-    [parentRoles]
-  );
-
-  const taskShiftEditOptions = useMemo(
-    () => [
-      { value: 'Both', label: 'Both' },
-      { value: 'Day', label: 'Day' },
-      { value: 'Night', label: 'Night' },
-    ],
-    []
-  );
 
   const minOneTimeTaskDate = useMemo(() => startOfDay(new Date()), []);
 
@@ -231,34 +247,41 @@ export function TasksPage() {
       const t = state.prefilledTask;
       if (t.title) form.setValue('title', String(t.title));
       if (t.description) form.setValue('description', String(t.description));
-      if (t.taskType) form.setValue('taskType', t.taskType as 'daily' | 'onetime' | 'specific-days');
+      if (t.taskType) form.setValue('taskType', t.taskType as 'daily' | 'onetime' | 'specific-days' | 'weekly');
       if (t.specificDate) form.setValue('specificDate', String(t.specificDate));
       if (Array.isArray(t.specificDays)) form.setValue('specificDays', t.specificDays);
       if (typeof t.multipleTimesPerDay === 'boolean') form.setValue('multipleTimesPerDay', t.multipleTimesPerDay);
-      if (t.intervalMinutes != null) form.setValue('intervalMinutes', String(t.intervalMinutes));
+      if (t.intervalMinutes != null) form.setValue('intervalMinutes', Number(t.intervalMinutes));
       if (t.shiftType) form.setValue('shiftType', t.shiftType as 'Day' | 'Night' | 'Both');
       if (t.assignToType) form.setValue('assignToType', t.assignToType as 'role' | 'staff');
       if (t.parentRoleId) form.setValue('parentRoleId', String(t.parentRoleId));
       if (t.assignToEmployeeId) form.setValue('assignToEmployeeId', String(t.assignToEmployeeId));
       if (t.startTime) form.setValue('startTime', String(t.startTime));
-      if (t.timeLimitMinutes != null) form.setValue('timeLimitMinutes', String(t.timeLimitMinutes));
+      if (t.timeLimitMinutes != null) form.setValue('timeLimitMinutes', Number(t.timeLimitMinutes));
       navigate(location.pathname, { replace: true, state: {} });
     }
   }, [location.state, navigate, location.pathname, selectedOutletId]);
 
-  const openEdit = (t: {
-    _id: string;
-    title?: string;
-    description?: string;
-    parentRoleId?: { _id?: string; name?: string };
-    shiftType?: string;
-  }) => {
+  const openEdit = (t: any) => {
     setEditing(t);
+    setImageUrl(t.imageUrl || '');
+    setImageFile(null);
+    
     editForm.reset({
       title: t.title ?? '',
       description: t.description ?? '',
-      parentRoleId: (t.parentRoleId as { _id?: string })?._id ?? '',
+      assignToType: t.assignToType ?? 'role',
+      parentRoleId: (t.parentRoleId as { _id?: string })?._id ?? t.parentRoleId ?? '',
+      assignToEmployeeId: t.assignToEmployeeId ?? '',
       shiftType: (t.shiftType as 'Day' | 'Night' | 'Both') ?? 'Both',
+      taskType: (t.taskType as 'daily' | 'onetime' | 'specific-days' | 'weekly') ?? 'daily',
+      specificDate: t.specificDate ?? '',
+      specificDays: t.specificDays ?? [],
+      multipleTimesPerDay: t.hourlyFrequency ? t.hourlyFrequency > 1 : false,
+      intervalMinutes: t.hourlyFrequency ? Math.floor(60 / t.hourlyFrequency) : 60,
+      startTime: t.startTime ?? '',
+      timeLimitMinutes: t.timeLimitMinutes != null ? Number(t.timeLimitMinutes) : undefined,
+      checklistItems: t.checklistItems ?? [],
     });
   };
 
@@ -282,33 +305,25 @@ export function TasksPage() {
     const outletId = selectedOutletId || outlets[0]?._id;
     if (!outletId) return;
     const assignToType = d.assignToType ?? 'role';
-    if (assignToType === 'role' && !d.parentRoleId) {
-      form.setError('parentRoleId', { message: 'Select a role' });
-      return;
-    }
-    if (assignToType === 'staff' && !d.assignToEmployeeId) {
-      form.setError('assignToEmployeeId', { message: 'Select a staff member' });
-      return;
-    }
     const payload = {
       title: d.title,
       description: d.description || undefined,
       outletId,
       shiftType: d.shiftType ?? 'Both',
-      taskType: d.taskType ?? 'daily',
+      taskType: (d.taskType as any) ?? 'daily',
       specificDate: d.taskType === 'onetime' && d.specificDate ? d.specificDate : undefined,
       specificDays: d.taskType === 'specific-days' && d.specificDays?.length ? d.specificDays : undefined,
       imageUrl: imageUrl || undefined,
       hourlyFrequency:
         d.multipleTimesPerDay && d.intervalMinutes
-          ? Math.max(1, Math.floor(60 / (parseInt(d.intervalMinutes, 10) || 60)))
+          ? Math.max(1, Math.floor(60 / (Number(d.intervalMinutes) || 60)))
           : 1,
       assignToType,
       assignToRoleId: assignToType === 'role' ? d.parentRoleId : undefined,
       assignToEmployeeId: assignToType === 'staff' ? d.assignToEmployeeId : undefined,
       parentRoleId: assignToType === 'role' ? d.parentRoleId : undefined,
       startTime: d.startTime || undefined,
-      timeLimitMinutes: d.timeLimitMinutes ? parseInt(d.timeLimitMinutes, 10) : undefined,
+      timeLimitMinutes: d.timeLimitMinutes ? Number(d.timeLimitMinutes) : undefined,
       checklistItems: d.checklistItems?.map((item, idx) => ({
         ...item,
         order: idx,
@@ -418,7 +433,23 @@ export function TasksPage() {
               {createMutation.isError && (
                 <p className="mb-4 p-3 rounded-xl bg-red-50 text-red-600 text-sm border border-red-100">{getApiErrorMessage(createMutation.error)}</p>
               )}
-              <form onSubmit={handleCreateSubmit} className="space-y-6">
+              {Object.keys(form.formState.errors).length > 0 && (
+                <div className="mb-4 p-3 rounded-xl bg-amber-50 text-amber-700 text-sm border border-amber-100">
+                  <p className="font-semibold mb-1 text-amber-800">Please fix the following:</p>
+                  <ul className="list-disc list-inside space-y-0.5 text-amber-700">
+                    {Object.entries(form.formState.errors).map(([field, err]) => (
+                      <li key={field}><span className="capitalize">{field}</span>: {(err as any)?.message ?? 'Invalid value'}</li>
+                    ))}
+                  </ul>
+                </div>
+              )}
+              <form 
+                onSubmit={(e) => {
+                  console.log('[TasksPage] Submit attempt');
+                  handleCreateSubmit(e);
+                }} 
+                className="space-y-6"
+              >
                 {/* Basic info */}
                 <section className="space-y-4">
                   <div className="flex items-center justify-between gap-4">
@@ -438,11 +469,11 @@ export function TasksPage() {
                           const { task } = await taskApi.voiceToTask(blob, outletId);
                           if (typeof task.title === 'string') form.setValue('title', task.title);
                           if (typeof task.description === 'string') form.setValue('description', task.description);
-                          if (task.taskType) form.setValue('taskType', task.taskType as 'daily' | 'onetime' | 'specific-days');
+                          if (task.taskType) form.setValue('taskType', task.taskType as 'daily' | 'onetime' | 'specific-days' | 'weekly');
                           if (task.specificDate) form.setValue('specificDate', task.specificDate as string);
                           if (Array.isArray(task.specificDays)) form.setValue('specificDays', task.specificDays);
                           if (typeof task.multipleTimesPerDay === 'boolean') form.setValue('multipleTimesPerDay', task.multipleTimesPerDay);
-                          if (task.intervalMinutes != null) form.setValue('intervalMinutes', String(task.intervalMinutes));
+                          if (task.intervalMinutes != null) form.setValue('intervalMinutes', Number(task.intervalMinutes));
                           if (task.shiftType) form.setValue('shiftType', task.shiftType as 'Day' | 'Night' | 'Both');
                           if (task.assignToType) form.setValue('assignToType', task.assignToType as 'role' | 'staff');
                           const pr = task.parentRoleId;
@@ -450,7 +481,7 @@ export function TasksPage() {
                           const ae = task.assignToEmployeeId;
                           if (typeof ae === 'string') form.setValue('assignToEmployeeId', ae);
                           if (task.startTime) form.setValue('startTime', task.startTime as string);
-                          if (task.timeLimitMinutes != null) form.setValue('timeLimitMinutes', String(task.timeLimitMinutes));
+                          if (task.timeLimitMinutes != null) form.setValue('timeLimitMinutes', Number(task.timeLimitMinutes));
                         } catch (err) {
                           setVoiceError(getApiErrorMessage(err as Error) || 'Voice processing failed');
                         } finally {
@@ -474,125 +505,137 @@ export function TasksPage() {
                   </div>
                 </section>
 
-                {/* Schedule */}
-                <section className="space-y-4">
-                  <h3 className="text-sm font-semibold text-gray-500 uppercase tracking-wider flex items-center gap-2">
-                    <Calendar className="h-4 w-4" /> Schedule
-                  </h3>
-                  <div>
-                    <label className="block text-sm font-medium text-gray-700 mb-2">When</label>
-                    <div className="flex flex-wrap gap-2">
-                      {(['daily', 'onetime', 'specific-days'] as const).map((type) => (
-                        <button
-                          key={type}
-                          type="button"
-                          onClick={() => form.setValue('taskType', type)}
-                          className={`px-4 py-2 rounded-lg text-sm font-medium transition-all ${
-                            form.watch('taskType') === type ? 'bg-emerald-100 text-emerald-700 ring-1 ring-emerald-500/30' : 'bg-gray-100 text-gray-600 hover:bg-gray-200'
-                          }`}
-                        >
-                          {type === 'daily' ? 'Daily' : type === 'onetime' ? 'One-time' : 'Specific days'}
-                        </button>
-                      ))}
-                    </div>
-                  </div>
-                  {form.watch('taskType') === 'onetime' && (
+                {/* Schedule & Shift Row */}
+                <div className="grid grid-cols-1 sm:grid-cols-2 gap-6">
+                  <section className="space-y-4">
+                    <h3 className="text-xs font-bold text-gray-400 uppercase tracking-widest flex items-center gap-2">
+                      <Calendar className="h-3.5 w-3.5" /> Schedule
+                    </h3>
                     <div>
-                      <label className="block text-sm font-medium text-gray-700 mb-1.5">Date</label>
-                      <Controller
-                        name="specificDate"
-                        control={form.control}
-                        render={({ field }) => (
-                          <CalendarDateField
-                            value={field.value ?? ''}
-                            onChange={field.onChange}
-                            minDate={minOneTimeTaskDate}
-                            placeholder="Choose date for this task"
-                          />
-                        )}
-                      />
-                    </div>
-                  )}
-                  {form.watch('taskType') === 'specific-days' && (
-                    <div>
-                      <label className="block text-sm font-medium text-gray-700 mb-2">Select days</label>
-                      <div className="flex flex-wrap gap-2">
-                        {[0, 1, 2, 3, 4, 5, 6].map((d) => {
-                          const selected = (form.watch('specificDays') ?? []).includes(d);
-                          return (
-                            <button
-                              key={d}
-                              type="button"
-                              onClick={() => {
-                                const current = form.watch('specificDays') ?? [];
-                                const next = selected ? current.filter((x) => x !== d) : [...current, d].sort();
-                                form.setValue('specificDays', next);
-                              }}
-                              className={`px-3 py-2 rounded-lg text-sm font-medium transition-all ${
-                                selected ? 'bg-emerald-100 text-emerald-700' : 'bg-gray-100 text-gray-600 hover:bg-gray-200'
-                              }`}
-                            >
-                              {DAY_NAMES[d]}
-                            </button>
-                          );
-                        })}
+                      <label className="block text-xs font-semibold text-gray-500 mb-2">Repeat Type</label>
+                      <div className="flex flex-wrap gap-1.5">
+                        {(['daily', 'onetime', 'specific-days'] as const).map((type) => (
+                          <button
+                            key={type}
+                            type="button"
+                            onClick={() => form.setValue('taskType', type)}
+                            className={`px-3 py-1.5 rounded-lg text-xs font-medium transition-all ${
+                              form.watch('taskType') === type ? 'bg-emerald-600 text-white shadow-sm' : 'bg-gray-100 text-gray-600 hover:bg-gray-200'
+                            }`}
+                          >
+                            {type === 'daily' ? 'Daily' : type === 'onetime' ? 'One-time' : 'Specific days'}
+                          </button>
+                        ))}
                       </div>
                     </div>
-                  )}
-                  <div>
-                    <label className="block text-sm font-medium text-gray-700 mb-2">Multiple times per day</label>
-                    <div className="flex gap-2">
+                    {form.watch('taskType') === 'onetime' && (
+                      <div className="animate-slide-up">
+                        <label className="block text-xs font-semibold text-gray-500 mb-1.5">Date</label>
+                        <Controller
+                          name="specificDate"
+                          control={form.control}
+                          render={({ field }) => (
+                            <CalendarDateField
+                              value={field.value ?? ''}
+                              onChange={field.onChange}
+                              minDate={minOneTimeTaskDate}
+                              placeholder="Choose date"
+                            />
+                          )}
+                        />
+                      </div>
+                    )}
+                    {form.watch('taskType') === 'specific-days' && (
+                      <div className="animate-slide-up">
+                        <label className="block text-xs font-semibold text-gray-500 mb-2">Select days</label>
+                        <div className="flex flex-wrap gap-1">
+                          {[0, 1, 2, 3, 4, 5, 6].map((d) => {
+                            const selected = (form.watch('specificDays') ?? []).includes(d);
+                            return (
+                              <button
+                                key={d}
+                                type="button"
+                                onClick={() => {
+                                  const current = form.watch('specificDays') ?? [];
+                                  const next = selected ? current.filter((x) => x !== d) : [...current, d].sort();
+                                  form.setValue('specificDays', next);
+                                }}
+                                className={`w-8 h-8 rounded-lg text-[10px] font-bold transition-all flex items-center justify-center ${
+                                  selected ? 'bg-emerald-600 text-white' : 'bg-gray-100 text-gray-400 hover:bg-gray-200'
+                                }`}
+                                title={DAY_NAMES[d]}
+                              >
+                                {DAY_NAMES[d][0]}
+                              </button>
+                            );
+                          })}
+                        </div>
+                      </div>
+                    )}
+                  </section>
+
+                  <section className="space-y-4">
+                    <h3 className="text-xs font-bold text-gray-400 uppercase tracking-widest flex items-center gap-2">
+                      <Clock className="h-3.5 w-3.5" /> Shift Settings
+                    </h3>
+                    <div>
+                      <label className="block text-xs font-semibold text-gray-500 mb-2">Active During</label>
+                      <div className="flex gap-1.5">
+                        {(['Both', 'Day', 'Night'] as const).map((s) => (
+                          <button
+                            key={s}
+                            type="button"
+                            onClick={() => form.setValue('shiftType', s)}
+                            className={`flex-1 flex items-center justify-center gap-1.5 px-3 py-1.5 rounded-lg text-xs font-medium transition-all ${
+                              form.watch('shiftType') === s ? 'bg-emerald-600 text-white shadow-sm' : 'bg-gray-100 text-gray-600 hover:bg-gray-200'
+                            }`}
+                          >
+                            {s === 'Day' ? <Sun className="h-3 w-3" /> : s === 'Night' ? <Moon className="h-3 w-3" /> : null}
+                            {s}
+                          </button>
+                        ))}
+                      </div>
+                    </div>
+                  </section>
+                </div>
+
+                {/* Frequency */}
+                <section className="p-4 rounded-2xl bg-gray-50 border border-gray-100 space-y-3">
+                  <div className="flex items-center justify-between">
+                    <label className="text-sm font-semibold text-gray-700">Multiple times per day?</label>
+                    <div className="flex gap-1 bg-white p-1 rounded-xl border border-gray-200">
                       <button
                         type="button"
                         onClick={() => form.setValue('multipleTimesPerDay', false)}
-                        className={`px-4 py-2 rounded-lg text-sm font-medium ${!form.watch('multipleTimesPerDay') ? 'bg-emerald-100 text-emerald-700' : 'bg-gray-100 text-gray-600'}`}
+                        className={`px-4 py-1.5 rounded-lg text-xs font-bold transition-all ${!form.watch('multipleTimesPerDay') ? 'bg-emerald-600 text-white shadow-sm' : 'text-gray-400 hover:bg-gray-50'}`}
                       >
                         No
                       </button>
                       <button
                         type="button"
                         onClick={() => form.setValue('multipleTimesPerDay', true)}
-                        className={`px-4 py-2 rounded-lg text-sm font-medium ${form.watch('multipleTimesPerDay') ? 'bg-emerald-100 text-emerald-700' : 'bg-gray-100 text-gray-600'}`}
+                        className={`px-4 py-1.5 rounded-lg text-xs font-bold transition-all ${form.watch('multipleTimesPerDay') ? 'bg-emerald-600 text-white shadow-sm' : 'text-gray-400 hover:bg-gray-50'}`}
                       >
                         Yes
                       </button>
                     </div>
-                    {form.watch('multipleTimesPerDay') && (
-                      <div className="mt-2 flex items-center gap-2">
-                        <span className="text-sm text-gray-600">Every</span>
+                  </div>
+                  {form.watch('multipleTimesPerDay') && (
+                    <div className="flex items-center gap-3 animate-slide-up bg-white p-3 rounded-xl border border-emerald-100">
+                      <Clock className="h-4 w-4 text-emerald-500" />
+                      <span className="text-xs font-medium text-gray-600">Repeat every</span>
+                      <div className="flex items-center gap-2">
                         <input
                           type="number"
                           {...form.register('intervalMinutes')}
                           min={5}
                           max={120}
-                          className="w-20 px-3 py-2 rounded-lg border border-gray-200 text-sm"
+                          className="w-16 px-2 py-1.5 rounded-lg border border-emerald-200 text-center text-sm font-bold text-emerald-700 focus:ring-2 focus:ring-emerald-500/20"
                         />
-                        <span className="text-sm text-gray-600">minutes</span>
+                        <span className="text-xs font-medium text-gray-600">minutes</span>
                       </div>
-                    )}
-                  </div>
-                </section>
-
-                {/* Shift */}
-                <section className="space-y-4">
-                  <h3 className="text-sm font-semibold text-gray-500 uppercase tracking-wider flex items-center gap-2">
-                    <Clock className="h-4 w-4" /> Shift
-                  </h3>
-                  <div className="flex flex-wrap gap-2">
-                    {(['Both', 'Day', 'Night'] as const).map((s) => (
-                      <button
-                        key={s}
-                        type="button"
-                        onClick={() => form.setValue('shiftType', s)}
-                        className={`flex items-center gap-2 px-4 py-2 rounded-lg text-sm font-medium transition-all ${
-                          form.watch('shiftType') === s ? 'bg-emerald-100 text-emerald-700' : 'bg-gray-100 text-gray-600 hover:bg-gray-200'
-                        }`}
-                      >
-                        {s === 'Day' ? <Sun className="h-4 w-4" /> : s === 'Night' ? <Moon className="h-4 w-4" /> : null}
-                        {s}
-                      </button>
-                    ))}
-                  </div>
+                    </div>
+                  )}
                 </section>
 
                 {/* Assignment */}
@@ -855,56 +898,408 @@ export function TasksPage() {
         </div>
       )}
 
-      {/* Edit modal */}
       {editing && (
-        <div className="fixed inset-0 bg-black/40 backdrop-blur-sm flex items-center justify-center z-50 animate-fade-in">
-          <div className="bg-white rounded-2xl shadow-xl w-full max-w-md mx-4 animate-slide-up relative">
-            <div className="p-6 border-b border-gray-100 pr-12">
-              <h2 className="text-xl font-semibold text-gray-900">Edit task</h2>
-              <p className="text-sm text-gray-500 mt-0.5">{editing.title}</p>
+        <div className="fixed inset-0 bg-black/50 backdrop-blur-sm flex items-center justify-center z-50 animate-fade-in p-4">
+          <div className="bg-white rounded-2xl shadow-2xl w-full max-w-2xl mx-auto animate-slide-up overflow-hidden border border-gray-100 max-h-[90vh] flex flex-col relative">
+            <button type="button" onClick={() => setEditing(null)} className="absolute top-4 right-4 p-2 rounded-lg text-white/90 hover:text-white hover:bg-white/20 transition-colors z-10" aria-label="Close"><X className="h-5 w-5" /></button>
+            <div className="bg-gradient-to-br from-emerald-600 to-emerald-700 px-6 py-5 flex-shrink-0">
+              <div className="flex items-center gap-3">
+                <div className="w-12 h-12 rounded-xl bg-white/20 flex items-center justify-center">
+                  <Pencil className="h-6 w-6 text-white" />
+                </div>
+                <div>
+                  <h2 className="text-xl font-bold text-white">Edit Task</h2>
+                  <p className="text-emerald-100 text-sm mt-0.5">{editing.title}</p>
+                </div>
+              </div>
             </div>
-            <button type="button" onClick={() => setEditing(null)} className="absolute top-4 right-4 p-2 rounded-lg text-gray-400 hover:text-gray-600 hover:bg-gray-100 transition-colors" aria-label="Close"><X className="h-5 w-5" /></button>
-            <div className="p-6">
-              {updateMutation.isError && <p className="mb-4 p-3 rounded-lg bg-red-50 text-red-600 text-sm">{getApiErrorMessage(updateMutation.error)}</p>}
-              <form onSubmit={editForm.handleSubmit((d) => updateMutation.mutate({ id: editing._id, data: d }))} className="space-y-4">
-                <div>
-                  <label className="block text-sm font-medium text-gray-700 mb-1">Title</label>
-                  <input {...editForm.register('title')} className="w-full px-4 py-2.5 rounded-xl border border-gray-200 focus:ring-2 focus:ring-emerald-500/20 focus:border-emerald-500" />
-                  {editForm.formState.errors.title && <p className="text-red-600 text-sm mt-1">{editForm.formState.errors.title.message}</p>}
+            <div className="flex-1 overflow-y-auto p-6">
+              {updateMutation.isError && (
+                <p className="mb-4 p-3 rounded-xl bg-red-50 text-red-600 text-sm border border-red-100">{getApiErrorMessage(updateMutation.error)}</p>
+              )}
+              {Object.keys(editForm.formState.errors).length > 0 && (
+                <div className="mb-4 p-3 rounded-xl bg-amber-50 text-amber-700 text-sm border border-amber-100">
+                  <p className="font-semibold mb-1 text-amber-800">Please fix the following:</p>
+                  <ul className="list-disc list-inside space-y-0.5 text-amber-700">
+                    {Object.entries(editForm.formState.errors).map(([field, err]) => (
+                      <li key={field}><span className="capitalize">{field}</span>: {(err as any)?.message ?? 'Invalid value'}</li>
+                    ))}
+                  </ul>
                 </div>
-                <div>
-                  <label className="block text-sm font-medium text-gray-700 mb-1">Description</label>
-                  <textarea {...editForm.register('description')} rows={2} className="w-full px-4 py-2.5 rounded-xl border border-gray-200 focus:ring-2 focus:ring-emerald-500/20 focus:border-emerald-500" />
+              )}
+              <form onSubmit={editForm.handleSubmit((d) => updateMutation.mutate({ id: editing._id, data: d }))} className="space-y-6">
+                {/* Basic info */}
+                <section className="space-y-4">
+                  <h3 className="text-sm font-semibold text-gray-500 uppercase tracking-wider flex items-center gap-2">
+                    <CheckSquare className="h-4 w-4" /> Basic info
+                  </h3>
+                  <div>
+                    <label className="block text-sm font-medium text-gray-700 mb-1.5">Title *</label>
+                    <input {...editForm.register('title')} className="w-full px-4 py-3 rounded-xl border border-gray-200 focus:ring-2 focus:ring-emerald-500/20 focus:border-emerald-500" placeholder="e.g. Cut vegetables" />
+                    {editForm.formState.errors.title && <p className="text-red-600 text-sm mt-1">{editForm.formState.errors.title.message}</p>}
+                  </div>
+                  <div>
+                    <label className="block text-sm font-medium text-gray-700 mb-1.5">Description (optional)</label>
+                    <textarea {...editForm.register('description')} rows={2} className="w-full px-4 py-3 rounded-xl border border-gray-200 focus:ring-2 focus:ring-emerald-500/20 focus:border-emerald-500" placeholder="Task details..." />
+                  </div>
+                </section>
+
+                {/* Schedule & Shift Row */}
+                <div className="grid grid-cols-1 sm:grid-cols-2 gap-6">
+                  <section className="space-y-4">
+                    <h3 className="text-xs font-bold text-gray-400 uppercase tracking-widest flex items-center gap-2">
+                      <Calendar className="h-3.5 w-3.5" /> Schedule
+                    </h3>
+                    <div>
+                      <label className="block text-xs font-semibold text-gray-500 mb-2">Repeat Type</label>
+                      <div className="flex flex-wrap gap-1.5">
+                        {(['daily', 'onetime', 'specific-days'] as const).map((type) => (
+                          <button
+                            key={type}
+                            type="button"
+                            onClick={() => editForm.setValue('taskType', type)}
+                            className={`px-3 py-1.5 rounded-lg text-xs font-medium transition-all ${
+                              editForm.watch('taskType') === type ? 'bg-emerald-600 text-white shadow-sm' : 'bg-gray-100 text-gray-600 hover:bg-gray-200'
+                            }`}
+                          >
+                            {type === 'daily' ? 'Daily' : type === 'onetime' ? 'One-time' : 'Specific days'}
+                          </button>
+                        ))}
+                      </div>
+                    </div>
+                    {editForm.watch('taskType') === 'onetime' && (
+                      <div className="animate-slide-up">
+                        <label className="block text-xs font-semibold text-gray-500 mb-1.5">Date</label>
+                        <Controller
+                          name="specificDate"
+                          control={editForm.control}
+                          render={({ field }) => (
+                            <CalendarDateField
+                              value={field.value ?? ''}
+                              onChange={field.onChange}
+                              minDate={minOneTimeTaskDate}
+                              placeholder="Choose date"
+                            />
+                          )}
+                        />
+                      </div>
+                    )}
+                    {editForm.watch('taskType') === 'specific-days' && (
+                      <div className="animate-slide-up">
+                        <label className="block text-xs font-semibold text-gray-500 mb-2">Select days</label>
+                        <div className="flex flex-wrap gap-1">
+                          {[0, 1, 2, 3, 4, 5, 6].map((d) => {
+                            const selected = (editForm.watch('specificDays') ?? []).includes(d);
+                            return (
+                              <button
+                                key={d}
+                                type="button"
+                                onClick={() => {
+                                  const current = editForm.watch('specificDays') ?? [];
+                                  const next = selected ? current.filter((x) => x !== d) : [...current, d].sort();
+                                  editForm.setValue('specificDays', next);
+                                }}
+                                className={`w-8 h-8 rounded-lg text-[10px] font-bold transition-all flex items-center justify-center ${
+                                  selected ? 'bg-emerald-600 text-white' : 'bg-gray-100 text-gray-400 hover:bg-gray-200'
+                                }`}
+                                title={DAY_NAMES[d]}
+                              >
+                                {DAY_NAMES[d][0]}
+                              </button>
+                            );
+                          })}
+                        </div>
+                      </div>
+                    )}
+                  </section>
+
+                  <section className="space-y-4">
+                    <h3 className="text-xs font-bold text-gray-400 uppercase tracking-widest flex items-center gap-2">
+                      <Clock className="h-3.5 w-3.5" /> Shift Settings
+                    </h3>
+                    <div>
+                      <label className="block text-xs font-semibold text-gray-500 mb-2">Active During</label>
+                      <div className="flex gap-1.5">
+                        {(['Both', 'Day', 'Night'] as const).map((s) => (
+                          <button
+                            key={s}
+                            type="button"
+                            onClick={() => editForm.setValue('shiftType', s)}
+                            className={`flex-1 flex items-center justify-center gap-1.5 px-3 py-1.5 rounded-lg text-xs font-medium transition-all ${
+                              editForm.watch('shiftType') === s ? 'bg-emerald-600 text-white shadow-sm' : 'bg-gray-100 text-gray-600 hover:bg-gray-200'
+                            }`}
+                          >
+                            {s === 'Day' ? <Sun className="h-3 w-3" /> : s === 'Night' ? <Moon className="h-3 w-3" /> : null}
+                            {s}
+                          </button>
+                        ))}
+                      </div>
+                    </div>
+                  </section>
                 </div>
-                <div>
-                  <label className="block text-sm font-medium text-gray-700 mb-1">Role</label>
-                  <SearchableSelect
-                    value={editForm.watch('parentRoleId') || ''}
-                    onChange={(v) => editForm.setValue('parentRoleId', v, { shouldValidate: true })}
-                    options={parentRoleSelectOptions}
-                    placeholder="Role"
-                    searchPlaceholder="Search roles…"
-                    noOptionsText="No roles"
-                    emptyText="No matches"
-                  />
-                </div>
-                <div>
-                  <label className="block text-sm font-medium text-gray-700 mb-1">Shift</label>
-                  <SearchableSelect
-                    value={editForm.watch('shiftType') || 'Both'}
-                    onChange={(v) =>
-                      editForm.setValue('shiftType', v as 'Day' | 'Night' | 'Both', { shouldValidate: true })
-                    }
-                    options={taskShiftEditOptions}
-                    placeholder="Shift"
-                    showSearch={false}
-                    noOptionsText="—"
-                    emptyText="—"
-                  />
-                </div>
-                <div className="flex gap-3 pt-2">
-                  <button type="submit" disabled={updateMutation.isPending} className="flex-1 px-4 py-2.5 bg-emerald-600 text-white rounded-xl font-medium hover:bg-emerald-700 disabled:opacity-50">Save</button>
-                  <button type="button" onClick={() => setEditing(null)} className="px-4 py-2.5 border border-gray-200 rounded-xl font-medium hover:bg-gray-50">Cancel</button>
+
+                {/* Frequency */}
+                <section className="p-4 rounded-2xl bg-gray-50 border border-gray-100 space-y-3">
+                  <div className="flex items-center justify-between">
+                    <label className="text-sm font-semibold text-gray-700">Multiple times per day?</label>
+                    <div className="flex gap-1 bg-white p-1 rounded-xl border border-gray-200">
+                      <button
+                        type="button"
+                        onClick={() => editForm.setValue('multipleTimesPerDay', false)}
+                        className={`px-4 py-1.5 rounded-lg text-xs font-bold transition-all ${!editForm.watch('multipleTimesPerDay') ? 'bg-emerald-600 text-white shadow-sm' : 'text-gray-400 hover:bg-gray-50'}`}
+                      >
+                        No
+                      </button>
+                      <button
+                        type="button"
+                        onClick={() => editForm.setValue('multipleTimesPerDay', true)}
+                        className={`px-4 py-1.5 rounded-lg text-xs font-bold transition-all ${editForm.watch('multipleTimesPerDay') ? 'bg-emerald-600 text-white shadow-sm' : 'text-gray-400 hover:bg-gray-50'}`}
+                      >
+                        Yes
+                      </button>
+                    </div>
+                  </div>
+                  {editForm.watch('multipleTimesPerDay') && (
+                    <div className="flex items-center gap-3 animate-slide-up bg-white p-3 rounded-xl border border-emerald-100">
+                      <Clock className="h-4 w-4 text-emerald-500" />
+                      <span className="text-xs font-medium text-gray-600">Repeat every</span>
+                      <div className="flex items-center gap-2">
+                        <input
+                          type="number"
+                          {...editForm.register('intervalMinutes')}
+                          min={5}
+                          max={120}
+                          className="w-16 px-2 py-1.5 rounded-lg border border-emerald-200 text-center text-sm font-bold text-emerald-700 focus:ring-2 focus:ring-emerald-500/20"
+                        />
+                        <span className="text-xs font-medium text-gray-600">minutes</span>
+                      </div>
+                    </div>
+                  )}
+                </section>
+
+                {/* Assignment */}
+                <section className="space-y-4">
+                  <h3 className="text-sm font-semibold text-gray-500 uppercase tracking-wider flex items-center gap-2">
+                    <Users className="h-4 w-4" /> Assign to
+                  </h3>
+                  <div className="flex gap-2">
+                    <button
+                      type="button"
+                      onClick={() => editForm.setValue('assignToType', 'role')}
+                      className={`flex items-center gap-2 px-4 py-2 rounded-lg text-sm font-medium ${editForm.watch('assignToType') === 'role' ? 'bg-emerald-100 text-emerald-700' : 'bg-gray-100 text-gray-600'}`}
+                    >
+                      <Users className="h-4 w-4" /> Role
+                    </button>
+                    <button
+                      type="button"
+                      onClick={() => editForm.setValue('assignToType', 'staff')}
+                      className={`flex items-center gap-2 px-4 py-2 rounded-lg text-sm font-medium ${editForm.watch('assignToType') === 'staff' ? 'bg-emerald-100 text-emerald-700' : 'bg-gray-100 text-gray-600'}`}
+                    >
+                      <User className="h-4 w-4" /> Staff
+                    </button>
+                  </div>
+                  {editForm.watch('assignToType') === 'role' && (
+                    <div>
+                      <label className="block text-sm font-medium text-gray-700 mb-2">Role</label>
+                      <div className="flex flex-wrap gap-2 items-center">
+                        {parentRoles.map((r: { _id: string; name: string }) => (
+                          <button
+                            key={r._id}
+                            type="button"
+                            onClick={() => editForm.setValue('parentRoleId', r._id)}
+                            className={`px-4 py-2 rounded-lg text-sm font-medium ${
+                              editForm.watch('parentRoleId') === r._id ? 'bg-emerald-600 text-white shadow-sm' : 'bg-gray-100 text-gray-600 hover:bg-gray-200'
+                            }`}
+                          >
+                            {r.name}
+                          </button>
+                        ))}
+                      </div>
+                      {editForm.formState.errors.parentRoleId && editForm.watch('assignToType') === 'role' && (
+                        <p className="text-red-600 text-sm mt-1">Select a role</p>
+                      )}
+                    </div>
+                  )}
+                  {editForm.watch('assignToType') === 'staff' && (
+                    <div>
+                      <label className="block text-sm font-medium text-gray-700 mb-1.5">Staff member</label>
+                      <SearchableSelect
+                        value={editForm.watch('assignToEmployeeId') || ''}
+                        onChange={(v) => editForm.setValue('assignToEmployeeId', v, { shouldValidate: true })}
+                        options={assigneeEmployeeOptions}
+                        placeholder="Select staff"
+                        searchPlaceholder="Search staff…"
+                        noOptionsText="No staff loaded"
+                        emptyText="No matches"
+                      />
+                    </div>
+                  )}
+                </section>
+
+                {/* Timing */}
+                <section className="space-y-4">
+                  <h3 className="text-sm font-semibold text-gray-500 uppercase tracking-wider flex items-center gap-2">
+                    <Clock className="h-4 w-4" /> Time settings
+                  </h3>
+                  <div className="grid grid-cols-1 sm:grid-cols-2 gap-4">
+                    <div>
+                      <label className="block text-sm font-medium text-gray-700 mb-1.5">Start time</label>
+                      <Controller
+                        name="startTime"
+                        control={editForm.control}
+                        render={({ field }) => (
+                          <TimePickerField
+                            value={field.value ?? ''}
+                            onChange={field.onChange}
+                            placeholder="09:00"
+                            use12Hour={true}
+                          />
+                        )}
+                      />
+                    </div>
+                    <div>
+                      <label className="block text-sm font-medium text-gray-700 mb-1.5">Time limit (mins)</label>
+                      <input type="number" {...editForm.register('timeLimitMinutes')} placeholder="e.g. 30" className="w-full px-4 py-2.5 rounded-xl border border-gray-200 focus:ring-2 focus:ring-emerald-500/20 focus:border-emerald-500" />
+                    </div>
+                  </div>
+                </section>
+
+                {/* Checklist Builder */}
+                <section className="space-y-4">
+                  <div className="flex items-center justify-between">
+                    <h3 className="text-sm font-semibold text-gray-500 uppercase tracking-wider flex items-center gap-2">
+                      <ListTodo className="h-4 w-4" /> Checklist items
+                    </h3>
+                    <button
+                      type="button"
+                      onClick={() => appendEditChecklistItem({ text: '' })}
+                      className="text-xs font-semibold text-emerald-600 hover:text-emerald-700 flex items-center gap-1"
+                    >
+                      <Plus className="h-3.5 w-3.5" /> Add item
+                    </button>
+                  </div>
+                  <div className="space-y-3">
+                    {editChecklistFields.map((field, index) => (
+                      <div key={field.id} className="p-4 rounded-xl border border-gray-100 bg-gray-50/50 space-y-3 animate-slide-up">
+                        <div className="flex items-start gap-3">
+                          <span className="mt-2.5 w-6 h-6 flex-shrink-0 rounded-full bg-emerald-100 text-emerald-600 text-[10px] font-bold flex items-center justify-center">
+                            {index + 1}
+                          </span>
+                          <textarea
+                            {...editForm.register(`checklistItems.${index}.text` as const)}
+                            placeholder="What needs to be done?"
+                            className="flex-1 px-3 py-2 rounded-lg border border-gray-200 text-sm focus:ring-2 focus:ring-emerald-500/20 focus:border-emerald-500 bg-white"
+                            rows={1}
+                          />
+                          <button
+                            type="button"
+                            onClick={() => removeEditChecklistItem(index)}
+                            className="p-2 text-gray-400 hover:text-red-500 transition-colors"
+                          >
+                            <Trash2 className="h-4 w-4" />
+                          </button>
+                        </div>
+                        <div className="pl-9 flex items-center gap-4">
+                          <div className="relative group">
+                            <input
+                              type="file"
+                              id={`edit-checklist-img-${index}`}
+                              className="hidden"
+                              accept="image/*"
+                              onChange={async (e) => {
+                                const file = e.target.files?.[0];
+                                if (!file) return;
+                                setChecklistImageLoading(prev => ({ ...prev, [index]: true }));
+                                try {
+                                  const { url } = await taskApi.uploadTaskImage(file);
+                                  editForm.setValue(`checklistItems.${index}.referenceMediaUrl`, url);
+                                } finally {
+                                  setChecklistImageLoading(prev => ({ ...prev, [index]: false }));
+                                }
+                              }}
+                            />
+                            <label
+                              htmlFor={`edit-checklist-img-${index}`}
+                              className="flex items-center gap-2 px-3 py-1.5 rounded-lg border border-gray-200 bg-white text-xs font-medium text-gray-600 hover:border-emerald-400 hover:text-emerald-600 cursor-pointer transition-all"
+                            >
+                              {checklistImageLoading[index] ? (
+                                <LoadingSpinner className="h-3 w-3" />
+                              ) : editForm.watch(`checklistItems.${index}.referenceMediaUrl`) ? (
+                                <>
+                                  <ImagePlus className="h-3.5 w-3.5 text-emerald-500" />
+                                  Change image
+                                </>
+                              ) : (
+                                <>
+                                  <ImagePlus className="h-3.5 w-3.5" />
+                                  Add image
+                                </>
+                              )}
+                            </label>
+                          </div>
+                          {editForm.watch(`checklistItems.${index}.referenceMediaUrl`) && (
+                            <div className="relative h-10 w-10 rounded-lg overflow-hidden border border-gray-200 group">
+                              <img src={editForm.watch(`checklistItems.${index}.referenceMediaUrl`)} className="h-full w-full object-cover" alt="" />
+                              <button
+                                type="button"
+                                onClick={() => editForm.setValue(`checklistItems.${index}.referenceMediaUrl`, '')}
+                                className="absolute inset-0 bg-black/40 text-white opacity-0 group-hover:opacity-100 flex items-center justify-center transition-opacity"
+                              >
+                                <X className="h-4 w-4" />
+                              </button>
+                            </div>
+                          )}
+                        </div>
+                      </div>
+                    ))}
+                    {editChecklistFields.length === 0 && (
+                      <p className="text-center py-4 text-sm text-gray-400 border-2 border-dashed border-gray-100 rounded-xl">
+                        No checklist items added yet.
+                      </p>
+                    )}
+                  </div>
+                </section>
+
+                {/* Photo */}
+                <section className="space-y-4">
+                  <h3 className="text-sm font-semibold text-gray-500 uppercase tracking-wider flex items-center gap-2">
+                    <ImagePlus className="h-4 w-4" /> Photo (optional)
+                  </h3>
+                  <input ref={fileInputRef} type="file" accept="image/*" className="hidden" onChange={handleImageSelect} />
+                  {imageUrl ? (
+                    <div className="rounded-xl border border-gray-200 overflow-hidden">
+                      <div className="h-32 bg-gray-100 flex items-center justify-center">
+                        <img src={imageUrl} alt="Task" className="max-h-full max-w-full object-contain" />
+                      </div>
+                      <div className="flex gap-2 p-3">
+                        <button type="button" onClick={() => fileInputRef.current?.click()} disabled={uploadingImage} className="flex-1 py-2 rounded-lg bg-emerald-50 text-emerald-600 text-sm font-medium">
+                          {uploadingImage ? 'Uploading...' : 'Change'}
+                        </button>
+                        <button type="button" onClick={() => { setImageUrl(''); setImageFile(null); }} className="px-4 py-2 rounded-lg border border-gray-200 text-gray-600 text-sm font-medium">
+                          Remove
+                        </button>
+                      </div>
+                    </div>
+                  ) : (
+                    <button
+                      type="button"
+                      onClick={() => fileInputRef.current?.click()}
+                      disabled={uploadingImage}
+                      className="w-full py-8 rounded-xl border-2 border-dashed border-gray-200 hover:border-emerald-300 hover:bg-emerald-50/30 transition-colors flex flex-col items-center gap-2"
+                    >
+                      <ImagePlus className="h-10 w-10 text-gray-400" />
+                      <span className="text-sm font-medium text-gray-600">{uploadingImage ? 'Uploading...' : 'Add photo'}</span>
+                    </button>
+                  )}
+                </section>
+
+                <div className="flex gap-3 pt-4 border-t border-gray-100">
+                  <button type="submit" disabled={updateMutation.isPending} className="flex-1 px-5 py-3 bg-emerald-600 text-white rounded-xl font-semibold hover:bg-emerald-700 disabled:opacity-50 transition-all">
+                    {updateMutation.isPending ? 'Saving...' : 'Save changes'}
+                  </button>
+                  <button type="button" onClick={() => setEditing(null)} className="px-5 py-3 border border-gray-200 rounded-xl font-medium hover:bg-gray-50 transition-colors">
+                    Cancel
+                  </button>
                 </div>
               </form>
             </div>

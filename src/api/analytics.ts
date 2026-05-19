@@ -3,7 +3,13 @@ import { api } from './client';
 export const analyticsApi = {
   getOutletAnalytics: async (
     outletId: string,
-    params?: { period?: 'daily' | 'weekly' | 'monthly' | 'payCycle'; startDate?: string; endDate?: string; shiftType?: string; search?: string }
+    params?: {
+      period?: 'daily' | 'weekly' | 'monthly' | 'payCycle' | 'custom';
+      startDate?: string;
+      endDate?: string;
+      shiftType?: string;
+      search?: string;
+    }
   ) => {
     const q = new URLSearchParams();
     if (params?.period) q.set('period', params.period);

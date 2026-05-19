@@ -5,7 +5,6 @@ import { managerApi } from '@/api/manager';
 import { taskApi } from '@/api/task';
 import { getApiErrorMessage } from '@/api/auth';
 import { LoadingSpinner } from '@/components/LoadingSpinner';
-import { ListSearchBar } from '@/components/ListSearchBar';
 import { useDebouncedValue } from '@/hooks/useDebouncedValue';
 import {
   ChevronDown,
@@ -19,7 +18,7 @@ import {
   ChevronRight,
   Filter,
 } from 'lucide-react';
-import { format, subDays, startOfDay, endOfDay } from 'date-fns';
+import { format, subDays } from 'date-fns';
 import { CalendarDateField } from '@/components/CalendarDateField';
 
 export function BriefingPoolPage() {
@@ -53,7 +52,6 @@ export function BriefingPoolPage() {
       managerApi.getBriefingPool(selectedOutletId!, {
         limit: 100,
         search: debouncedPoolSearch.trim() || undefined,
-        dateRange: dateRangeMode === '7d' ? 'last7' : dateRangeMode === '30d' ? 'last30' : dateRangeMode === 'daily' ? 'today' : 'custom',
         startDate: start,
         endDate: end,
       }),

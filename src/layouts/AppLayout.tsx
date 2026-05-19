@@ -30,6 +30,8 @@ import {
   Activity,
   Settings,
   BookOpen,
+  Headset,
+  ClipboardList,
 } from 'lucide-react';
 
 import { NeoEngineLogo } from '@/components/NeoEngineLogo';
@@ -47,29 +49,32 @@ const superAdminNav: { to: string; label: string; icon: LucideIcon }[] = [
   { to: '/super-admin/dashboard', label: 'Dashboard', icon: LayoutDashboard },
   { to: '/super-admin/owners', label: 'Owners', icon: Users },
   { to: '/super-admin/outlets', label: 'Outlets', icon: Store },
+  { to: '/super-admin/support', label: 'Support Tickets', icon: Headset },
+  { to: '/super-admin/audit-logs', label: 'Audit Logs', icon: ClipboardList },
   { to: '/super-admin/analytics', label: 'Analytics', icon: BarChart3 },
 ];
 
 const ownerNav: { to: string; label: string; icon: LucideIcon }[] = [
   { to: '/owner/dashboard', label: 'Dashboard', icon: LayoutDashboard },
-  { to: '/owner/outlets', label: 'Outlets', icon: Store },
-  { to: '/owner/staff', label: 'Staff', icon: Users },
-  { to: '/owner/roles', label: 'Roles', icon: UserCog },
   { to: '/owner/tasks', label: 'Tasks', icon: CheckSquare },
   { to: '/owner/issues', label: 'Issues', icon: AlertTriangle },
-  { to: '/owner/attendance', label: 'Attendance', icon: CalendarCheck },
-  { to: '/owner/overtime', label: 'Overtime', icon: Clock },
-  { to: '/owner/briefing-pool', label: 'Briefing Pool', icon: MessageSquare },
-  { to: '/owner/hierarchy', label: 'Hierarchy', icon: GitBranch },
-  { to: '/owner/leave', label: 'Leave', icon: CalendarDays },
-  { to: '/owner/leave-rules', label: 'Leave Rules', icon: BookOpen },
-  { to: '/owner/events', label: 'Events', icon: CalendarPlus },
+  { to: '/owner/staff', label: 'Staff', icon: Users },
   { to: '/owner/payroll', label: 'Payroll', icon: Wallet },
-  { to: '/owner/payroll-settings', label: 'Pay Settings', icon: Settings },
-  { to: '/owner/activity', label: 'Activity', icon: Activity },
+  { to: '/owner/events', label: 'Events', icon: CalendarPlus },
+  { to: '/owner/briefing-pool', label: 'Briefing Pool', icon: MessageSquare },
   { to: '/owner/analytics', label: 'Analytics', icon: BarChart3 },
   { to: '/owner/reports', label: 'Reports', icon: FileText },
+  { to: '/owner/attendance', label: 'Attendance', icon: CalendarCheck },
+  { to: '/owner/leave', label: 'Leave', icon: CalendarDays },
+  { to: '/owner/leave-rules', label: 'Leave Rules', icon: BookOpen },
+  { to: '/owner/payroll-settings', label: 'Pay Settings', icon: Settings },
+  { to: '/owner/overtime', label: 'Overtime', icon: Clock },
+  { to: '/owner/hierarchy', label: 'Hierarchy', icon: GitBranch },
   { to: '/owner/permissions', label: 'Permissions', icon: Shield },
+  { to: '/owner/activity', label: 'Activity', icon: Activity },
+  { to: '/owner/roles', label: 'Roles', icon: UserCog },
+  { to: '/owner/outlets', label: 'Outlets', icon: Store },
+  { to: '/owner/support', label: 'Support', icon: Headset },
 ];
 
 type SidebarFlyout =

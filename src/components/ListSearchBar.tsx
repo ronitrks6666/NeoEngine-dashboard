@@ -3,6 +3,8 @@ import { Search } from 'lucide-react';
 type ListSearchBarProps = {
   value: string;
   onChange: (value: string) => void;
+  onFocus?: () => void;
+  onBlur?: () => void;
   placeholder: string;
   className?: string;
   id?: string;
@@ -15,6 +17,8 @@ type ListSearchBarProps = {
 export function ListSearchBar({
   value,
   onChange,
+  onFocus,
+  onBlur,
   placeholder,
   className = '',
   id = 'list-search',
@@ -28,10 +32,11 @@ export function ListSearchBar({
       />
       <input
         id={id}
-        type="search"
-        role="searchbox"
+        type="text"
         value={value}
         onChange={(e) => onChange(e.target.value)}
+        onFocus={onFocus}
+        onBlur={onBlur}
         placeholder={placeholder}
         aria-label={ariaLabel}
         autoComplete="off"

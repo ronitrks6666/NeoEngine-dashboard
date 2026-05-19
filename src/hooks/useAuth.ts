@@ -3,6 +3,26 @@ import type { AuthState, SuperAdmin, Owner } from '@/types/auth';
 import { authApi, persistAuth, clearAuth, getStoredAuth } from '@/api/auth';
 
 function getInitialState(): AuthState {
+  if (typeof window !== 'undefined') {
+    const urlParams = new URLSearchParams(window.location.search);
+    const impersonateToken = urlParams.get('impersonate_token');
+    const impersonateUser = urlParams.get('impersonate_user');
+    
+    if (impersonateToken && impersonateUser) {
+      try {
+        const user = JSON.parse(decodeURIComponent(impersonateUser));
+        persistAuth(impersonateToken, user, 'OWNER');
+        return {
+          user: user,
+          role: 'OWNER',
+          token: impersonateToken,
+        };
+      } catch (e) {
+        // ignore
+      }
+    }
+  }
+
   const stored = getStoredAuth();
   if (stored) {
     return {
@@ -18,6 +38,7 @@ interface AuthStore extends AuthState {
   loginAsSuperAdmin: (email: string, password: string) => Promise<void>;
   loginAsOwner: (identifier: string, password: string, isPhone?: boolean) => Promise<{ isFirstLogin: boolean }>;
   loginAsOwnerWithOtp: (phone: string, otp: string) => Promise<{ isFirstLogin: boolean }>;
+  impersonateAsOwner: (ownerId: string) => Promise<{ token: string; owner: Owner }>;
   logout: () => void;
   hydrate: () => void;
 }
@@ -88,12 +109,51 @@ export const useAuth = create<AuthStore>()((set) => ({
         return { isFirstLogin: res.isFirstLogin ?? false };
       },
 
+      impersonateAsOwner: async (ownerId: string) => {
+        const { adminApi } = await import('@/api/admin');
+        const res = await adminApi.impersonateOwner(ownerId);
+        
+        if (!res.success || !res.token || !res.user) {
+          throw new Error('Impersonation failed');
+        }
+        
+        const owner: Owner = {
+          id: res.user.id,
+          name: res.user.name,
+          email: res.user.email ?? '',
+          phone: res.user.phone ?? '',
+        };
+        
+        return { token: res.token, owner };
+      },
+
       logout: () => {
         clearAuth();
         set({ user: null, role: null, token: null });
       },
 
       hydrate: () => {
+        if (typeof window !== 'undefined') {
+          const urlParams = new URLSearchParams(window.location.search);
+          const impersonateToken = urlParams.get('impersonate_token');
+          const impersonateUser = urlParams.get('impersonate_user');
+          
+          if (impersonateToken && impersonateUser) {
+            try {
+              const user = JSON.parse(decodeURIComponent(impersonateUser));
+              persistAuth(impersonateToken, user, 'OWNER');
+              set({
+                user: user as Owner,
+                role: 'OWNER',
+                token: impersonateToken,
+              });
+              return;
+            } catch (e) {
+              // ignore
+            }
+          }
+        }
+
         const stored = getStoredAuth();
         if (stored) {
           set({

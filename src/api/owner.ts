@@ -90,4 +90,24 @@ export const ownerApi = {
     const { data } = await api.delete(`/owner/outlets/${outletId}`);
     return data;
   },
+
+  createTicket: async (payload: { title: string; content: string; priority?: string }) => {
+    const { data } = await api.post('/owner/support-tickets', payload);
+    return data.data;
+  },
+
+  getTickets: async () => {
+    const { data } = await api.get('/owner/support-tickets');
+    return data.data;
+  },
+
+  getTicketDetails: async (id: string) => {
+    const { data } = await api.get(`/owner/support-tickets/${id}`);
+    return data.data;
+  },
+
+  replyTicket: async (id: string, content: string) => {
+    const { data } = await api.post(`/owner/support-tickets/${id}/reply`, { content });
+    return data.data;
+  },
 };

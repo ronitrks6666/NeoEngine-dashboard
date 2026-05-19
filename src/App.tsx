@@ -9,7 +9,10 @@ import { SuperAdminDashboardPage } from '@/pages/super-admin/SuperAdminDashboard
 import { OwnersPage } from '@/pages/super-admin/OwnersPage';
 import { OutletsPage } from '@/pages/super-admin/OutletsPage';
 import { AnalyticsPage } from '@/pages/super-admin/AnalyticsPage';
+import { SupportTicketsPage } from '@/pages/super-admin/SupportTicketsPage';
+import { AuditLogsPage } from '@/pages/super-admin/AuditLogsPage';
 import { OwnerDashboardPage } from '@/pages/owner/OwnerDashboardPage';
+import { OwnerSupportTicketsPage } from '@/pages/owner/OwnerSupportTicketsPage';
 import { OwnerOutletsPage } from '@/pages/owner/OwnerOutletsPage';
 import { StaffPage } from '@/pages/owner/StaffPage';
 import { RolesPage } from '@/pages/owner/RolesPage';
@@ -64,6 +67,8 @@ function App() {
                 <Route path="owners" element={<OwnersPage />} />
                 <Route path="outlets" element={<OutletsPage />} />
                 <Route path="analytics" element={<AnalyticsPage />} />
+                <Route path="support" element={<SupportTicketsPage />} />
+                <Route path="audit-logs" element={<AuditLogsPage />} />
               </Routes>
             </AppLayout>
           </ProtectedRoute>
@@ -95,6 +100,7 @@ function App() {
                 <Route path="hierarchy" element={<HierarchyPage />} />
                 <Route path="reports" element={<ReportsPage />} />
                 <Route path="permissions" element={<PermissionsPage />} />
+                <Route path="support" element={<OwnerSupportTicketsPage />} />
               </Routes>
             </AppLayout>
           </ProtectedRoute>

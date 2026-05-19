@@ -33,10 +33,12 @@ export function RolesPage() {
 
   const createMutation = useMutation({
     mutationFn: () => employeeApi.createParentRole(newRoleName.trim(), selectedOutletId ?? undefined),
-    onSuccess: () => {
-      queryClient.invalidateQueries({ queryKey: ['parent-roles'] });
-      queryClient.invalidateQueries({ queryKey: ['available-roles'] });
-      queryClient.invalidateQueries({ queryKey: ['hierarchy'] });
+    onSuccess: async () => {
+      await Promise.all([
+        queryClient.invalidateQueries({ queryKey: ['parent-roles'] }),
+        queryClient.invalidateQueries({ queryKey: ['available-roles'] }),
+        queryClient.invalidateQueries({ queryKey: ['hierarchy'] })
+      ]);
       setShowCreate(false);
       setNewRoleName('');
     },

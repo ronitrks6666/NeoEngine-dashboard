@@ -7,7 +7,7 @@ import { getApiErrorMessage } from '@/api/auth';
 import { LoadingSpinner } from '@/components/LoadingSpinner';
 import { ListSearchBar } from '@/components/ListSearchBar';
 import { useDebouncedValue } from '@/hooks/useDebouncedValue';
-import { Plus, X, Calendar, User, Crown, ChevronRight, Shield } from 'lucide-react';
+import { Plus, X, Crown } from 'lucide-react';
 import { CalendarDateField } from '@/components/CalendarDateField';
 import { SearchableSelect } from '@/components/SearchableSelect';
 

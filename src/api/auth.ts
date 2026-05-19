@@ -81,24 +81,49 @@ export const authApi = {
 };
 
 export function persistAuth(token: string, user: object, role: UserRole) {
+  if (typeof window !== 'undefined' && window.self !== window.top) {
+    sessionStorage.setItem('neoengine_token', token);
+    sessionStorage.setItem('neoengine_user', JSON.stringify(user));
+    sessionStorage.setItem('neoengine_role', role);
+    return;
+  }
   localStorage.setItem('neoengine_token', token);
   localStorage.setItem('neoengine_user', JSON.stringify(user));
   localStorage.setItem('neoengine_role', role);
 }
 
 export function clearAuth() {
+  if (typeof window !== 'undefined' && window.self !== window.top) {
+    sessionStorage.removeItem('neoengine_token');
+    sessionStorage.removeItem('neoengine_user');
+    sessionStorage.removeItem('neoengine_role');
+    return;
+  }
   localStorage.removeItem('neoengine_token');
   localStorage.removeItem('neoengine_user');
   localStorage.removeItem('neoengine_role');
 }
 
 export function getStoredAuth(): { token: string; user: object; role: UserRole } | null {
-  const token = localStorage.getItem('neoengine_token');
-  const userStr = localStorage.getItem('neoengine_user');
+  let token = null;
+  let userStr = null;
+  let role = null;
+  
+  if (typeof window !== 'undefined' && window.self !== window.top) {
+    token = sessionStorage.getItem('neoengine_token');
+    userStr = sessionStorage.getItem('neoengine_user');
+    role = sessionStorage.getItem('neoengine_role') as UserRole | null;
+  }
+  
+  if (!token) {
+    token = localStorage.getItem('neoengine_token');
+    userStr = localStorage.getItem('neoengine_user');
+    role = localStorage.getItem('neoengine_role') as UserRole | null;
+  }
+
   if (!token || !userStr) return null;
   try {
     const user = JSON.parse(userStr);
-    let role = localStorage.getItem('neoengine_role') as UserRole | null;
     if (!role || (role !== 'OWNER' && role !== 'SUPER_ADMIN')) {
       role = 'OWNER';
     }

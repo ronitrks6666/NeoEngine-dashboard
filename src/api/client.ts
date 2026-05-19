@@ -10,7 +10,14 @@ export const api = axios.create({
 });
 
 api.interceptors.request.use((config) => {
-  const token = localStorage.getItem('neoengine_token');
+  let token = null;
+  if (typeof window !== 'undefined' && window.self !== window.top) {
+    token = sessionStorage.getItem('neoengine_token');
+  }
+  if (!token) {
+    token = localStorage.getItem('neoengine_token');
+  }
+  
   if (token) {
     config.headers.Authorization = `Bearer ${token}`;
   }
@@ -28,9 +35,15 @@ api.interceptors.response.use(
       error.config?.url?.includes('/send-otp') ||
       error.config?.url?.includes('/verify-otp');
     if (error.response?.status === 401 && !isAuthRequest) {
-      localStorage.removeItem('neoengine_token');
-      localStorage.removeItem('neoengine_user');
-      localStorage.removeItem('neoengine_role');
+      if (typeof window !== 'undefined' && window.self !== window.top) {
+        sessionStorage.removeItem('neoengine_token');
+        sessionStorage.removeItem('neoengine_user');
+        sessionStorage.removeItem('neoengine_role');
+      } else {
+        localStorage.removeItem('neoengine_token');
+        localStorage.removeItem('neoengine_user');
+        localStorage.removeItem('neoengine_role');
+      }
       window.location.href = '/login';
     }
     return Promise.reject(error);

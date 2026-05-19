@@ -4,9 +4,9 @@ import { useOutletStore } from '@/stores/outletStore';
 import { managerApi } from '@/api/manager';
 import { punchApi } from '@/api/punch';
 import { activityApi } from '@/api/activity';
+import { employeeApi } from '@/api/employee';
 import { getApiErrorMessage } from '@/api/auth';
 import { LoadingSpinner } from '@/components/LoadingSpinner';
-import { ListSearchBar } from '@/components/ListSearchBar';
 import { useDebouncedValue } from '@/hooks/useDebouncedValue';
 import {
   ChevronDown,
@@ -17,6 +17,8 @@ import {
   User,
   Download,
   Search,
+  X,
+  Loader2,
 } from 'lucide-react';
 import { format, addDays, subDays } from 'date-fns';
 import { CalendarDateField } from '@/components/CalendarDateField';
@@ -36,10 +38,21 @@ const PUNCH_OPTIONS: { action: PunchAction; label: string }[] = [
   { action: 'break_end', label: 'End break' },
 ];
 
+function suggestionRoleLabel(emp: {
+  activeRoleId?: { name?: string } | string | null;
+}): string | null {
+  const r = emp.activeRoleId;
+  if (r && typeof r === 'object' && r.name?.trim()) return r.name.trim();
+  return null;
+}
+
 export function AttendancePage() {
   const { selectedOutletId } = useOutletStore();
   const [attendanceSearch, setAttendanceSearch] = useState('');
   const debouncedAttendanceSearch = useDebouncedValue(attendanceSearch, 350);
+  const [pickedStaff, setPickedStaff] = useState<{ id: string; name: string } | null>(null);
+  const [staffSearchFocused, setStaffSearchFocused] = useState(false);
+  const staffSearchBlurTimerRef = useRef<ReturnType<typeof setTimeout> | null>(null);
   const [punchMenuOpenId, setPunchMenuOpenId] = useState<string | null>(null);
   const punchMenuRef = useRef<HTMLDivElement | null>(null);
   const [selectedDate, setSelectedDate] = useState(new Date().toISOString().slice(0, 10));
@@ -51,6 +64,25 @@ export function AttendancePage() {
       managerApi.getDashboard(selectedOutletId ?? undefined, undefined, debouncedAttendanceSearch.trim() || undefined),
     enabled: !!selectedOutletId,
   });
+
+  const debouncedStaffSuggest = debouncedAttendanceSearch.trim();
+  const showStaffSuggestionPanel =
+    staffSearchFocused && debouncedStaffSuggest.length >= 2 && !pickedStaff;
+
+  const { data: staffSuggestPayload, isFetching: staffSuggestFetching } = useQuery({
+    queryKey: ['attendance-staff-suggestions', selectedOutletId, debouncedStaffSuggest],
+    queryFn: () =>
+      employeeApi.getMyEmployees({
+        outletId: selectedOutletId!,
+        search: debouncedStaffSuggest,
+        limit: 25,
+        page: 1,
+      }),
+    enabled: !!selectedOutletId && showStaffSuggestionPanel,
+  });
+
+  const staffSuggestions =
+    (staffSuggestPayload as { data?: { employees?: unknown[] } } | undefined)?.data?.employees ?? [];
 
   const { data: attendanceData, isLoading: isAttendanceLoading } = useQuery({
     queryKey: ['attendance', selectedOutletId, selectedDate, debouncedAttendanceSearch],
@@ -95,6 +127,37 @@ export function AttendancePage() {
     return () => document.removeEventListener('mousedown', onDoc);
   }, []);
 
+  useEffect(
+    () => () => {
+      if (staffSearchBlurTimerRef.current) clearTimeout(staffSearchBlurTimerRef.current);
+    },
+    []
+  );
+
+  const clearStaffSearchBlurTimer = () => {
+    if (staffSearchBlurTimerRef.current) {
+      clearTimeout(staffSearchBlurTimerRef.current);
+      staffSearchBlurTimerRef.current = null;
+    }
+  };
+
+  const onStaffSearchFocus = () => {
+    clearStaffSearchBlurTimer();
+    setStaffSearchFocused(true);
+  };
+
+  const onStaffSearchBlur = () => {
+    clearStaffSearchBlurTimer();
+    staffSearchBlurTimerRef.current = setTimeout(() => setStaffSearchFocused(false), 220);
+  };
+
+  const clearStaffFilter = () => {
+    clearStaffSearchBlurTimer();
+    setPickedStaff(null);
+    setAttendanceSearch('');
+    setStaffSearchFocused(false);
+  };
+
   const staffStatus = dashboardData?.staffStatus ?? [];
   const events = attendanceData?.data?.events ?? attendanceData?.events ?? [];
 
@@ -110,14 +173,82 @@ export function AttendancePage() {
           <p className="text-gray-500 mt-0.5">Manage staff punches and track daily activity</p>
         </div>
         <div className="flex flex-col sm:flex-row items-center gap-4">
-          <div className="relative w-full sm:w-80">
-            <Search className="absolute left-3.5 top-1/2 -translate-y-1/2 h-4 w-4 text-gray-400" />
+          <div className="relative w-full sm:w-80 z-20">
+            <Search className="absolute left-3.5 top-1/2 -translate-y-1/2 h-4 w-4 text-gray-400 pointer-events-none" />
             <input
               value={attendanceSearch}
-              onChange={(e) => setAttendanceSearch(e.target.value)}
-              placeholder="Search staff..."
-              className="w-full pl-10 pr-4 py-2.5 rounded-xl border border-gray-200 focus:ring-2 focus:ring-emerald-500/20 focus:border-emerald-500 bg-white text-sm"
+              onChange={(e) => {
+                const v = e.target.value;
+                setAttendanceSearch(v);
+                if (pickedStaff && v.trim() !== pickedStaff.name.trim()) {
+                  setPickedStaff(null);
+                }
+              }}
+              onFocus={onStaffSearchFocus}
+              onBlur={onStaffSearchBlur}
+              placeholder="Search staff (min. 2 letters for suggestions)…"
+              autoComplete="off"
+              className="w-full pl-10 pr-10 py-2.5 rounded-xl border border-gray-200 focus:ring-2 focus:ring-emerald-500/20 focus:border-emerald-500 bg-white text-sm"
+              aria-autocomplete="list"
+              aria-expanded={showStaffSuggestionPanel}
+              aria-controls="attendance-staff-suggestions"
             />
+            {pickedStaff || attendanceSearch.length > 0 ? (
+              <button
+                type="button"
+                onMouseDown={(e) => e.preventDefault()}
+                onClick={clearStaffFilter}
+                className="absolute right-2 top-1/2 -translate-y-1/2 p-1 rounded-lg text-gray-400 hover:text-gray-600 hover:bg-gray-100 transition-colors"
+                aria-label="Clear staff search"
+              >
+                <X className="h-4 w-4" />
+              </button>
+            ) : null}
+            {showStaffSuggestionPanel ? (
+              <div
+                id="attendance-staff-suggestions"
+                className="absolute left-0 right-0 top-full mt-1 max-h-72 overflow-auto rounded-xl border border-gray-100 bg-white py-1 shadow-xl ring-1 ring-black/5 animate-fade-in"
+                role="listbox"
+              >
+                {staffSuggestFetching ? (
+                  <div className="flex items-center justify-center gap-2 py-6 text-sm text-gray-500">
+                    <Loader2 className="h-4 w-4 animate-spin text-emerald-600" />
+                    Searching…
+                  </div>
+                ) : Array.isArray(staffSuggestions) && staffSuggestions.length > 0 ? (
+                  (staffSuggestions as { _id: string; name: string; activeRoleId?: { name?: string } | string }[]).map(
+                    (emp) => {
+                      const role = suggestionRoleLabel(emp);
+                      return (
+                        <button
+                          key={String(emp._id)}
+                          type="button"
+                          role="option"
+                          className="flex w-full items-center gap-3 px-3 py-2.5 text-left text-sm hover:bg-emerald-50 transition-colors"
+                          onMouseDown={(e) => e.preventDefault()}
+                          onClick={() => {
+                            setPickedStaff({ id: String(emp._id), name: emp.name });
+                            setAttendanceSearch(emp.name);
+                            setStaffSearchFocused(false);
+                          }}
+                        >
+                          <div className="flex h-9 w-9 shrink-0 items-center justify-center rounded-full bg-emerald-50 text-sm font-bold text-emerald-700">
+                            {emp.name.charAt(0)}
+                          </div>
+                          <div className="min-w-0 flex-1">
+                            <p className="truncate font-medium text-gray-900">{emp.name}</p>
+                            {role ? <p className="truncate text-xs text-gray-500">{role}</p> : null}
+                          </div>
+                          <ChevronRight className="h-4 w-4 shrink-0 text-gray-300" />
+                        </button>
+                      );
+                    }
+                  )
+                ) : (
+                  <p className="px-3 py-4 text-center text-sm text-gray-500">No staff match this search.</p>
+                )}
+              </div>
+            ) : null}
           </div>
         </div>
       </div>

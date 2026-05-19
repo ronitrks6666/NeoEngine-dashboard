@@ -15,12 +15,23 @@ const createSchema = z.object({
   phone: zPhone10,
 });
 
+import { useNavigate } from 'react-router-dom';
+import { useAuth } from '@/hooks/useAuth';
+import { ImpersonateModal } from '@/components/ImpersonateModal';
+import type { Owner as AuthOwner } from '@/types/auth';
+
 type CreateForm = z.infer<typeof createSchema>;
 
 export function OwnersPage() {
   const [search, setSearch] = useState('');
   const [showCreate, setShowCreate] = useState(false);
+  const [impersonatingId, setImpersonatingId] = useState<string | null>(null);
+  const [impersonateToken, setImpersonateToken] = useState<string | null>(null);
+  const [impersonateOwnerObj, setImpersonateOwnerObj] = useState<AuthOwner | null>(null);
+  
   const queryClient = useQueryClient();
+  const navigate = useNavigate();
+  const { impersonateAsOwner } = useAuth();
 
   const { data: owners = [], isLoading } = useQuery({
     queryKey: ['admin-owners'],
@@ -50,6 +61,19 @@ export function OwnersPage() {
 
   const onSubmit = (data: CreateForm) => {
     createMutation.mutate(data);
+  };
+
+  const handleImpersonate = async (ownerId: string) => {
+    try {
+      setImpersonatingId(ownerId);
+      const { token, owner } = await impersonateAsOwner(ownerId);
+      setImpersonateToken(token);
+      setImpersonateOwnerObj(owner);
+    } catch (e: unknown) {
+      alert(getApiErrorMessage(e));
+    } finally {
+      setImpersonatingId(null);
+    }
   };
 
   return (
@@ -83,6 +107,7 @@ export function OwnersPage() {
                 <th className="px-4 py-2 text-left text-sm font-medium text-gray-700">Email</th>
                 <th className="px-4 py-2 text-left text-sm font-medium text-gray-700">Phone</th>
                 <th className="px-4 py-2 text-left text-sm font-medium text-gray-700">Status</th>
+                <th className="px-4 py-2 text-right text-sm font-medium text-gray-700">Actions</th>
               </tr>
             </thead>
             <tbody className="divide-y divide-gray-200">
@@ -91,7 +116,20 @@ export function OwnersPage() {
                   <td className="px-4 py-2">{o.name}</td>
                   <td className="px-4 py-2">{o.email}</td>
                   <td className="px-4 py-2">{o.phone}</td>
-                  <td className="px-4 py-2">{o.isActive !== false ? 'Active' : 'Inactive'}</td>
+                  <td className="px-4 py-2">
+                    <span className={`inline-flex items-center px-2.5 py-0.5 rounded-full text-xs font-medium ${o.isActive !== false ? 'bg-green-100 text-green-800' : 'bg-red-100 text-red-800'}`}>
+                      {o.isActive !== false ? 'Active' : 'Inactive'}
+                    </span>
+                  </td>
+                  <td className="px-4 py-2 text-right">
+                    <button
+                      onClick={() => handleImpersonate(o._id)}
+                      disabled={impersonatingId === o._id || o.isActive === false}
+                      className="text-primary hover:text-primary-dark font-medium text-sm disabled:opacity-50"
+                    >
+                      {impersonatingId === o._id ? 'Connecting...' : 'Impersonate'}
+                    </button>
+                  </td>
                 </tr>
               ))}
             </tbody>
@@ -156,6 +194,17 @@ export function OwnersPage() {
           </div>
         </div>
       )}
+
+      <ImpersonateModal
+        isOpen={!!impersonateToken}
+        onClose={() => { 
+          setImpersonateToken(null); 
+          setImpersonateOwnerObj(null); 
+          queryClient.invalidateQueries();
+        }}
+        token={impersonateToken}
+        owner={impersonateOwnerObj}
+      />
     </div>
   );
 }

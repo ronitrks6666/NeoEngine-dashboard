@@ -1,4 +1,5 @@
 import { useState, useRef, useEffect, useCallback, useMemo } from 'react';
+import { motion, AnimatePresence } from 'framer-motion';
 import { useQuery, useMutation, useQueryClient } from '@tanstack/react-query';
 import { useOutletStore } from '@/stores/outletStore';
 import { useAuth } from '@/hooks/useAuth';
@@ -9,10 +10,161 @@ import { LoadingSpinner } from '@/components/LoadingSpinner';
 import { ListSearchBar } from '@/components/ListSearchBar';
 import { useDebouncedValue } from '@/hooks/useDebouncedValue';
 import {
-  AlertTriangle, Plus, X, Send, ArrowLeft, Circle,
+  AlertTriangle, Plus, X, Send, ArrowLeft, Circle, AlertCircle,
   CheckCircle2, XCircle, Clock, Trash2, Pin, Info,
-  Image, Video, FileText, Paperclip, Check, CheckCheck, ChevronRight
+  Image, Video, FileText, Paperclip, Check, CheckCheck, ChevronRight,
+  Mic, MapPin, Phone, Download, Play, Pause, Camera, Square, User, ChevronDown
 } from 'lucide-react';
+
+// ── Staged attachment (pending upload) ───────────────────────────────────────
+type StagedFile = {
+  localId: string;
+  file: File;
+  preview?: string;  // object URL for images
+  kind?: 'image' | 'video' | 'audio' | 'document';
+  uploading: boolean;
+  uploaded?: { url: string; kind: string; fileName: string };
+  error?: string;
+};
+
+// ── Inline audio player component ────────────────────────────────────────────
+function AudioPlayer({ src }: { src: string }) {
+  const audioRef = useRef<HTMLAudioElement>(null);
+  const [playing, setPlaying] = useState(false);
+  const [progress, setProgress] = useState(0);
+  const [duration, setDuration] = useState(0);
+
+  const toggle = () => {
+    const el = audioRef.current;
+    if (!el) return;
+    if (playing) { el.pause(); } else { void el.play(); }
+  };
+
+  const fmt = (s: number) => {
+    const m = Math.floor(s / 60), sec = Math.floor(s % 60);
+    return `${m}:${sec.toString().padStart(2, '0')}`;
+  };
+
+  return (
+    <div className="flex items-center gap-2 bg-black/5 rounded-xl px-3 py-2 min-w-[180px]">
+      <audio
+        ref={audioRef}
+        src={src}
+        onPlay={() => setPlaying(true)}
+        onPause={() => setPlaying(false)}
+        onEnded={() => { setPlaying(false); setProgress(0); }}
+        onTimeUpdate={() => {
+          const el = audioRef.current;
+          if (el && el.duration) setProgress(el.currentTime / el.duration);
+        }}
+        onLoadedMetadata={() => setDuration(audioRef.current?.duration ?? 0)}
+        preload="metadata"
+      />
+      <button
+        onClick={toggle}
+        className="w-8 h-8 rounded-full bg-emerald-600 text-white flex items-center justify-center shrink-0 hover:bg-emerald-700 transition-colors"
+      >
+        {playing ? <Pause className="h-3.5 w-3.5" /> : <Play className="h-3.5 w-3.5 ml-0.5" />}
+      </button>
+      <div className="flex-1 min-w-0">
+        <div className="h-1.5 bg-gray-200 rounded-full overflow-hidden">
+          <div className="h-full bg-emerald-500 rounded-full transition-all" style={{ width: `${progress * 100}%` }} />
+        </div>
+        <p className="text-[10px] text-gray-400 mt-0.5">{duration > 0 ? fmt(duration) : '...'}</p>
+      </div>
+    </div>
+  );
+}
+
+// ── Rich attachment renderer ──────────────────────────────────────────────────
+function AttachmentRenderer({ att }: { att: any }) {
+  if (att.kind === 'image') {
+    return (
+      <a href={att.url} target="_blank" rel="noopener noreferrer">
+        <img
+          src={att.url}
+          alt={att.fileName || 'Image'}
+          className="max-w-[220px] max-h-[180px] rounded-xl object-cover border border-black/10 hover:opacity-90 transition-opacity"
+          loading="lazy"
+        />
+      </a>
+    );
+  }
+  if (att.kind === 'audio') {
+    return <AudioPlayer src={att.url} />;
+  }
+  if (att.kind === 'video') {
+    return (
+      <video
+        src={att.url}
+        controls
+        className="max-w-[220px] rounded-xl border border-black/10"
+        preload="metadata"
+      />
+    );
+  }
+  if (att.kind === 'location') {
+    const lat = att.meta?.lat ?? att.lat;
+    const lng = att.meta?.lng ?? att.lng;
+    const label = att.meta?.label ?? att.label ?? 'Location';
+    const mapsUrl = `https://www.google.com/maps?q=${lat},${lng}`;
+    return (
+      <a
+        href={mapsUrl}
+        target="_blank"
+        rel="noopener noreferrer"
+        className="flex items-center gap-2 p-2.5 rounded-xl bg-blue-50 border border-blue-100 hover:bg-blue-100 transition-colors max-w-[220px]"
+      >
+        <div className="w-8 h-8 rounded-lg bg-blue-600 flex items-center justify-center shrink-0">
+          <MapPin className="h-4 w-4 text-white" />
+        </div>
+        <div className="min-w-0">
+          <p className="text-xs font-semibold text-blue-800 truncate">{label}</p>
+          <p className="text-[10px] text-blue-500">Tap to open in Maps</p>
+        </div>
+      </a>
+    );
+  }
+  if (att.kind === 'contact') {
+    const name = att.meta?.name ?? att.contactMeta?.name ?? att.fileName ?? 'Contact';
+    const phone = att.meta?.phone ?? att.contactMeta?.phone;
+    const email = att.meta?.email ?? att.contactMeta?.email;
+    return (
+      <div className="flex items-center gap-2 p-2.5 rounded-xl bg-emerald-50 border border-emerald-100 max-w-[220px]">
+        <div className="w-8 h-8 rounded-full bg-emerald-600 flex items-center justify-center shrink-0">
+          <Phone className="h-4 w-4 text-white" />
+        </div>
+        <div className="min-w-0">
+          <p className="text-xs font-semibold text-emerald-800 truncate">{name}</p>
+          {phone && <p className="text-[10px] text-emerald-600">{phone}</p>}
+          {email && <p className="text-[10px] text-emerald-500 truncate">{email}</p>}
+        </div>
+      </div>
+    );
+  }
+  // Generic file / document
+  return (
+    <a
+      href={att.url}
+      target="_blank"
+      rel="noopener noreferrer"
+      download={att.fileName}
+      className="flex items-center gap-3 p-3 rounded-xl bg-gray-50 border border-gray-200 hover:bg-gray-100 hover:border-emerald-200 transition-all max-w-[260px] group"
+    >
+      <div className="w-10 h-10 rounded-lg bg-white border border-gray-100 flex items-center justify-center shrink-0 shadow-sm group-hover:scale-105 transition-transform">
+        <FileText className="h-5 w-5 text-emerald-600" />
+      </div>
+      <div className="min-w-0 flex-1">
+        <p className="text-sm font-medium text-gray-700 leading-tight break-words pr-2">
+          {att.fileName || 'Document'}
+        </p>
+        <p className="text-[10px] text-gray-400 mt-1 flex items-center gap-1">
+          <Download className="h-3 w-3" /> Click to Download
+        </p>
+      </div>
+    </a>
+  );
+}
 
 const PRIORITY_COLORS: Record<string, { bg: string; text: string; border: string }> = {
   urgent: { bg: 'bg-red-50', text: 'text-red-700', border: 'border-red-300' },
@@ -32,6 +184,49 @@ type ViewMode = 'list' | 'detail';
 
 type ContextMenuState = { msgId: string; x: number; y: number } | null;
 
+type IssueMsgUrlSeg = { kind: 'text'; value: string } | { kind: 'url'; value: string; href: string };
+
+function splitIssueMessageUrls(input: string): IssueMsgUrlSeg[] {
+  const re = /\b(https?:\/\/[^\s<>"'()[\]{}]+|www\.[^\s<>"'()[\]{}]+)/gi;
+  const segments: IssueMsgUrlSeg[] = [];
+  let last = 0;
+  let m: RegExpExecArray | null;
+  while ((m = re.exec(input)) !== null) {
+    if (m.index > last) segments.push({ kind: 'text', value: input.slice(last, m.index) });
+    const raw = m[0];
+    const value = raw.replace(/[.,;:!?)\]}>]+$/g, '') || raw;
+    const href = value.startsWith('http') ? value : `https://${value}`;
+    segments.push({ kind: 'url', value, href });
+    last = m.index + raw.length;
+  }
+  if (last < input.length) segments.push({ kind: 'text', value: input.slice(last) });
+  if (segments.length === 0) segments.push({ kind: 'text', value: input });
+  return segments;
+}
+
+function IssueMessageLinkifiedText({ text, className }: { text: string; className?: string }) {
+  const parts = useMemo(() => splitIssueMessageUrls(text), [text]);
+  return (
+    <p className={className}>
+      {parts.map((p, i) =>
+        p.kind === 'text' ? (
+          <span key={i}>{p.value}</span>
+        ) : (
+          <a
+            key={i}
+            href={p.href}
+            target="_blank"
+            rel="noopener noreferrer"
+            className="text-emerald-700 font-medium underline underline-offset-2 break-all hover:text-emerald-900"
+          >
+            {p.value}
+          </a>
+        )
+      )}
+    </p>
+  );
+}
+
 export function IssuesPage() {
   const { selectedOutletId } = useOutletStore();
   const { role: authRole } = useAuth();
@@ -39,15 +234,17 @@ export function IssuesPage() {
   const [showCreate, setShowCreate] = useState(false);
   const [viewMode, setViewMode] = useState<ViewMode>('list');
   const [selectedIssueId, setSelectedIssueId] = useState<string | null>(null);
+  const [createTitle, setCreateTitle] = useState('');
+  const [createDescription, setCreateDescription] = useState('');
+  const [createPriority, setCreatePriority] = useState<Issue['priority']>('medium');
+  const [createError, setCreateError] = useState('');
+  const [createStagedFiles, setCreateStagedFiles] = useState<StagedFile[]>([]);
+  const createFileInputRef = useRef<HTMLInputElement>(null);
   const [statusFilter, setStatusFilter] = useState<string>('active');
   const [priorityFilter, setPriorityFilter] = useState<string>('');
   const [searchQuery, setSearchQuery] = useState('');
   const debouncedSearch = useDebouncedValue(searchQuery, 350);
   const [confirmDelete, setConfirmDelete] = useState<Issue | null>(null);
-  const [createTitle, setCreateTitle] = useState('');
-  const [createDescription, setCreateDescription] = useState('');
-  const [createPriority, setCreatePriority] = useState<string>('medium');
-  const [createError, setCreateError] = useState('');
   const [chatMessage, setChatMessage] = useState('');
   const [contextMenu, setContextMenu] = useState<ContextMenuState>(null);
   const [pinnedMsgIds, setPinnedMsgIds] = useState<Set<string>>(new Set());
@@ -56,11 +253,67 @@ export function IssuesPage() {
   const [currentPinIdx, setCurrentPinIdx] = useState(0);
   const [readersModal, setReadersModal] = useState<{ msgId: string; text: string } | null>(null);
   const [highlightedMsgId, setHighlightedMsgId] = useState<string | null>(null);
+  // Attachment upload state
+  const [stagedFiles, setStagedFiles] = useState<StagedFile[]>([]);
+  const fileInputRef = useRef<HTMLInputElement>(null);
+  const [lightboxUrl, setLightboxUrl] = useState<string | null>(null);
+  // Pending location / contact (sent as special attachment kinds)
+  const [pendingLocation, setPendingLocation] = useState<{ lat: number; lng: number; label: string } | null>(null);
+  // Attach sheet
+  const [attachSheetOpen, setAttachSheetOpen] = useState(false);
+  // Voice recorder state
+  const [voiceOpen, setVoiceOpen] = useState(false);
+  const [voiceRecording, setVoiceRecording] = useState(false);
+  const [voiceSeconds, setVoiceSeconds] = useState(0);
+  const [voiceUploading, setVoiceUploading] = useState(false);
+  const mediaRecorderRef = useRef<MediaRecorder | null>(null);
+  const voiceChunksRef = useRef<Blob[]>([]);
+  const voiceTimerRef = useRef<ReturnType<typeof setInterval> | null>(null);
+  // Location picker state
+  const [locationOpen, setLocationOpen] = useState(false);
+  const [locationFetching, setLocationFetching] = useState(false);
+  const [locationError, setLocationError] = useState('');
+  const [locationCoords, setLocationCoords] = useState<{ lat: number; lng: number } | null>(null);
+  const [locationLabel, setLocationLabel] = useState('');
+  const [locationSearch, setLocationSearch] = useState('');
+  const [locationSearching, setLocationSearching] = useState(false);
+  const [locationSearchResults, setLocationSearchResults] = useState<{ label: string; lat: number; lng: number }[]>([]);
+  const locationSearchTimer = useRef<ReturnType<typeof setTimeout> | null>(null);
+  const [showScrollBottom, setShowScrollBottom] = useState(false);
+  const [lastSelectedIssueId, setLastSelectedIssueId] = useState<string | null>(null);
+  const [hasMoreMessages, setHasMoreMessages] = useState(true);
+  const [isFetchingOlder, setIsFetchingOlder] = useState(false);
+
+  // Reset last selected issue when going back to list so scroll-to-bottom triggers again
+  useEffect(() => {
+    if (viewMode === 'list') {
+      setLastSelectedIssueId(null);
+    }
+  }, [viewMode]);
+
+  // Contact form state
+  const [contactName, setContactName] = useState('');
+  const [contactPhone, setContactPhone] = useState('');
+  const [contactEmail, setContactEmail] = useState('');
 
 
 
   const scrollToBottom = useCallback((behavior: ScrollBehavior = 'smooth') => {
-    setTimeout(() => chatEndRef.current?.scrollIntoView({ behavior }), 60);
+    const doScroll = () => {
+      if (chatEndRef.current) {
+        chatEndRef.current.scrollIntoView({ behavior, block: 'end' });
+      } else if (chatContainerRef.current) {
+        chatContainerRef.current.scrollTop = chatContainerRef.current.scrollHeight;
+      }
+      setShowScrollBottom(false);
+    };
+
+    doScroll();
+    // Second attempt slightly later to catch any layout shifts
+    setTimeout(doScroll, 150);
+    if (behavior === 'instant') {
+      setTimeout(doScroll, 350); // Aggressive fallback for opening chat
+    }
   }, []);
 
   // Queries
@@ -87,10 +340,52 @@ export function IssuesPage() {
 
   const { data: messagesData, isLoading: messagesLoading } = useQuery({
     queryKey: ['issue-messages', selectedIssueId],
-    queryFn: () => issueApi.getMessages(selectedIssueId!, { limit: 100 }),
+    queryFn: () => issueApi.getMessages(selectedIssueId!, { limit: 50 }),
     enabled: !!selectedIssueId && viewMode === 'detail',
-    onSuccess: () => { scrollToBottom('instant'); },
   });
+
+  const loadMoreMessages = useCallback(async () => {
+    if (!selectedIssueId || isFetchingOlder || !hasMoreMessages || !messagesData?.data?.length) return;
+    
+    setIsFetchingOlder(true);
+    const beforeId = messagesData.data[0].id;
+    try {
+      const res = await issueApi.getMessages(selectedIssueId, { before: beforeId, limit: 30 });
+      if (res.data.length === 0) {
+        setHasMoreMessages(false);
+      } else {
+        const currentScrollHeight = chatContainerRef.current?.scrollHeight || 0;
+        
+        queryClient.setQueryData(['issue-messages', selectedIssueId], (old: any) => ({
+          ...old,
+          data: [...res.data, ...(old?.data || [])],
+          pagination: res.pagination
+        }));
+
+        // Maintain scroll position after prepending messages
+        setTimeout(() => {
+          if (chatContainerRef.current) {
+            const newScrollHeight = chatContainerRef.current.scrollHeight;
+            chatContainerRef.current.scrollTop = newScrollHeight - currentScrollHeight;
+          }
+        }, 0);
+      }
+    } catch (e) {
+      console.error('Failed to load older messages', e);
+    } finally {
+      setIsFetchingOlder(false);
+    }
+  }, [selectedIssueId, isFetchingOlder, hasMoreMessages, messagesData, queryClient]);
+
+  const handleScroll = useCallback((e: React.UIEvent<HTMLDivElement>) => {
+    const target = e.currentTarget;
+    const isAtBottom = target.scrollHeight - target.scrollTop <= target.clientHeight + 150;
+    setShowScrollBottom(!isAtBottom);
+
+    if (target.scrollTop < 50 && hasMoreMessages && !isFetchingOlder && !messagesLoading) {
+      loadMoreMessages();
+    }
+  }, [hasMoreMessages, isFetchingOlder, messagesLoading, loadMoreMessages]);
 
   const { data: _employeesData } = useQuery({
     queryKey: ['my-employees', selectedOutletId],
@@ -135,21 +430,56 @@ export function IssuesPage() {
   const pinnedMessages = useMemo(() => allMessages.filter(m => pinnedMsgIds.has(m.id)), [allMessages, pinnedMsgIds]);
   const issue = issueDetail?.data;
 
-  // Scroll to bottom when messages first load
+  // Scroll to bottom when entering detail view for an issue
   useEffect(() => {
-    if (!messagesLoading && serverMessages.length > 0) scrollToBottom('instant');
-  }, [messagesLoading, scrollToBottom]);
+    if (viewMode === 'detail' && selectedIssueId && serverMessages.length > 0) {
+      // If we just entered this issue, or messages just loaded
+      if (selectedIssueId !== lastSelectedIssueId) {
+        scrollToBottom('instant');
+        setLastSelectedIssueId(selectedIssueId);
+        setHasMoreMessages(true);
+      }
+    }
+  }, [viewMode, selectedIssueId, serverMessages.length, lastSelectedIssueId, scrollToBottom]);
+
+  // Scroll to bottom on new messages
+  const lastMessageId = serverMessages[serverMessages.length - 1]?.id;
+  useEffect(() => {
+    if (!lastMessageId) return;
+    const container = chatContainerRef.current;
+    if (!container) return;
+    
+    const isNearBottom = container.scrollHeight - container.scrollTop <= container.clientHeight + 200;
+    if (isNearBottom) {
+      scrollToBottom('smooth');
+    }
+  }, [lastMessageId, scrollToBottom]);
+
+  // Mark as read when new messages are viewed
+  useEffect(() => {
+    if (selectedIssueId && lastMessageId && viewMode === 'detail') {
+      issueApi.markRead(selectedIssueId, lastMessageId).catch(() => { });
+    }
+  }, [selectedIssueId, lastMessageId, viewMode]);
+
+  // Also scroll when sending a new message
+  useEffect(() => {
+    if (optimisticMsgs.length > 0) {
+      scrollToBottom('smooth');
+    }
+  }, [optimisticMsgs.length, scrollToBottom]);
 
   // Mutations
   const createMutation = useMutation({
     mutationFn: (payload: Parameters<typeof issueApi.createIssue>[0]) => issueApi.createIssue(payload),
-    onSuccess: () => {
-      queryClient.invalidateQueries({ queryKey: ['issues'] });
+    onSuccess: async () => {
+      await queryClient.invalidateQueries({ queryKey: ['issues'] });
       setShowCreate(false);
       setCreateTitle('');
       setCreateDescription('');
       setCreatePriority('medium');
       setCreateError('');
+      setCreateStagedFiles([]);
     },
     onError: (err) => setCreateError(getApiErrorMessage(err as Error)),
   });
@@ -163,25 +493,203 @@ export function IssuesPage() {
   });
 
   const sendMessageMutation = useMutation({
-    mutationFn: ({ issueId, text }: { issueId: string; text: string }) =>
-      issueApi.sendMessage(issueId, { text }),
-    onMutate: ({ text }) => {
+    mutationFn: ({ issueId, text, attachments, locationMeta }: { issueId: string; text: string; attachments?: any[]; locationMeta?: any }) =>
+      issueApi.sendMessage(issueId, { text, attachments, locationMeta }),
+    onMutate: ({ text, attachments, locationMeta }) => {
       const optimistic: IssueMessage = {
         id: `opt-${Date.now()}`, issueId: selectedIssueId!, authorId: 'me',
-        authorType: 'OWNER', authorName: 'You', text, attachments: [], mentions: [],
+        authorType: 'OWNER', authorName: 'You', text,
+        attachments: (attachments ?? []) as any,
+        locationMeta: locationMeta ?? null,
+        mentions: [],
         createdAt: new Date().toISOString(), updatedAt: new Date().toISOString(),
       };
       setOptimisticMsgs(prev => [...prev, optimistic]);
       setChatMessage('');
+      setStagedFiles([]);
       scrollToBottom();
     },
     onSuccess: () => {
       queryClient.invalidateQueries({ queryKey: ['issue-messages', selectedIssueId] });
       queryClient.invalidateQueries({ queryKey: ['issues'] });
-      // We don't clear optimistic messages here; they are cleared by the useEffect when data arrives
     },
     onError: () => setOptimisticMsgs(prev => prev.filter(m => !m.id.startsWith('opt-'))),
   });
+
+  // Upload handler — stages files and uploads immediately
+  const handleFileSelect = useCallback(async (files: FileList | null, isForCreate: boolean = false) => {
+    if (!files || files.length === 0) return;
+    const currentStagedCount = isForCreate ? createStagedFiles.length : stagedFiles.length;
+    const toAdd = Array.from(files).slice(0, 6 - currentStagedCount);
+    
+    const newStaged: StagedFile[] = toAdd.map(f => {
+      const isVideo = f.type.startsWith('video/');
+      const sizeMB = f.size / (1024 * 1024);
+      let error: string | undefined;
+      
+      if (isVideo && sizeMB > 50) {
+        error = 'Video exceeds 50MB limit';
+      }
+
+      return {
+        localId: `sf_${Date.now()}_${Math.random().toString(36).slice(2, 6)}`,
+        file: f,
+        kind: f.type.startsWith('image/') ? 'image' : isVideo ? 'video' : 'document',
+        preview: f.type.startsWith('image/') ? URL.createObjectURL(f) : undefined,
+        uploading: !error,
+        error: error
+      };
+    });
+
+    if (isForCreate) {
+      setCreateStagedFiles(prev => [...prev, ...newStaged]);
+    } else {
+      setStagedFiles(prev => [...prev, ...newStaged]);
+    }
+
+    await Promise.all(newStaged.map(async (sf) => {
+      if (sf.error) return;
+      try {
+        const res = await issueApi.uploadAttachment(sf.file);
+        const updateFn = (prev: StagedFile[]) => prev.map(x =>
+          x.localId === sf.localId ? { ...x, uploading: false, uploaded: res } : x
+        );
+        if (isForCreate) setCreateStagedFiles(updateFn);
+        else setStagedFiles(updateFn);
+      } catch {
+        const errFn = (prev: StagedFile[]) => prev.map(x =>
+          x.localId === sf.localId ? { ...x, uploading: false, error: 'Upload failed' } : x
+        );
+        if (isForCreate) setCreateStagedFiles(errFn);
+        else setStagedFiles(errFn);
+      }
+    }));
+  }, [stagedFiles.length, createStagedFiles.length]);
+
+  // ── Voice recorder ──────────────────────────────────────────────────────────
+  const startVoiceRecording = useCallback(async () => {
+    try {
+      const stream = await navigator.mediaDevices.getUserMedia({ audio: true });
+      const mr = new MediaRecorder(stream);
+      voiceChunksRef.current = [];
+      mr.ondataavailable = e => { if (e.data.size > 0) voiceChunksRef.current.push(e.data); };
+      mr.start();
+      mediaRecorderRef.current = mr;
+      setVoiceRecording(true);
+      setVoiceSeconds(0);
+      voiceTimerRef.current = setInterval(() => setVoiceSeconds(s => s + 1), 1000);
+    } catch {
+      alert('Microphone access denied. Please allow microphone access.');
+    }
+  }, []);
+
+  const stopAndSendVoice = useCallback(async () => {
+    const mr = mediaRecorderRef.current;
+    if (!mr) return;
+    setVoiceUploading(true);
+    if (voiceTimerRef.current) clearInterval(voiceTimerRef.current);
+    await new Promise<void>(resolve => {
+      mr.onstop = () => resolve();
+      mr.stop();
+      mr.stream.getTracks().forEach(t => t.stop());
+    });
+    mediaRecorderRef.current = null;
+    setVoiceRecording(false);
+    const blob = new Blob(voiceChunksRef.current, { type: 'audio/webm' });
+    const file = new File([blob], `voice-${Date.now()}.webm`, { type: 'audio/webm' });
+    try {
+      const res = await issueApi.uploadAttachment(file);
+      setStagedFiles(prev => [...prev, {
+        localId: `sf_v_${Date.now()}`,
+        file,
+        uploading: false,
+        uploaded: { url: res.url, kind: 'audio', fileName: res.fileName },
+      }]);
+    } catch { alert('Voice upload failed. Try again.'); }
+    setVoiceUploading(false);
+    setVoiceOpen(false);
+    setVoiceSeconds(0);
+  }, []);
+
+  const cancelVoice = useCallback(() => {
+    const mr = mediaRecorderRef.current;
+    if (mr) { mr.stop(); mr.stream.getTracks().forEach(t => t.stop()); }
+    mediaRecorderRef.current = null;
+    if (voiceTimerRef.current) clearInterval(voiceTimerRef.current);
+    setVoiceRecording(false);
+    setVoiceOpen(false);
+    setVoiceSeconds(0);
+  }, []);
+
+  // ── Location picker ─────────────────────────────────────────────────────────
+  const fetchCurrentLocation = useCallback(() => {
+    setLocationFetching(true);
+    setLocationError('');
+    setLocationCoords(null);
+    if (!navigator.geolocation) {
+      setLocationError('Geolocation is not supported by your browser.');
+      setLocationFetching(false);
+      return;
+    }
+    navigator.geolocation.getCurrentPosition(
+      async (pos) => {
+        const { latitude: lat, longitude: lng } = pos.coords;
+        setLocationCoords({ lat, lng });
+        // Reverse geocode via nominatim
+        try {
+          const r = await fetch(`https://nominatim.openstreetmap.org/reverse?lat=${lat}&lon=${lng}&format=json`);
+          const j = await r.json();
+          setLocationLabel(j.display_name?.split(',').slice(0, 3).join(', ') || `${lat.toFixed(5)}, ${lng.toFixed(5)}`);
+        } catch {
+          setLocationLabel(`${lat.toFixed(5)}, ${lng.toFixed(5)}`);
+        }
+        setLocationFetching(false);
+      },
+      (err) => {
+        setLocationError(err.message || 'Could not get location.');
+        setLocationFetching(false);
+      },
+      { timeout: 12000 }
+    );
+  }, []);
+
+  const confirmLocation = useCallback(() => {
+    if (!locationCoords) return;
+    setPendingLocation({ lat: locationCoords.lat, lng: locationCoords.lng, label: locationLabel || 'My Location' });
+    setLocationOpen(false);
+    setLocationCoords(null);
+    setLocationLabel('');
+    setLocationError('');
+    setLocationSearch('');
+    setLocationSearchResults([]);
+  }, [locationCoords, locationLabel]);
+
+  // Search address via Nominatim
+  const handleLocationSearchChange = useCallback((val: string) => {
+    setLocationSearch(val);
+    if (locationSearchTimer.current) clearTimeout(locationSearchTimer.current);
+    if (!val.trim()) { setLocationSearchResults([]); return; }
+    locationSearchTimer.current = setTimeout(async () => {
+      setLocationSearching(true);
+      try {
+        const r = await fetch(`https://nominatim.openstreetmap.org/search?q=${encodeURIComponent(val)}&format=json&limit=5`);
+        const j = await r.json();
+        setLocationSearchResults((j as any[]).map((item: any) => ({
+          label: item.display_name,
+          lat: parseFloat(item.lat),
+          lng: parseFloat(item.lon),
+        })));
+      } catch { setLocationSearchResults([]); }
+      setLocationSearching(false);
+    }, 600);
+  }, []);
+
+  const selectSearchResult = useCallback((result: { label: string; lat: number; lng: number }) => {
+    setLocationCoords({ lat: result.lat, lng: result.lng });
+    setLocationLabel(result.label.split(',').slice(0, 3).join(', '));
+    setLocationSearch('');
+    setLocationSearchResults([]);
+  }, []);
 
   const { data: readersData, isLoading: readersLoading } = useQuery({
     queryKey: ['message-readers', readersModal?.msgId],
@@ -215,6 +723,7 @@ export function IssuesPage() {
       if (viewMode === 'detail') {
         setViewMode('list');
         setSelectedIssueId(null);
+        setLastSelectedIssueId(null);
       }
     },
   });
@@ -223,21 +732,51 @@ export function IssuesPage() {
     setSelectedIssueId(id); setViewMode('detail');
     setOptimisticMsgs([]);
     // pinnedMsgIds will be updated via useEffect when issueDetail loads
-    issueApi.markRead(id).catch(() => { });
+    // markRead will be called via useEffect when messages load
   };
 
   const handleCreate = () => {
     if (!createTitle.trim()) { setCreateError('Title is required'); return; }
     if (!selectedOutletId) return;
+    
+    const readyFiles = createStagedFiles.filter(sf => sf.uploaded && !sf.error);
+    const attachments = readyFiles.map(sf => ({
+      url: sf.uploaded!.url,
+      kind: sf.uploaded!.kind as any,
+      fileName: sf.uploaded!.fileName,
+    }));
+
     createMutation.mutate({
       outletId: selectedOutletId, title: createTitle.trim(),
-      description: createDescription.trim() || undefined, priority: createPriority
+      description: createDescription.trim() || undefined, priority: createPriority,
+      attachments
     });
   };
 
   const handleSendMessage = () => {
-    if (!chatMessage.trim() || !selectedIssueId) return;
-    sendMessageMutation.mutate({ issueId: selectedIssueId, text: chatMessage.trim() });
+    const hasText = chatMessage.trim().length > 0;
+    const readyFiles = stagedFiles.filter(sf => sf.uploaded && !sf.error);
+    const hasPayload = hasText || readyFiles.length > 0 || pendingLocation;
+    if (!hasPayload || !selectedIssueId) return;
+    const attachments: any[] = readyFiles.map(sf => ({
+      url: sf.uploaded!.url,
+      kind: sf.uploaded!.kind,
+      fileName: sf.uploaded!.fileName,
+    }));
+
+    const locationMeta = pendingLocation ? {
+      lat: pendingLocation.lat,
+      lng: pendingLocation.lng,
+      label: pendingLocation.label
+    } : undefined;
+
+    setPendingLocation(null);
+    sendMessageMutation.mutate({
+      issueId: selectedIssueId,
+      text: chatMessage.trim(),
+      attachments,
+      locationMeta
+    });
   };
 
   const handleContextMenu = (e: React.MouseEvent, msgId: string) => {
@@ -275,11 +814,11 @@ export function IssuesPage() {
     const priorityCfg = PRIORITY_COLORS[issue?.priority ?? 'medium'];
 
     return (
-      <div className="flex flex-col h-[calc(100vh-3.5rem)] animate-fade-in">
+      <div className="flex flex-col h-[calc(100vh-3.5rem)] animate-fade-in relative">
         {/* Header */}
         <div className="flex items-center gap-3 px-6 py-4 border-b border-gray-100 bg-white shrink-0">
           <button
-            onClick={() => { setViewMode('list'); setSelectedIssueId(null); }}
+            onClick={() => { setViewMode('list'); setSelectedIssueId(null); setLastSelectedIssueId(null); }}
             className="p-2 rounded-lg hover:bg-gray-100 text-gray-500 transition-colors"
           >
             <ArrowLeft className="h-5 w-5" />
@@ -358,10 +897,35 @@ export function IssuesPage() {
           </div>
         )}
 
-        {/* Messages */}
-        <div ref={chatContainerRef} className="flex-1 overflow-y-auto px-4 py-4 bg-[#eae6df] space-y-1"
-          onClick={() => setContextMenu(null)}>
-          {messagesLoading ? <LoadingSpinner className="py-16" /> :
+        {/* Messages container */}
+        <div className="flex-1 relative overflow-hidden flex flex-col min-h-0 bg-[#eae6df]">
+          <div 
+            ref={chatContainerRef} 
+            className="flex-1 overflow-y-auto px-4 py-4 space-y-1"
+            onScroll={handleScroll}
+            onClick={() => setContextMenu(null)}
+          >
+            {isFetchingOlder && (
+              <div className="flex justify-center py-4">
+                <div className="flex items-center gap-2 px-3 py-1.5 rounded-full bg-white/80 shadow-sm border border-gray-100 animate-pulse">
+                  <div className="w-4 h-4 border-2 border-emerald-500 border-t-transparent rounded-full animate-spin" />
+                  <span className="text-[11px] font-semibold text-gray-500 uppercase tracking-wider">Loading history...</span>
+                </div>
+              </div>
+            )}
+
+            {!hasMoreMessages && allMessages.length > 30 && (
+              <div className="flex justify-center py-4 opacity-50">
+                <span className="text-[10px] font-bold text-gray-400 uppercase tracking-widest">Start of conversation</span>
+              </div>
+            )}
+
+            {messagesLoading && !isFetchingOlder ? (
+              <div className="flex flex-col items-center justify-center h-full gap-4">
+                <div className="w-10 h-10 border-3 border-emerald-500 border-t-transparent rounded-full animate-spin" />
+                <p className="text-sm font-medium text-gray-500">Decrypting messages...</p>
+              </div>
+            ) :
             allMessages.length === 0 ? (
               <div className="flex items-center justify-center h-full">
                 <p className="px-4 py-2 rounded-lg bg-white/80 text-sm text-gray-500 shadow-sm">No messages yet. Start the conversation.</p>
@@ -391,18 +955,29 @@ export function IssuesPage() {
                       } ${isMine ? 'rounded-br-sm ml-auto' : 'rounded-bl-sm mr-auto'}`}
                   >
                     {!isMine && <p className="text-xs font-semibold text-emerald-700 mb-0.5">{msg.authorName || 'Staff'}</p>}
-                    {msg.text && <p className="text-sm text-gray-900 whitespace-pre-wrap leading-relaxed">{msg.text}</p>}
+                    {msg.text ? (
+                      <IssueMessageLinkifiedText
+                        text={msg.text}
+                        className="text-sm text-gray-900 whitespace-pre-wrap leading-relaxed"
+                      />
+                    ) : null}
                     {(msg.attachments?.length ?? 0) > 0 && (
-                      <div className="mt-2 space-y-1.5">
+                      <div className="mt-2 space-y-2">
                         {(msg.attachments ?? []).map((att, i) => (
-                          <a key={i} href={att.url} target="_blank" rel="noopener noreferrer"
-                            className="flex items-center gap-2 p-2 rounded-lg bg-black/5 hover:bg-black/10 transition-colors">
-                            {att.kind === 'image' ? <Image className="h-4 w-4 text-blue-600" /> :
-                              att.kind === 'video' ? <Video className="h-4 w-4 text-purple-600" /> :
-                                <FileText className="h-4 w-4 text-gray-600" />}
-                            <span className="text-xs text-gray-700 truncate">{att.fileName || `Attachment ${i + 1}`}</span>
-                          </a>
+                          <div key={i}>
+                            <AttachmentRenderer att={att} />
+                          </div>
                         ))}
+                      </div>
+                    )}
+                    {msg.locationMeta && (
+                      <div className="mt-2">
+                        <AttachmentRenderer att={{ kind: 'location', meta: msg.locationMeta }} />
+                      </div>
+                    )}
+                    {msg.contactMeta && (
+                      <div className="mt-2">
+                        <AttachmentRenderer att={{ kind: 'contact', meta: msg.contactMeta }} />
                       </div>
                     )}
                     <div className={`flex items-center gap-0.5 mt-0.5 ${isMine ? 'justify-end' : 'justify-start'}`}>
@@ -420,7 +995,25 @@ export function IssuesPage() {
                 </div>
               );
             })}
-          <div ref={chatEndRef} />
+            <div ref={chatEndRef} className="h-2" />
+          </div>
+
+          {/* Scroll to bottom floating button */}
+          <AnimatePresence>
+            {showScrollBottom && (
+              <motion.button
+                initial={{ opacity: 0, y: 10, scale: 0.9 }}
+                animate={{ opacity: 1, y: 0, scale: 1 }}
+                exit={{ opacity: 0, y: 10, scale: 0.9 }}
+                onClick={() => scrollToBottom('smooth')}
+                className="absolute bottom-4 right-4 h-11 px-4 rounded-full bg-emerald-600 shadow-2xl flex items-center gap-2 text-white hover:bg-emerald-700 transition-all z-20 group"
+              >
+                <ChevronDown className="h-5 w-5 group-hover:translate-y-0.5 transition-transform" />
+                <span className="text-xs font-bold uppercase tracking-wider">Latest Messages</span>
+                <div className="absolute -top-1 -right-1 w-3 h-3 bg-red-500 rounded-full border-2 border-white shadow-sm animate-bounce" />
+              </motion.button>
+            )}
+          </AnimatePresence>
         </div>
 
         {/* Context menu */}
@@ -493,25 +1086,231 @@ export function IssuesPage() {
 
         {/* Message input */}
         {issue?.status !== 'closed' && (
-          <div className="shrink-0 px-4 py-3 bg-[#f0f2f5] border-t border-gray-200">
-            <div className="flex items-end gap-2">
-              <textarea
-                value={chatMessage}
-                onChange={(e) => setChatMessage(e.target.value)}
+          <div className="shrink-0 bg-[#f0f2f5] border-t border-gray-200">
+            {/* Staged strip (files + location) */}
+            {(stagedFiles.length > 0 || pendingLocation) && (
+              <div className="px-4 py-2 border-t border-gray-100 flex items-center gap-3 overflow-x-auto bg-gray-50/50 no-scrollbar">
+                {stagedFiles.map((sf, i) => (
+                  <div key={i} className="relative shrink-0 group">
+                    <div className={`w-14 h-14 rounded-xl border flex items-center justify-center overflow-hidden bg-white shadow-sm transition-all ${sf.error ? 'border-red-200' : 'border-gray-200 group-hover:border-emerald-200'}`}>
+                      {sf.kind === 'image' ? (
+                        <img src={sf.preview || ''} alt="Preview" className="w-full h-full object-cover" />
+                      ) : sf.kind === 'audio' ? (
+                        <Mic className="h-6 w-6 text-violet-500" />
+                      ) : (
+                        <FileText className="h-6 w-6 text-indigo-500" />
+                      )}
+                      {!sf.uploaded && !sf.error && (
+                        <div className="absolute inset-0 bg-white/60 flex items-center justify-center">
+                          <div className="w-5 h-5 border-2 border-emerald-500 border-t-transparent rounded-full animate-spin" />
+                        </div>
+                      )}
+                      {sf.error && (
+                        <div className="absolute inset-0 bg-red-50/80 flex items-center justify-center" title={sf.error}>
+                          <AlertCircle className="h-6 w-6 text-red-500" />
+                        </div>
+                      )}
+                    </div>
+                    <button onClick={() => setStagedFiles(prev => prev.filter((_, idx) => idx !== i))}
+                      className="absolute -top-1.5 -right-1.5 w-4 h-4 rounded-full bg-gray-700 text-white flex items-center justify-center shadow-md hover:bg-red-500 transition-colors">
+                      <X className="h-2.5 w-2.5" />
+                    </button>
+                  </div>
+                ))}
+                {pendingLocation && (
+                  <div className="relative shrink-0">
+                    <div className="flex items-center gap-1.5 px-3 py-2 bg-blue-100 border border-blue-200 rounded-xl text-xs font-medium text-blue-700 max-w-[120px]">
+                      <MapPin className="h-3.5 w-3.5 shrink-0" />
+                      <span className="truncate">{pendingLocation.label}</span>
+                    </div>
+                    <button onClick={() => setPendingLocation(null)} className="absolute -top-1.5 -right-1.5 w-4 h-4 rounded-full bg-gray-700 text-white flex items-center justify-center">
+                      <X className="h-2.5 w-2.5" />
+                    </button>
+                  </div>
+                )}
+              </div>
+            )}
+            <div className="flex items-end gap-2 px-4 py-3">
+              <button onClick={() => setAttachSheetOpen(true)}
+                className="p-2.5 rounded-full bg-white text-gray-500 hover:text-emerald-600 hover:bg-emerald-50 transition-all shadow-sm shrink-0" title="Attach">
+                <Paperclip className="h-4 w-4" />
+              </button>
+              <input ref={fileInputRef} type="file" multiple accept="image/*,video/*,.pdf,.doc,.docx,.xls,.xlsx,.txt" className="hidden"
+                onChange={e => { handleFileSelect(e.target.files); e.target.value = ''; }} />
+              <textarea value={chatMessage} onChange={(e) => setChatMessage(e.target.value)}
                 onKeyDown={(e) => { if (e.key === 'Enter' && !e.shiftKey) { e.preventDefault(); handleSendMessage(); } }}
-                placeholder="Type a message..."
-                rows={1}
+                placeholder="Type a message..." rows={1}
                 className="flex-1 px-4 py-2.5 rounded-2xl border-0 bg-white focus:ring-2 focus:ring-emerald-500/20 text-sm resize-none shadow-sm max-h-32 overflow-y-auto"
-                style={{ lineHeight: '1.5' }}
-              />
-              <button
-                onClick={handleSendMessage}
-                disabled={!chatMessage.trim()}
-                className="p-3 rounded-full bg-emerald-600 text-white hover:bg-emerald-700 disabled:opacity-40 transition-all shadow-sm shrink-0"
-              >
+                style={{ lineHeight: '1.5' }} />
+              <button onClick={handleSendMessage}
+                disabled={!chatMessage.trim() && stagedFiles.filter(sf => sf.uploaded).length === 0 && !pendingLocation}
+                className="p-3 rounded-full bg-emerald-600 text-white hover:bg-emerald-700 disabled:opacity-40 transition-all shadow-sm shrink-0">
                 <Send className="h-4 w-4" />
               </button>
             </div>
+          </div>
+        )}
+
+        {/* Attach Sheet - constrained to chat column width */}
+        {attachSheetOpen && (
+          <div className="absolute inset-0 z-[60] flex flex-col justify-end" onClick={() => setAttachSheetOpen(false)}>
+            <div className="absolute inset-0 bg-black/50 rounded-none" />
+            <div className="relative bg-[#f0f2f5] rounded-t-2xl pb-6 pt-4 px-4" onClick={e => e.stopPropagation()}>
+              <div className="w-10 h-1 rounded-full bg-gray-300 mx-auto mb-4" />
+              <p className="text-xs text-gray-500 mb-4 text-center font-medium uppercase tracking-widest">Attach</p>
+              <div className="grid grid-cols-3 gap-4">
+                {([
+                  { key: 'voice', icon: <Mic className="h-7 w-7 text-white" />, label: 'Voice', color: 'bg-violet-600', action: () => { setAttachSheetOpen(false); setVoiceOpen(true); } },
+                  { key: 'doc', icon: <FileText className="h-7 w-7 text-white" />, label: 'Document', color: 'bg-indigo-500', action: () => { setAttachSheetOpen(false); const i = document.createElement('input'); i.type = 'file'; i.multiple = true; i.accept = 'image/*,video/*,.pdf,.doc,.docx,.xls,.xlsx,.txt,.csv'; i.onchange = (ev: Event) => handleFileSelect((ev.target as HTMLInputElement).files); i.click(); } },
+                  { key: 'location', icon: <MapPin className="h-7 w-7 text-white" />, label: 'Location', color: 'bg-emerald-600', action: () => { setAttachSheetOpen(false); setLocationSearch(''); setLocationSearchResults([]); setLocationCoords(null); setLocationLabel(''); setLocationError(''); setLocationOpen(true); } },
+                ] as { key: string; icon: React.ReactNode; label: string; color: string; action: () => void }[]).map(tile => (
+                  <button key={tile.key} onClick={tile.action} className="flex flex-col items-center gap-2 py-3 hover:bg-white/30 rounded-2xl transition-colors">
+                    <div className={`w-14 h-14 rounded-full ${tile.color} flex items-center justify-center shadow-md`}>{tile.icon}</div>
+                    <span className="text-xs font-medium text-gray-700">{tile.label}</span>
+                  </button>
+                ))}
+              </div>
+              <button onClick={() => setAttachSheetOpen(false)} className="mt-5 w-full py-3 bg-white/70 border border-gray-200 rounded-2xl text-sm font-semibold text-gray-600 hover:bg-white transition-colors">Cancel</button>
+            </div>
+          </div>
+        )}
+
+        {/* Voice Recorder Modal */}
+        {voiceOpen && (
+          <div className="fixed inset-0 bg-black/60 z-[60] flex items-end justify-center animate-fade-in" onClick={cancelVoice}>
+            <div className="bg-white rounded-t-2xl w-full max-w-md p-6 pb-8 animate-slide-up" onClick={e => e.stopPropagation()}>
+              <h3 className="text-lg font-bold text-gray-900 text-center mb-6">Voice Message</h3>
+              <div className="flex flex-col items-center gap-4">
+                <div className={`w-20 h-20 rounded-full flex items-center justify-center shadow-lg ${voiceRecording ? 'bg-red-500 animate-pulse' : 'bg-gray-200'}`}>
+                  <Mic className={`h-9 w-9 ${voiceRecording ? 'text-white' : 'text-gray-500'}`} />
+                </div>
+                {voiceRecording && (
+                  <p className="text-2xl font-mono font-bold text-red-500">{String(Math.floor(voiceSeconds / 60)).padStart(2, '0')}:{String(voiceSeconds % 60).padStart(2, '0')}</p>
+                )}
+                {!voiceRecording && !voiceUploading && <p className="text-sm text-gray-500">Tap Record to start</p>}
+                {voiceUploading && (
+                  <div className="flex items-center gap-2 text-gray-500 text-sm">
+                    <div className="w-4 h-4 border-2 border-emerald-500 border-t-transparent rounded-full animate-spin" /> Uploading...
+                  </div>
+                )}
+              </div>
+              <div className="flex gap-3 mt-8">
+                <button onClick={cancelVoice} className="flex-1 py-3 border border-gray-200 rounded-xl font-semibold text-gray-700 hover:bg-gray-50 transition-colors flex items-center justify-center gap-2">
+                  <X className="h-4 w-4" /> Cancel
+                </button>
+                {!voiceRecording ? (
+                  <button onClick={startVoiceRecording} className="flex-1 py-3 bg-red-500 text-white rounded-xl font-semibold hover:bg-red-600 transition-colors flex items-center justify-center gap-2">
+                    <Mic className="h-4 w-4" /> Record
+                  </button>
+                ) : (
+                  <button onClick={stopAndSendVoice} disabled={voiceUploading} className="flex-1 py-3 bg-emerald-600 text-white rounded-xl font-semibold hover:bg-emerald-700 disabled:opacity-50 transition-colors flex items-center justify-center gap-2">
+                    <Square className="h-4 w-4" /> Stop & Send
+                  </button>
+                )}
+              </div>
+            </div>
+          </div>
+        )}
+
+        {/* Location Picker Modal */}
+        {locationOpen && (
+          <div className="fixed inset-0 bg-black/60 z-[60] flex items-center justify-center p-4 animate-fade-in">
+            <div className="bg-white rounded-2xl shadow-2xl w-full max-w-md animate-slide-up max-h-[90vh] overflow-y-auto">
+              <div className="p-5 border-b border-gray-100 flex items-center justify-between sticky top-0 bg-white z-10">
+                <h3 className="font-bold text-gray-900">Share Location</h3>
+                <button onClick={() => setLocationOpen(false)} className="p-1.5 rounded-lg hover:bg-gray-100 text-gray-400"><X className="h-5 w-5" /></button>
+              </div>
+              <div className="p-5 space-y-4">
+
+                {/* Two action buttons at top */}
+                <div className="grid grid-cols-2 gap-3">
+                  <button
+                    onClick={fetchCurrentLocation}
+                    disabled={locationFetching}
+                    className="flex items-center justify-center gap-2 py-2.5 px-3 bg-emerald-600 text-white rounded-xl text-sm font-semibold hover:bg-emerald-700 disabled:opacity-60 transition-colors"
+                  >
+                    {locationFetching
+                      ? <div className="w-4 h-4 border-2 border-white border-t-transparent rounded-full animate-spin" />
+                      : <MapPin className="h-4 w-4" />}
+                    Current Location
+                  </button>
+                  <div className="text-xs text-gray-400 flex items-center justify-center">— or search below —</div>
+                </div>
+
+                {/* Address search */}
+                <div className="relative">
+                  <input
+                    value={locationSearch}
+                    onChange={e => handleLocationSearchChange(e.target.value)}
+                    placeholder="Search address or place..."
+                    className="w-full pl-9 pr-4 py-2.5 rounded-xl border border-gray-200 text-sm focus:ring-2 focus:ring-emerald-500/20 focus:border-emerald-500"
+                  />
+                  <MapPin className="absolute left-3 top-1/2 -translate-y-1/2 h-4 w-4 text-gray-400" />
+                  {locationSearching && (
+                    <div className="absolute right-3 top-1/2 -translate-y-1/2 w-4 h-4 border-2 border-emerald-500 border-t-transparent rounded-full animate-spin" />
+                  )}
+                </div>
+
+                {/* Search results */}
+                {locationSearchResults.length > 0 && (
+                  <div className="border border-gray-100 rounded-xl overflow-hidden shadow-sm">
+                    {locationSearchResults.map((r, i) => (
+                      <button
+                        key={i}
+                        onClick={() => selectSearchResult(r)}
+                        className="w-full text-left px-4 py-3 text-sm hover:bg-emerald-50 border-b border-gray-50 last:border-b-0 transition-colors flex items-start gap-2"
+                      >
+                        <MapPin className="h-3.5 w-3.5 text-emerald-600 shrink-0 mt-0.5" />
+                        <span className="text-gray-700 leading-snug line-clamp-2">{r.label}</span>
+                      </button>
+                    ))}
+                  </div>
+                )}
+
+                {locationError && (
+                  <div className="p-3 bg-red-50 text-red-600 rounded-xl text-sm border border-red-100">{locationError}</div>
+                )}
+
+                {/* Detected / selected location preview */}
+                {locationCoords && !locationFetching && (
+                  <div className="space-y-3">
+                    <div className="p-3 bg-emerald-50 rounded-xl border border-emerald-100">
+                      <p className="text-xs text-emerald-600 font-semibold mb-1">📍 Selected location</p>
+                      <p className="text-sm text-gray-700 leading-relaxed">{locationLabel || `${locationCoords.lat.toFixed(5)}, ${locationCoords.lng.toFixed(5)}`}</p>
+                    </div>
+                    <div>
+                      <label className="block text-xs font-semibold text-gray-500 mb-1">Label (optional)</label>
+                      <input value={locationLabel} onChange={e => setLocationLabel(e.target.value)}
+                        className="w-full px-3 py-2 rounded-xl border border-gray-200 text-sm focus:ring-2 focus:ring-emerald-500/20 focus:border-emerald-500" placeholder="e.g. Kitchen entrance" />
+                    </div>
+                    <a href={`https://www.google.com/maps?q=${locationCoords.lat},${locationCoords.lng}`} target="_blank" rel="noopener noreferrer"
+                      className="block text-center text-xs text-emerald-600 underline">Preview on Google Maps ↗</a>
+                  </div>
+                )}
+
+                {locationFetching && (
+                  <div className="flex flex-col items-center gap-2 py-4">
+                    <div className="w-5 h-5 border-2 border-emerald-500 border-t-transparent rounded-full animate-spin" />
+                    <p className="text-sm text-gray-500">Getting your location...</p>
+                  </div>
+                )}
+              </div>
+
+              {locationCoords && (
+                <div className="px-5 pb-5">
+                  <button onClick={confirmLocation} className="w-full py-3 bg-emerald-600 text-white rounded-xl font-semibold hover:bg-emerald-700 transition-colors">Share Location</button>
+                </div>
+              )}
+            </div>
+          </div>
+        )}
+
+
+        {/* Image lightbox */}
+        {lightboxUrl && (
+          <div className="fixed inset-0 bg-black/90 z-[70] flex items-center justify-center p-4" onClick={() => setLightboxUrl(null)}>
+            <button className="absolute top-4 right-4 p-2 rounded-full bg-white/20 text-white hover:bg-white/30"><X className="h-6 w-6" /></button>
+            <img src={lightboxUrl} alt="" className="max-w-full max-h-full object-contain rounded-xl" />
           </div>
         )}
       </div>
@@ -719,13 +1518,56 @@ export function IssuesPage() {
                   ))}
                 </div>
               </div>
+              <div>
+                <label className="block text-sm font-medium text-gray-700 mb-2">Attachments</label>
+                <div className="flex flex-wrap gap-3">
+                  <input ref={createFileInputRef} type="file" multiple accept="image/*,video/*,.pdf,.doc,.docx,.xls,.xlsx,.txt" className="hidden"
+                    onChange={e => { handleFileSelect(e.target.files, true); e.target.value = ''; }} />
+                  <button
+                    type="button"
+                    onClick={() => createFileInputRef.current?.click()}
+                    className="w-16 h-16 rounded-xl border-2 border-dashed border-gray-200 flex flex-col items-center justify-center text-gray-400 hover:border-rose-300 hover:text-rose-500 transition-all gap-1"
+                  >
+                    <Plus className="h-5 w-5" />
+                    <span className="text-[10px] font-bold uppercase">Add</span>
+                  </button>
+                  {createStagedFiles.map((sf) => (
+                    <div key={sf.localId} className="relative group w-16 h-16">
+                      <div className={`w-full h-full rounded-xl border flex items-center justify-center overflow-hidden bg-white shadow-sm transition-all ${sf.error ? 'border-red-200' : 'border-gray-200'}`}>
+                        {sf.kind === 'image' ? (
+                          <img src={sf.preview} alt="" className="w-full h-full object-cover" />
+                        ) : sf.kind === 'video' ? (
+                          <div className="bg-amber-100 w-full h-full flex items-center justify-center"><Video className="h-6 w-6 text-amber-600" /></div>
+                        ) : (
+                          <div className="bg-indigo-100 w-full h-full flex items-center justify-center"><FileText className="h-6 w-6 text-indigo-600" /></div>
+                        )}
+                        {sf.uploading && (
+                          <div className="absolute inset-0 bg-white/60 flex items-center justify-center">
+                            <div className="w-5 h-5 border-2 border-rose-500 border-t-transparent rounded-full animate-spin" />
+                          </div>
+                        )}
+                        {sf.error && (
+                          <div className="absolute inset-0 bg-red-50/80 flex items-center justify-center" title={sf.error}>
+                            <AlertCircle className="h-6 w-6 text-red-500" />
+                          </div>
+                        )}
+                      </div>
+                      <button onClick={() => setCreateStagedFiles(prev => prev.filter(x => x.localId !== sf.localId))}
+                        className="absolute -top-1.5 -right-1.5 w-4 h-4 rounded-full bg-gray-700 text-white flex items-center justify-center shadow-md hover:bg-red-500 transition-colors">
+                        <X className="h-2.5 w-2.5" />
+                      </button>
+                    </div>
+                  ))}
+                </div>
+              </div>
+
               <div className="flex gap-3 pt-2">
                 <button
                   onClick={handleCreate}
-                  disabled={createMutation.isPending}
+                  disabled={createMutation.isPending || createStagedFiles.some(f => f.uploading)}
                   className="flex-1 px-5 py-3 bg-rose-600 text-white rounded-xl font-semibold hover:bg-rose-700 disabled:opacity-50 transition-all"
                 >
-                  {createMutation.isPending ? 'Creating...' : 'Create issue'}
+                  {createMutation.isPending ? 'Creating...' : createStagedFiles.some(f => f.uploading) ? 'Uploading...' : 'Create issue'}
                 </button>
                 <button
                   onClick={() => setShowCreate(false)}

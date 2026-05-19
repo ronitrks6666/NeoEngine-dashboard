@@ -145,8 +145,8 @@ export function OwnerOutletsPage() {
 
   const createMutation = useMutation({
     mutationFn: ownerApi.createOutlet,
-    onSuccess: () => {
-      queryClient.invalidateQueries({ queryKey: ['owner-outlets'] });
+    onSuccess: async () => {
+      await queryClient.invalidateQueries({ queryKey: ['owner-outlets'] });
       setShowCreate(false);
       createForm.reset();
       setCreateGeofence({ geofenceLat: '', geofenceLng: '', geofenceRadius: '100' });
@@ -155,8 +155,8 @@ export function OwnerOutletsPage() {
 
   const updateMutation = useMutation({
     mutationFn: ({ id, data }: { id: string; data: Partial<EditForm> }) => ownerApi.updateOutlet(id, data),
-    onSuccess: () => {
-      queryClient.invalidateQueries({ queryKey: ['owner-outlets'] });
+    onSuccess: async () => {
+      await queryClient.invalidateQueries({ queryKey: ['owner-outlets'] });
       setEditing(null);
       editForm.reset();
     },
@@ -164,8 +164,8 @@ export function OwnerOutletsPage() {
 
   const deleteMutation = useMutation({
     mutationFn: (id: string) => ownerApi.deleteOutlet(id),
-    onSuccess: () => {
-      queryClient.invalidateQueries({ queryKey: ['owner-outlets'] });
+    onSuccess: async () => {
+      await queryClient.invalidateQueries({ queryKey: ['owner-outlets'] });
       setConfirmDelete(null);
     },
   });

@@ -66,7 +66,7 @@ export function LegalMarketingShell({ title, children, metaLine }: LegalMarketin
                 metaLine
               ) : (
                 <>
-                  Last updated: May 2, 2026. NeoEngine is operated by {LEGAL_COMPANY_NAME} (&quot;we&quot;,
+                  Last updated: June 6, 2026. NeoEngine is operated by {LEGAL_COMPANY_NAME} (&quot;we&quot;,
                   &quot;us&quot;, &quot;our&quot;).
                 </>
               )}

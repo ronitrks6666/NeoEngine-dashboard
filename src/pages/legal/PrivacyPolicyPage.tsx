@@ -135,10 +135,14 @@ export function PrivacyPolicyPage() {
 
         <h3 className="text-lg font-medium text-slate-800 pt-2">3.3 Face verification and biometrics</h3>
         <p>
-          For attendance and related verification flows, the app uses the device camera. Our backend is
-          designed to store <strong>mathematical face representations (embeddings)</strong> and related
-          geometric feature vectors—not raw photographs—in order to verify identity on supported flows.
-          Legacy or supplementary fields may include template strings associated with an employee record.
+          For attendance and related verification flows, the app uses the device camera. When you enroll
+          or verify, the app may transmit a <strong>still image</strong> to our servers for quality checks
+          and identity matching. Images are processed using our face recognition service (including{' '}
+          <strong>OpenVINO</strong>-based inference where configured). We store{' '}
+          <strong>mathematical face representations (embeddings)</strong> and related geometric feature
+          vectors—not raw photographs—in persistent storage for supported flows. Verification images are
+          used for processing and are not retained as gallery photos in our databases. Legacy or
+          supplementary fields may include template strings associated with an employee record.
         </p>
         <p>We may also store verification audit data, such as:</p>
         <LegalUnorderedList
@@ -304,19 +308,29 @@ export function PrivacyPolicyPage() {
           configuration at build time.
         </p>
 
-        <h3 className="text-lg font-medium text-slate-800 pt-2">3.14 Updates and configuration</h3>
+        <h3 className="text-lg font-medium text-slate-800 pt-2">
+          3.14 Crash and performance diagnostics
+        </h3>
+        <p>
+          The mobile app may initialize <strong>Sentry</strong> when a DSN is configured at build time.
+          Sentry collects crash reports, error stack traces, and limited performance telemetry (for example
+          app version, device model, and OS version) to help us diagnose reliability issues. We do not use
+          Sentry for advertising or cross-app tracking.
+        </p>
+
+        <h3 className="text-lg font-medium text-slate-800 pt-2">3.15 Updates and configuration</h3>
         <p>
           The Expo platform may deliver <strong>over-the-air (OTA) updates</strong> for JavaScript assets,
           and store runtime/version identifiers. Firebase configuration is used for push-related project
           linkage on Android as typical for Expo/React Native stacks.
         </p>
 
-        <h3 className="text-lg font-medium text-slate-800 pt-2">3.15 Server logs and security</h3>
+        <h3 className="text-lg font-medium text-slate-800 pt-2">3.16 Server logs and security</h3>
         <p>
           We maintain standard technical logs (IP address, user agent, timestamps, API routes, error
           reports) for security, reliability, and debugging.
         </p>
-        <h3 className="text-lg font-medium text-slate-800 pt-2">3.16 Realtime connections</h3>
+        <h3 className="text-lg font-medium text-slate-800 pt-2">3.17 Realtime connections</h3>
         <p>
           For features such as issue messaging, the app may open a <strong>WebSocket</strong> (Socket.IO)
           connection to our servers using your session credentials so messages can sync in near real time.
@@ -386,6 +400,10 @@ export function PrivacyPolicyPage() {
             </>,
             <>
               <strong>PostHog</strong> when analytics are enabled in the mobile build.
+            </>,
+            <>
+              <strong>Sentry</strong> for crash reporting and performance diagnostics when configured in
+              the mobile build.
             </>,
           ]}
         />

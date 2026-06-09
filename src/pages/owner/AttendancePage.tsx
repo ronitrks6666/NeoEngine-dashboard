@@ -311,7 +311,7 @@ export function AttendancePage() {
                     {statusBadgeLabel(s.status)}
                   </span>
                 </div>
-                
+
                 <div className="relative">
                   <button
                     type="button"
@@ -384,7 +384,7 @@ export function AttendancePage() {
             <Download className="h-3.5 w-3.5" /> Export CSV
           </button>
         </div>
-        
+
         {Array.isArray(events) && events.length > 0 ? (
           <div className="overflow-x-auto">
             <table className="w-full text-left">
@@ -422,11 +422,10 @@ export function AttendancePage() {
                       </div>
                     </td>
                     <td className="px-6 py-4">
-                      <span className={`inline-flex items-center px-2.5 py-1 rounded-lg text-xs font-bold ${
-                        (e.label || e.type || '').toLowerCase().includes('in') ? 'bg-emerald-50 text-emerald-600' :
-                        (e.label || e.type || '').toLowerCase().includes('out') ? 'bg-red-50 text-red-600' :
-                        'bg-amber-50 text-amber-600'
-                      }`}>
+                      <span className={`inline-flex items-center px-2.5 py-1 rounded-lg text-xs font-bold ${(e.label || e.type || '').toLowerCase().includes('in') ? 'bg-emerald-50 text-emerald-600' :
+                          (e.label || e.type || '').toLowerCase().includes('out') ? 'bg-red-50 text-red-600' :
+                            'bg-amber-50 text-amber-600'
+                        }`}>
                         {e.label ?? e.type ?? '—'}
                       </span>
                     </td>

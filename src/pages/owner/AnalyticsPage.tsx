@@ -305,10 +305,10 @@ export function AnalyticsPage() {
         exportPeriod === 'current'
           ? (data?.data ?? data ?? {})
           : await analyticsApi.getOutletAnalytics(selectedOutletId, {
-              period: exportPeriod === '30days' ? 'custom' : period,
-              ...(exportRange ? { startDate: exportRange.start, endDate: exportRange.end } : {}),
-              search: searchFilter,
-            });
+            period: exportPeriod === '30days' ? 'custom' : period,
+            ...(exportRange ? { startDate: exportRange.start, endDate: exportRange.end } : {}),
+            search: searchFilter,
+          });
 
       const payload = exportResponse?.data ?? exportResponse ?? {};
       const staffStats = Array.isArray(payload.employeeStats) ? payload.employeeStats : [];
@@ -368,34 +368,34 @@ export function AnalyticsPage() {
         workbook,
         staffSummaryRows.length > 0
           ? XLSX.utils.json_to_sheet(staffSummaryRows, {
-              header: [
-                'Name',
-                'Role',
-                'Shift',
-                'Net Hours',
-                'Break Hours',
-                'Gross Hours',
-                'Min Hours Required',
-                'Compliance %',
-                'Status',
-                'Overtime Hours',
-                'Under Hours',
-                'Daily Earned',
-                'Days Present',
-                'Salary',
-              ],
-            })
+            header: [
+              'Name',
+              'Role',
+              'Shift',
+              'Net Hours',
+              'Break Hours',
+              'Gross Hours',
+              'Min Hours Required',
+              'Compliance %',
+              'Status',
+              'Overtime Hours',
+              'Under Hours',
+              'Daily Earned',
+              'Days Present',
+              'Salary',
+            ],
+          })
           : XLSX.utils.aoa_to_sheet([
-              ['Name', 'Role', 'Shift', 'Net Hours', 'Break Hours', 'Gross Hours', 'Min Hours Required', 'Compliance %', 'Status', 'Overtime Hours', 'Under Hours', 'Daily Earned', 'Days Present', 'Salary'],
-            ]),
+            ['Name', 'Role', 'Shift', 'Net Hours', 'Break Hours', 'Gross Hours', 'Min Hours Required', 'Compliance %', 'Status', 'Overtime Hours', 'Under Hours', 'Daily Earned', 'Days Present', 'Salary'],
+          ]),
         'Staff Summary'
       );
       XLSX.utils.book_append_sheet(
         workbook,
         dailyAttendanceRows.length > 0
           ? XLSX.utils.json_to_sheet(dailyAttendanceRows, {
-              header: ['Staff', 'Role', 'Date', 'Punch In (IST)', 'Punch Out (IST)', 'Net Hours', 'Days Present'],
-            })
+            header: ['Staff', 'Role', 'Date', 'Punch In (IST)', 'Punch Out (IST)', 'Net Hours', 'Days Present'],
+          })
           : XLSX.utils.aoa_to_sheet([['Staff', 'Role', 'Date', 'Punch In (IST)', 'Punch Out (IST)', 'Net Hours', 'Days Present']]),
         'Daily Working Report'
       );
@@ -525,9 +525,8 @@ export function AnalyticsPage() {
                 key={p}
                 type="button"
                 onClick={() => setPeriod(p)}
-                className={`px-4 py-2 rounded-lg text-sm font-medium transition-colors ${
-                  period === p ? 'bg-teal-600 text-white' : 'bg-gray-100 text-gray-600 hover:bg-gray-200'
-                }`}
+                className={`px-4 py-2 rounded-lg text-sm font-medium transition-colors ${period === p ? 'bg-teal-600 text-white' : 'bg-gray-100 text-gray-600 hover:bg-gray-200'
+                  }`}
               >
                 {p.charAt(0).toUpperCase() + p.slice(1)}
               </button>
@@ -541,9 +540,8 @@ export function AnalyticsPage() {
                 setCustomEnd(d.end);
                 setAppliedCustom(d);
               }}
-              className={`px-4 py-2 rounded-lg text-sm font-medium transition-colors ${
-                period === 'custom' ? 'bg-teal-600 text-white' : 'bg-gray-100 text-gray-600 hover:bg-gray-200'
-              }`}
+              className={`px-4 py-2 rounded-lg text-sm font-medium transition-colors ${period === 'custom' ? 'bg-teal-600 text-white' : 'bg-gray-100 text-gray-600 hover:bg-gray-200'
+                }`}
             >
               Custom
             </button>
@@ -673,635 +671,635 @@ export function AnalyticsPage() {
         <LoadingSpinner className="py-20" />
       ) : (
         <>
-      {/* KPI Cards */}
-      <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-3 xl:grid-cols-5 gap-4 mb-8">
-        <StatCard
-          label="Task completion rate"
-          value={`${taskCompletionRate}%`}
-          infoText={`${completedTasks} of ${totalTasks} task${totalTasks === 1 ? '' : 's'} completed in the selected period.${searchNote}\n\n${scopeHelp}`}
-          icon={CheckCircle}
-          accent="teal"
-        />
-        <StatCard
-          label="Total work hours"
-          value={totalHoursDisplay}
-          infoText={`Combined net hours logged for the team. Average ${avgHours}h per staff member.${searchNote}\n\n${scopeHelp}`}
-          icon={Clock}
-          accent="teal"
-        />
-        <StatCard
-          label="Hours compliance"
-          value={`${hoursComplianceRate}%`}
-          infoText={`${d.employeesMetMinHours ?? 0} of ${complianceDenominator} staff met minimum required hours for the period.${searchNote}\n\n${scopeHelp}`}
-          icon={BarChart3}
-          accent={hoursComplianceRate >= 80 ? 'emerald' : 'amber'}
-        />
-        <StatCard
-          label="Live attendance"
-          value={`${activeEmployeesToday} / ${totalEmployees}`}
-          infoText={
-            'Staff currently checked in vs. total staff on your active roster.\n\nLive snapshot at this moment — not tied to Daily / Weekly / Monthly.'
-          }
-          icon={Users}
-          accent="teal"
-        />
-        <StatCard
-          label="Est. labor cost"
-          value={
-            laborCostEstimate > 0
-              ? `₹${laborCostEstimate.toLocaleString(undefined, { minimumFractionDigits: 2, maximumFractionDigits: 2 })}`
-              : '—'
-          }
-          infoText={`Sum of "daily earned" pay for staff listed in Labor cost below (same period and search).${searchNote}\n\n${scopeHelp}`}
-          icon={Wallet}
-          accent="amber"
-        />
-      </div>
+          {/* KPI Cards */}
+          <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-3 xl:grid-cols-5 gap-4 mb-8">
+            <StatCard
+              label="Task completion rate"
+              value={`${taskCompletionRate}%`}
+              infoText={`${completedTasks} of ${totalTasks} task${totalTasks === 1 ? '' : 's'} completed in the selected period.${searchNote}\n\n${scopeHelp}`}
+              icon={CheckCircle}
+              accent="teal"
+            />
+            <StatCard
+              label="Total work hours"
+              value={totalHoursDisplay}
+              infoText={`Combined net hours logged for the team. Average ${avgHours}h per staff member.${searchNote}\n\n${scopeHelp}`}
+              icon={Clock}
+              accent="teal"
+            />
+            <StatCard
+              label="Hours compliance"
+              value={`${hoursComplianceRate}%`}
+              infoText={`${d.employeesMetMinHours ?? 0} of ${complianceDenominator} staff met minimum required hours for the period.${searchNote}\n\n${scopeHelp}`}
+              icon={BarChart3}
+              accent={hoursComplianceRate >= 80 ? 'emerald' : 'amber'}
+            />
+            <StatCard
+              label="Live attendance"
+              value={`${activeEmployeesToday} / ${totalEmployees}`}
+              infoText={
+                'Staff currently checked in vs. total staff on your active roster.\n\nLive snapshot at this moment — not tied to Daily / Weekly / Monthly.'
+              }
+              icon={Users}
+              accent="teal"
+            />
+            <StatCard
+              label="Est. labor cost"
+              value={
+                laborCostEstimate > 0
+                  ? `₹${laborCostEstimate.toLocaleString(undefined, { minimumFractionDigits: 2, maximumFractionDigits: 2 })}`
+                  : '—'
+              }
+              infoText={`Sum of "daily earned" pay for staff listed in Labor cost below (same period and search).${searchNote}\n\n${scopeHelp}`}
+              icon={Wallet}
+              accent="amber"
+            />
+          </div>
 
-      {/* Charts Row 1 */}
-      <div className="grid grid-cols-1 lg:grid-cols-2 gap-6 mb-8">
-        {/* Daily hours */}
-        <div className="lg:col-span-2">
-          <HighlightSection id="work-hours">
-            <div className="bg-white rounded-xl border border-gray-200 shadow-sm overflow-hidden">
-              <div className="px-6 py-4 border-b border-gray-100 flex items-center justify-between">
-                <div>
-                  <h2 className="text-lg font-semibold text-gray-900">Work hours trend</h2>
-                  <p className="text-sm text-gray-500">Total staff hours per day</p>
+          {/* Charts Row 1 */}
+          <div className="grid grid-cols-1 lg:grid-cols-2 gap-6 mb-8">
+            {/* Daily hours */}
+            <div className="lg:col-span-2">
+              <HighlightSection id="work-hours">
+                <div className="bg-white rounded-xl border border-gray-200 shadow-sm overflow-hidden">
+                  <div className="px-6 py-4 border-b border-gray-100 flex items-center justify-between">
+                    <div>
+                      <h2 className="text-lg font-semibold text-gray-900">Work hours trend</h2>
+                      <p className="text-sm text-gray-500">Total staff hours per day</p>
+                    </div>
+                    {dailyHours.length > 14 && (
+                      <p className="text-xs text-teal-600 font-medium">Scroll horizontally to see all {dailyHours.length} days</p>
+                    )}
+                  </div>
+                  <div className="p-4">
+                    <div className="h-72 overflow-x-auto overflow-y-hidden [scrollbar-width:thin]">
+                      <div
+                        className="h-full"
+                        style={{ minWidth: dailyHours.length > 14 ? `${dailyHours.length * 50}px` : '100%' }}
+                      >
+                        {Array.isArray(dailyHours) && dailyHours.length > 0 ? (
+                          <ResponsiveContainer width="100%" height="100%">
+                            <BarChart data={dailyHours} margin={{ top: 20, right: 30, left: 0, bottom: 0 }}>
+                              <CartesianGrid strokeDasharray="3 3" stroke="#E5E7EB" vertical={false} />
+                              <XAxis
+                                dataKey="label"
+                                tick={{ fontSize: 11 }}
+                                stroke="#9CA3AF"
+                                interval={dailyHours.length > 20 ? 1 : 0}
+                              />
+                              <YAxis tick={{ fontSize: 11 }} stroke="#9CA3AF" />
+                              <Tooltip content={<CustomTooltip />} cursor={{ fill: '#F0FDFA' }} />
+                              <ReferenceLine
+                                y={8}
+                                label={{ value: 'Min Hours', position: 'right', fill: '#EF4444', fontSize: 10 }}
+                                stroke="#EF4444"
+                                strokeDasharray="3 3"
+                              />
+                              <Bar
+                                dataKey="hours"
+                                fill="#0F766E"
+                                radius={[4, 4, 0, 0]}
+                                name="Hours"
+                                barSize={dailyHours.length > 15 ? 20 : 40}
+                              />
+                            </BarChart>
+                          </ResponsiveContainer>
+                        ) : (
+                          <div className="flex items-center justify-center h-full text-gray-400">No data for this period</div>
+                        )}
+                      </div>
+                    </div>
+                  </div>
                 </div>
-                {dailyHours.length > 14 && (
-                  <p className="text-xs text-teal-600 font-medium">Scroll horizontally to see all {dailyHours.length} days</p>
-                )}
-              </div>
-              <div className="p-4">
-                <div className="h-72 overflow-x-auto overflow-y-hidden [scrollbar-width:thin]">
-                  <div 
-                    className="h-full" 
-                    style={{ minWidth: dailyHours.length > 14 ? `${dailyHours.length * 50}px` : '100%' }}
-                  >
-                    {Array.isArray(dailyHours) && dailyHours.length > 0 ? (
-                      <ResponsiveContainer width="100%" height="100%">
-                        <BarChart data={dailyHours} margin={{ top: 20, right: 30, left: 0, bottom: 0 }}>
-                          <CartesianGrid strokeDasharray="3 3" stroke="#E5E7EB" vertical={false} />
-                          <XAxis 
-                            dataKey="label" 
-                            tick={{ fontSize: 11 }} 
-                            stroke="#9CA3AF" 
-                            interval={dailyHours.length > 20 ? 1 : 0}
-                          />
-                          <YAxis tick={{ fontSize: 11 }} stroke="#9CA3AF" />
-                          <Tooltip content={<CustomTooltip />} cursor={{ fill: '#F0FDFA' }} />
-                          <ReferenceLine 
-                            y={8} 
-                            label={{ value: 'Min Hours', position: 'right', fill: '#EF4444', fontSize: 10 }} 
-                            stroke="#EF4444" 
-                            strokeDasharray="3 3" 
-                          />
-                          <Bar 
-                            dataKey="hours" 
-                            fill="#0F766E" 
-                            radius={[4, 4, 0, 0]} 
-                            name="Hours"
-                            barSize={dailyHours.length > 15 ? 20 : 40}
-                          />
-                        </BarChart>
-                      </ResponsiveContainer>
+              </HighlightSection>
+            </div>
+
+            {/* Per-staff: days present + hours per IST shift day (Moved here) */}
+            <div className="lg:col-span-2">
+              <HighlightSection id="attendance-by-day">
+                <div className="bg-white rounded-xl border border-gray-200 shadow-sm overflow-hidden">
+                  <div className="px-6 py-4 border-b border-gray-100">
+                    <h2 className="text-lg font-semibold text-gray-900">Attendance by day</h2>
+                    <p className="text-sm text-gray-500">
+                      Detailed day-by-day punch times and hours for each staff member in view.
+                    </p>
+                  </div>
+                  <div className="divide-y divide-gray-100 max-h-[500px] overflow-y-auto">
+                    {(staffAnalytics as StaffAnalyticsRow[]).length === 0 ? (
+                      <p className="p-6 text-center text-gray-400">No staff in view</p>
                     ) : (
-                      <div className="flex items-center justify-center h-full text-gray-400">No data for this period</div>
+                      (staffAnalytics as StaffAnalyticsRow[]).map((s) => {
+                        const rows = s.dailyAttendance ?? [];
+                        return (
+                          <div key={s.id} className="p-4">
+                            <div className="flex items-center justify-between mb-3">
+                              <div>
+                                <h3 className="font-semibold text-gray-900">{s.name}</h3>
+                                <p className="text-xs text-gray-500">{s.role}</p>
+                              </div>
+                              <div className="text-right">
+                                <p className="text-sm font-medium text-teal-600">{s.netHours?.toFixed(1)} total hours</p>
+                                <p className="text-xs text-gray-400">{s.daysPresent} days present</p>
+                              </div>
+                            </div>
+                            <div className="overflow-x-auto">
+                              <table className="w-full text-left text-xs border-collapse">
+                                <thead>
+                                  <tr className="bg-gray-50 text-gray-600">
+                                    <th className="px-2 py-1.5 font-medium border border-gray-100">Date (IST)</th>
+                                    <th className="px-2 py-1.5 font-medium border border-gray-100">Punch In</th>
+                                    <th className="px-2 py-1.5 font-medium border border-gray-100">Punch Out</th>
+                                    <th className="px-2 py-1.5 font-medium border border-gray-100 text-right">Net Hours</th>
+                                  </tr>
+                                </thead>
+                                <tbody>
+                                  {rows.length === 0 ? (
+                                    <tr>
+                                      <td colSpan={4} className="px-2 py-4 text-center text-gray-400">No attendance records in range</td>
+                                    </tr>
+                                  ) : (
+                                    rows.map((row) => (
+                                      <tr key={row.date} className="hover:bg-gray-50/50">
+                                        <td className="px-2 py-1.5 border border-gray-100 font-medium">{row.date}</td>
+                                        <td className="px-2 py-1.5 border border-gray-100 text-gray-500">{fmtIst(row.punchIn)}</td>
+                                        <td className="px-2 py-1.5 border border-gray-100 text-gray-500">{fmtIst(row.punchOut)}</td>
+                                        <td className="px-2 py-1.5 border border-gray-100 text-right font-medium text-teal-700">
+                                          {row.hours?.toFixed(1)}h
+                                        </td>
+                                      </tr>
+                                    ))
+                                  )}
+                                </tbody>
+                              </table>
+                            </div>
+                          </div>
+                        );
+                      })
                     )}
                   </div>
                 </div>
+              </HighlightSection>
+            </div>
+
+            {/* Role breakdown */}
+            <HighlightSection id="role-breakdown">
+              <div className="bg-white rounded-xl border border-gray-200 shadow-sm overflow-hidden">
+                <div className="px-6 py-4 border-b border-gray-100">
+                  <h2 className="text-lg font-semibold text-gray-900">Hours by role</h2>
+                  <p className="text-sm text-gray-500">Labor distribution across roles</p>
+                </div>
+                <div className="p-4 h-72">
+                  {roleBreakdown.length > 0 ? (
+                    <ResponsiveContainer width="100%" height="100%">
+                      <PieChart margin={{ top: 8, right: 8, bottom: 8, left: 8 }}>
+                        <Pie
+                          data={roleBreakdown}
+                          dataKey="hours"
+                          nameKey="role"
+                          cx="50%"
+                          cy="45%"
+                          outerRadius={85}
+                        >
+                          {roleBreakdown.map((_: unknown, i: number) => (
+                            <Cell key={i} fill={PIE_COLORS[i % PIE_COLORS.length]} />
+                          ))}
+                        </Pie>
+                        <Tooltip formatter={(v: number) => `${v}h`} />
+                        <Legend
+                          layout="vertical"
+                          align="right"
+                          verticalAlign="middle"
+                          formatter={(value, entry) => (
+                            <span className="text-sm text-gray-700">
+                              {value}: {(entry.payload as { hours?: number })?.hours ?? 0}h
+                            </span>
+                          )}
+                        />
+                      </PieChart>
+                    </ResponsiveContainer>
+                  ) : (
+                    <div className="flex items-center justify-center h-full text-gray-400">No role data</div>
+                  )}
+                </div>
+              </div>
+            </HighlightSection>
+          </div>
+
+          {/* Charts Row 2 */}
+          <div className="grid grid-cols-1 lg:grid-cols-2 gap-6 mb-8">
+            {/* Shift distribution */}
+            <HighlightSection id="shift-distribution">
+              <div className="bg-white rounded-xl border border-gray-200 shadow-sm overflow-hidden">
+                <div className="px-6 py-4 border-b border-gray-100">
+                  <h2 className="text-lg font-semibold text-gray-900">Shift coverage</h2>
+                  <p className="text-sm text-gray-500">Day vs Night shift staff</p>
+                </div>
+                <div className="p-4 h-64">
+                  {shiftDistribution.length > 0 ? (
+                    <ResponsiveContainer width="100%" height="100%">
+                      <PieChart>
+                        <Pie
+                          data={shiftDistribution}
+                          dataKey="count"
+                          nameKey="shift"
+                          cx="50%"
+                          cy="50%"
+                          innerRadius={60}
+                          outerRadius={90}
+                          paddingAngle={2}
+                        >
+                          {shiftDistribution.map((_: unknown, i: number) => (
+                            <Cell key={i} fill={i === 0 ? '#0F766E' : '#F59E0B'} />
+                          ))}
+                        </Pie>
+                        <Tooltip formatter={(v: number) => `${v} staff`} />
+                        <Legend />
+                      </PieChart>
+                    </ResponsiveContainer>
+                  ) : (
+                    <div className="flex items-center justify-center h-full text-gray-400">No shift data</div>
+                  )}
+                </div>
+              </div>
+            </HighlightSection>
+
+            {/* Task completion by shift */}
+            <HighlightSection id="task-completion">
+              <div className="bg-white rounded-xl border border-gray-200 shadow-sm overflow-hidden">
+                <div className="px-6 py-4 border-b border-gray-100">
+                  <h2 className="text-lg font-semibold text-gray-900">Task completion by shift</h2>
+                  <p className="text-sm text-gray-500">Which shift is more productive</p>
+                </div>
+                <div className="p-4 h-64">
+                  {taskCompletionByShift.length > 0 ? (
+                    <ResponsiveContainer width="100%" height="100%">
+                      <BarChart data={taskCompletionByShift} layout="vertical" margin={{ left: 20, right: 40 }}>
+                        <CartesianGrid strokeDasharray="3 3" stroke="#E5E7EB" />
+                        <XAxis type="number" domain={[0, 100]} tick={{ fontSize: 11 }} stroke="#9CA3AF" unit="%" />
+                        <YAxis dataKey="shift" type="category" width={60} tick={{ fontSize: 11 }} stroke="#9CA3AF" />
+                        <Tooltip
+                          content={({ active, payload }) => {
+                            if (!active || !payload?.length) return null;
+                            const p = payload[0].payload as { shift?: string; rate?: number; completed?: number; total?: number };
+                            return (
+                              <div className="bg-white rounded-lg shadow-lg border border-gray-200 p-3 text-sm">
+                                <p className="font-medium text-gray-800">{p.shift} shift</p>
+                                <p className="text-teal-600">{(p.rate ?? 0).toFixed(1)}% completion</p>
+                                <p className="text-gray-500 text-xs mt-1">{p.completed ?? 0} of {p.total ?? 0} tasks</p>
+                              </div>
+                            );
+                          }}
+                        />
+                        <Bar dataKey="rate" name="Completion %" fill="#0F766E" radius={[0, 4, 4, 0]} minPointSize={8}>
+                          <LabelList dataKey="rate" position="right" formatter={(v: number) => `${v}%`} />
+                        </Bar>
+                      </BarChart>
+                    </ResponsiveContainer>
+                  ) : (
+                    <div className="flex items-center justify-center h-full text-gray-400">No task data</div>
+                  )}
+                </div>
+              </div>
+            </HighlightSection>
+          </div>
+
+          {/* Leave trend — backend fills every day in the selected period (zeros when no requests) */}
+          <HighlightSection id="leave-trend">
+            {leaveChartData.length > 0 ? (
+              <div className="bg-white rounded-xl border border-gray-200 shadow-sm overflow-hidden mb-8">
+                <div className="px-6 py-4 border-b border-gray-100">
+                  <h2 className="text-lg font-semibold text-gray-900">Leave trend</h2>
+                  <p className="text-sm text-gray-500">
+                    Approved, rejected, and pending counts for each day in your selected period (daily / weekly / monthly / custom / pay cycle).
+                  </p>
+                  {leaveChartData.length > LEAVE_CHART_VISIBLE_DAYS && (
+                    <p className="text-xs text-teal-700/90 mt-2">
+                      About {LEAVE_CHART_VISIBLE_DAYS} days visible at once — drag the scrollbar or use your mouse wheel / trackpad (scroll up-down) over the chart to move along the timeline.
+                    </p>
+                  )}
+                </div>
+                <div className="p-4 pb-3">
+                  <div
+                    ref={leaveScrollRef}
+                    className="w-full h-72 overflow-x-auto overflow-y-hidden rounded-lg border border-gray-100 bg-gray-50/40 scroll-smooth [scrollbar-width:thin]"
+                  >
+                    <div
+                      className="h-full min-w-full"
+                      style={{
+                        width:
+                          leaveChartData.length <= LEAVE_CHART_VISIBLE_DAYS
+                            ? '100%'
+                            : `${(leaveChartData.length / LEAVE_CHART_VISIBLE_DAYS) * 100}%`,
+                      }}
+                    >
+                      <ResponsiveContainer width="100%" height="100%">
+                        <BarChart
+                          data={leaveChartData}
+                          margin={{ bottom: 40, left: 4, right: 12, top: 8 }}
+                          barCategoryGap="18%"
+                        >
+                          <CartesianGrid strokeDasharray="3 3" stroke="#E5E7EB" />
+                          <XAxis
+                            dataKey="label"
+                            tick={{ fontSize: 10 }}
+                            stroke="#9CA3AF"
+                            interval={0}
+                            angle={leaveChartData.length > LEAVE_CHART_VISIBLE_DAYS ? -28 : 0}
+                            textAnchor={leaveChartData.length > LEAVE_CHART_VISIBLE_DAYS ? 'end' : 'middle'}
+                            height={leaveChartData.length > LEAVE_CHART_VISIBLE_DAYS ? 52 : 28}
+                          />
+                          <YAxis tick={{ fontSize: 11 }} stroke="#9CA3AF" allowDecimals={false} width={40} />
+                          <Tooltip
+                            content={({ active, payload, label }) => {
+                              if (!active || !payload?.length) return null;
+                              const row = payload[0].payload as {
+                                date?: string;
+                                label?: string;
+                                approved?: number;
+                                rejected?: number;
+                                pending?: number;
+                              };
+                              return (
+                                <div className="bg-white rounded-lg shadow-lg border border-gray-200 p-3 text-sm min-w-[10rem]">
+                                  <p className="font-medium text-gray-900">{row.date ?? label}</p>
+                                  <p className="text-xs text-gray-500 mb-2">{row.label}</p>
+                                  <p className="text-emerald-700">Approved: {row.approved ?? 0}</p>
+                                  <p className="text-red-600">Rejected: {row.rejected ?? 0}</p>
+                                  <p className="text-amber-600">Pending: {row.pending ?? 0}</p>
+                                </div>
+                              );
+                            }}
+                          />
+                          <Bar dataKey="approved" stackId="a" fill="#10B981" name="Approved" />
+                          <Bar dataKey="rejected" stackId="a" fill="#EF4444" name="Rejected" />
+                          <Bar dataKey="pending" stackId="a" fill="#F59E0B" name="Pending" />
+                        </BarChart>
+                      </ResponsiveContainer>
+                    </div>
+                  </div>
+                  <div className="flex flex-wrap justify-center gap-x-5 gap-y-1 pt-3 text-xs text-gray-600">
+                    <span className="inline-flex items-center gap-1.5">
+                      <span className="inline-block size-2.5 rounded-sm bg-[#10B981]" aria-hidden />
+                      Approved
+                    </span>
+                    <span className="inline-flex items-center gap-1.5">
+                      <span className="inline-block size-2.5 rounded-sm bg-[#EF4444]" aria-hidden />
+                      Rejected
+                    </span>
+                    <span className="inline-flex items-center gap-1.5">
+                      <span className="inline-block size-2.5 rounded-sm bg-[#F59E0B]" aria-hidden />
+                      Pending
+                    </span>
+                  </div>
+                </div>
+              </div>
+            ) : (
+              <div className="bg-white rounded-xl border border-gray-200 shadow-sm overflow-hidden mb-8 p-8 text-center text-gray-400">
+                No days in range for leave trend
+              </div>
+            )}
+          </HighlightSection>
+
+          {/* Web-only: Staff compliance & labor cost */}
+          <div className="grid grid-cols-1 lg:grid-cols-2 gap-6 mb-8">
+            <HighlightSection id="staff-compliance">
+              <div className="bg-white rounded-xl border border-gray-200 shadow-sm overflow-hidden">
+                <div className="px-6 py-4 border-b border-gray-100">
+                  <h2 className="text-lg font-semibold text-gray-900">Staff compliance</h2>
+                  <p className="text-sm text-gray-500">Hours vs target (min hours required)</p>
+                </div>
+                <div className="p-4 h-80 overflow-y-auto">
+                  {staffAnalytics.length > 0 ? (
+                    <ResponsiveContainer width="100%" height={Math.max(300, staffAnalytics.length * 36)}>
+                      <BarChart data={staffAnalytics} layout="vertical" margin={{ left: 80, right: 20 }}>
+                        <CartesianGrid strokeDasharray="3 3" stroke="#E5E7EB" />
+                        <XAxis type="number" tick={{ fontSize: 10 }} stroke="#9CA3AF" />
+                        <YAxis dataKey="name" type="category" width={70} tick={{ fontSize: 10 }} stroke="#9CA3AF" />
+                        <Tooltip
+                          content={({ active, payload }) => {
+                            if (!active || !payload?.length) return null;
+                            const p = payload[0].payload;
+                            return (
+                              <div className="bg-white rounded-lg shadow-lg border p-3 text-sm">
+                                <p className="font-medium">{p.name}</p>
+                                <p>Net: {p.netHours}h | Break: {p.breakHours}h</p>
+                                <p>Status: {p.status}</p>
+                                <p>Compliance: {p.compliancePct}%</p>
+                              </div>
+                            );
+                          }}
+                        />
+                        <Bar dataKey="netHours" name="Net hours" fill="#0F766E" radius={[0, 4, 4, 0]} />
+                      </BarChart>
+                    </ResponsiveContainer>
+                  ) : (
+                    <div className="flex items-center justify-center h-full text-gray-400">No staff data</div>
+                  )}
+                </div>
+              </div>
+            </HighlightSection>
+
+            {/* Labor cost breakdown */}
+            <HighlightSection id="labor-cost">
+              <div className="bg-white rounded-xl border border-gray-200 shadow-sm overflow-hidden">
+                <div className="px-6 py-4 border-b border-gray-100">
+                  <h2 className="text-lg font-semibold text-gray-900">Labor cost estimate</h2>
+                  <p className="text-sm text-gray-500">Daily earned per staff (this period)</p>
+                </div>
+                <div className="p-4 max-h-80 overflow-y-auto">
+                  {staffAnalytics.filter((s: { dailyEarned?: number }) => (s.dailyEarned ?? 0) > 0).length > 0 ? (
+                    <div className="space-y-2">
+                      {staffAnalytics
+                        .filter((s: { dailyEarned?: number }) => (s.dailyEarned ?? 0) > 0)
+                        .sort((a: { dailyEarned?: number }, b: { dailyEarned?: number }) => (b.dailyEarned ?? 0) - (a.dailyEarned ?? 0))
+                        .map((s: { id?: string; name?: string; dailyEarned?: number; role?: string }) => (
+                          <div key={s.id} className="flex justify-between items-center py-2 border-b border-gray-100 last:border-0">
+                            <div>
+                              <p className="font-medium text-gray-800">{s.name}</p>
+                              <p className="text-xs text-gray-500">{s.role}</p>
+                            </div>
+                            <p className="font-semibold text-teal-600">₹{(s.dailyEarned ?? 0).toLocaleString()}</p>
+                          </div>
+                        ))}
+                      <div className="pt-4 mt-4 border-t-2 border-gray-200 flex justify-between font-bold">
+                        <span>Total</span>
+                        <span className="text-teal-600">₹{laborCostEstimate.toLocaleString()}</span>
+                      </div>
+                    </div>
+                  ) : (
+                    <div className="flex items-center justify-center h-48 text-gray-400">No salary data</div>
+                  )}
+                </div>
+              </div>
+            </HighlightSection>
+          </div>
+
+          {/* Export Range Modal */}
+          {showExportModal && (
+            <div className="fixed inset-0 bg-black/40 backdrop-blur-sm flex items-center justify-center z-50 p-4 animate-fade-in">
+              <div className="bg-white rounded-2xl shadow-xl w-full max-w-md overflow-hidden animate-slide-up">
+                <div className="p-6 border-b border-gray-100">
+                  <h3 className="text-lg font-bold text-gray-900">Export Analytics Report</h3>
+                  <p className="text-sm text-gray-500">Choose the time range for your export</p>
+                </div>
+                <div className="p-6 space-y-3">
+                  <button
+                    onClick={() => void performExport('current')}
+                    className="w-full flex items-center justify-between p-4 rounded-xl border border-gray-200 hover:border-teal-500 hover:bg-teal-50 transition-all text-left"
+                    disabled={isExporting}
+                  >
+                    <div>
+                      <p className="font-semibold text-gray-900 text-sm">Current Filter</p>
+                      <p className="text-xs text-gray-500">Export exactly what you see on screen</p>
+                    </div>
+                    <div className="w-8 h-8 rounded-full bg-teal-100 flex items-center justify-center text-teal-600">
+                      <BarChart3 className="h-4 w-4" />
+                    </div>
+                  </button>
+
+                  <button
+                    onClick={() => void performExport('30days')}
+                    className="w-full flex items-center justify-between p-4 rounded-xl border border-gray-200 hover:border-teal-500 hover:bg-teal-50 transition-all text-left"
+                    disabled={isExporting}
+                  >
+                    <div>
+                      <p className="font-semibold text-gray-900 text-sm">Last 30 Days</p>
+                      <p className="text-xs text-gray-500">Full month report regardless of filters</p>
+                    </div>
+                    <div className="w-8 h-8 rounded-full bg-blue-100 flex items-center justify-center text-blue-600">
+                      <Clock className="h-4 w-4" />
+                    </div>
+                  </button>
+
+                  <button
+                    onClick={() => void performExport('custom')}
+                    className="w-full flex items-center justify-between p-4 rounded-xl border border-gray-200 hover:border-teal-500 hover:bg-teal-50 transition-all text-left"
+                    disabled={isExporting}
+                  >
+                    <div>
+                      <p className="font-semibold text-gray-900 text-sm">Custom Range</p>
+                      <p className="text-xs text-gray-500">Select specific start and end dates</p>
+                    </div>
+                    <div className="w-8 h-8 rounded-full bg-amber-100 flex items-center justify-center text-amber-600">
+                      <Download className="h-4 w-4" />
+                    </div>
+                  </button>
+                </div>
+                <div className="p-4 bg-gray-50 border-t border-gray-100 flex justify-end">
+                  <button
+                    onClick={() => setShowExportModal(false)}
+                    className="px-4 py-2 text-sm font-medium text-gray-600 hover:text-gray-900 transition-colors"
+                  >
+                    Cancel
+                  </button>
+                </div>
               </div>
             </div>
-          </HighlightSection>
-        </div>
+          )}
 
-        {/* Per-staff: days present + hours per IST shift day (Moved here) */}
-        <div className="lg:col-span-2">
+          {/* Per-staff: days present + hours per IST shift day */}
           <HighlightSection id="attendance-by-day">
-            <div className="bg-white rounded-xl border border-gray-200 shadow-sm overflow-hidden">
+            <div className="bg-white rounded-xl border border-gray-200 shadow-sm overflow-hidden mb-8">
               <div className="px-6 py-4 border-b border-gray-100">
                 <h2 className="text-lg font-semibold text-gray-900">Attendance by day</h2>
                 <p className="text-sm text-gray-500">
-                  Detailed day-by-day punch times and hours for each staff member in view.
+                  For each staff member: number of IST calendar days with a clock-in, total net hours in the selected
+                  period, and a day-by-day table (punch in / punch out in IST, hours after breaks). Uses the same period
+                  and search filter as the rest of this page.
                 </p>
               </div>
-              <div className="divide-y divide-gray-100 max-h-[500px] overflow-y-auto">
+              <div className="divide-y divide-gray-100">
                 {(staffAnalytics as StaffAnalyticsRow[]).length === 0 ? (
                   <p className="p-6 text-center text-gray-400">No staff in view</p>
                 ) : (
                   (staffAnalytics as StaffAnalyticsRow[]).map((s) => {
                     const rows = s.dailyAttendance ?? [];
+                    const daysPresent = s.daysPresent ?? 0;
                     return (
-                      <div key={s.id} className="p-4">
-                        <div className="flex items-center justify-between mb-3">
-                          <div>
-                            <h3 className="font-semibold text-gray-900">{s.name}</h3>
-                            <p className="text-xs text-gray-500">{s.role}</p>
+                      <details key={String(s.id ?? s.name)} className="group px-4 sm:px-6 py-2">
+                        <summary className="flex cursor-pointer list-none flex-wrap items-center justify-between gap-3 py-3 [&::-webkit-details-marker]:hidden">
+                          <div className="flex min-w-0 flex-1 flex-col gap-0.5 sm:flex-row sm:items-center sm:gap-3">
+                            <span className="font-medium text-gray-900 truncate">{s.name ?? '—'}</span>
+                            <span className="text-sm text-gray-500 truncate">{s.role ?? ''}</span>
                           </div>
-                          <div className="text-right">
-                            <p className="text-sm font-medium text-teal-600">{s.netHours?.toFixed(1)} total hours</p>
-                            <p className="text-xs text-gray-400">{s.daysPresent} days present</p>
+                          <div className="flex shrink-0 items-center gap-3 text-sm">
+                            <span className="tabular-nums text-gray-700">
+                              <span className="font-semibold text-teal-800">{daysPresent}</span> day
+                              {daysPresent === 1 ? '' : 's'} present
+                            </span>
+                            <span className="tabular-nums font-medium text-gray-900">
+                              {(s.netHours ?? 0).toFixed(1)}h net
+                            </span>
+                            <span className="rounded border border-gray-200 bg-gray-50 px-2 py-0.5 text-xs text-gray-600 group-open:bg-teal-50 group-open:border-teal-200 group-open:text-teal-800">
+                              Details
+                            </span>
                           </div>
-                        </div>
-                        <div className="overflow-x-auto">
-                          <table className="w-full text-left text-xs border-collapse">
-                            <thead>
-                              <tr className="bg-gray-50 text-gray-600">
-                                <th className="px-2 py-1.5 font-medium border border-gray-100">Date (IST)</th>
-                                <th className="px-2 py-1.5 font-medium border border-gray-100">Punch In</th>
-                                <th className="px-2 py-1.5 font-medium border border-gray-100">Punch Out</th>
-                                <th className="px-2 py-1.5 font-medium border border-gray-100 text-right">Net Hours</th>
-                              </tr>
-                            </thead>
-                            <tbody>
-                              {rows.length === 0 ? (
+                        </summary>
+                        <div className="pb-4 pt-0 overflow-x-auto">
+                          {rows.length === 0 ? (
+                            <p className="text-sm text-gray-500 py-2">No punch data in this period.</p>
+                          ) : (
+                            <table className="w-full min-w-[520px] text-sm border border-gray-100 rounded-lg overflow-hidden">
+                              <thead className="bg-gray-50 text-left text-xs font-semibold uppercase tracking-wide text-gray-600">
                                 <tr>
-                                  <td colSpan={4} className="px-2 py-4 text-center text-gray-400">No attendance records in range</td>
+                                  <th className="px-3 py-2">Shift date (IST)</th>
+                                  <th className="px-3 py-2">Punch in</th>
+                                  <th className="px-3 py-2">Punch out</th>
+                                  <th className="px-3 py-2 text-right">Net hours</th>
                                 </tr>
-                              ) : (
-                                rows.map((row) => (
-                                  <tr key={row.date} className="hover:bg-gray-50/50">
-                                    <td className="px-2 py-1.5 border border-gray-100 font-medium">{row.date}</td>
-                                    <td className="px-2 py-1.5 border border-gray-100 text-gray-500">{fmtIst(row.punchIn)}</td>
-                                    <td className="px-2 py-1.5 border border-gray-100 text-gray-500">{fmtIst(row.punchOut)}</td>
-                                    <td className="px-2 py-1.5 border border-gray-100 text-right font-medium text-teal-700">
-                                      {row.hours?.toFixed(1)}h
+                              </thead>
+                              <tbody className="divide-y divide-gray-100">
+                                {rows.map((r) => (
+                                  <tr key={r.date} className="bg-white hover:bg-gray-50/80">
+                                    <td className="px-3 py-2 font-medium text-gray-800 tabular-nums">{r.date}</td>
+                                    <td className="px-3 py-2 text-gray-700">{fmtIst(r.punchIn)}</td>
+                                    <td className="px-3 py-2 text-gray-700">{fmtIst(r.punchOut)}</td>
+                                    <td className="px-3 py-2 text-right tabular-nums font-medium text-gray-900">
+                                      {r.hours.toFixed(2)}
                                     </td>
                                   </tr>
-                                ))
-                              )}
-                            </tbody>
-                          </table>
+                                ))}
+                              </tbody>
+                            </table>
+                          )}
                         </div>
-                      </div>
+                      </details>
                     );
                   })
                 )}
               </div>
             </div>
           </HighlightSection>
-        </div>
 
-        {/* Role breakdown */}
-        <HighlightSection id="role-breakdown">
-        <div className="bg-white rounded-xl border border-gray-200 shadow-sm overflow-hidden">
-          <div className="px-6 py-4 border-b border-gray-100">
-            <h2 className="text-lg font-semibold text-gray-900">Hours by role</h2>
-            <p className="text-sm text-gray-500">Labor distribution across roles</p>
-          </div>
-          <div className="p-4 h-72">
-            {roleBreakdown.length > 0 ? (
-              <ResponsiveContainer width="100%" height="100%">
-                <PieChart margin={{ top: 8, right: 8, bottom: 8, left: 8 }}>
-                  <Pie
-                    data={roleBreakdown}
-                    dataKey="hours"
-                    nameKey="role"
-                    cx="50%"
-                    cy="45%"
-                    outerRadius={85}
-                  >
-                    {roleBreakdown.map((_: unknown, i: number) => (
-                      <Cell key={i} fill={PIE_COLORS[i % PIE_COLORS.length]} />
-                    ))}
-                  </Pie>
-                  <Tooltip formatter={(v: number) => `${v}h`} />
-                  <Legend
-                    layout="vertical"
-                    align="right"
-                    verticalAlign="middle"
-                    formatter={(value, entry) => (
-                      <span className="text-sm text-gray-700">
-                        {value}: {(entry.payload as { hours?: number })?.hours ?? 0}h
-                      </span>
-                    )}
-                  />
-                </PieChart>
-              </ResponsiveContainer>
-            ) : (
-              <div className="flex items-center justify-center h-full text-gray-400">No role data</div>
-            )}
-          </div>
-        </div>
-        </HighlightSection>
-      </div>
-
-      {/* Charts Row 2 */}
-      <div className="grid grid-cols-1 lg:grid-cols-2 gap-6 mb-8">
-        {/* Shift distribution */}
-        <HighlightSection id="shift-distribution">
-        <div className="bg-white rounded-xl border border-gray-200 shadow-sm overflow-hidden">
-          <div className="px-6 py-4 border-b border-gray-100">
-            <h2 className="text-lg font-semibold text-gray-900">Shift coverage</h2>
-            <p className="text-sm text-gray-500">Day vs Night shift staff</p>
-          </div>
-          <div className="p-4 h-64">
-            {shiftDistribution.length > 0 ? (
-              <ResponsiveContainer width="100%" height="100%">
-                <PieChart>
-                  <Pie
-                    data={shiftDistribution}
-                    dataKey="count"
-                    nameKey="shift"
-                    cx="50%"
-                    cy="50%"
-                    innerRadius={60}
-                    outerRadius={90}
-                    paddingAngle={2}
-                  >
-                    {shiftDistribution.map((_: unknown, i: number) => (
-                      <Cell key={i} fill={i === 0 ? '#0F766E' : '#F59E0B'} />
-                    ))}
-                  </Pie>
-                  <Tooltip formatter={(v: number) => `${v} staff`} />
-                  <Legend />
-                </PieChart>
-              </ResponsiveContainer>
-            ) : (
-              <div className="flex items-center justify-center h-full text-gray-400">No shift data</div>
-            )}
-          </div>
-        </div>
-        </HighlightSection>
-
-        {/* Task completion by shift */}
-        <HighlightSection id="task-completion">
-        <div className="bg-white rounded-xl border border-gray-200 shadow-sm overflow-hidden">
-          <div className="px-6 py-4 border-b border-gray-100">
-            <h2 className="text-lg font-semibold text-gray-900">Task completion by shift</h2>
-            <p className="text-sm text-gray-500">Which shift is more productive</p>
-          </div>
-          <div className="p-4 h-64">
-            {taskCompletionByShift.length > 0 ? (
-              <ResponsiveContainer width="100%" height="100%">
-                <BarChart data={taskCompletionByShift} layout="vertical" margin={{ left: 20, right: 40 }}>
-                  <CartesianGrid strokeDasharray="3 3" stroke="#E5E7EB" />
-                  <XAxis type="number" domain={[0, 100]} tick={{ fontSize: 11 }} stroke="#9CA3AF" unit="%" />
-                  <YAxis dataKey="shift" type="category" width={60} tick={{ fontSize: 11 }} stroke="#9CA3AF" />
-                  <Tooltip
-                    content={({ active, payload }) => {
-                      if (!active || !payload?.length) return null;
-                      const p = payload[0].payload as { shift?: string; rate?: number; completed?: number; total?: number };
-                      return (
-                        <div className="bg-white rounded-lg shadow-lg border border-gray-200 p-3 text-sm">
-                          <p className="font-medium text-gray-800">{p.shift} shift</p>
-                          <p className="text-teal-600">{(p.rate ?? 0).toFixed(1)}% completion</p>
-                          <p className="text-gray-500 text-xs mt-1">{p.completed ?? 0} of {p.total ?? 0} tasks</p>
-                        </div>
-                      );
-                    }}
-                  />
-                  <Bar dataKey="rate" name="Completion %" fill="#0F766E" radius={[0, 4, 4, 0]} minPointSize={8}>
-                    <LabelList dataKey="rate" position="right" formatter={(v: number) => `${v}%`} /> 
-                  </Bar>
-                </BarChart>
-              </ResponsiveContainer>
-            ) : (
-              <div className="flex items-center justify-center h-full text-gray-400">No task data</div>
-            )}
-          </div>
-        </div>
-        </HighlightSection>
-      </div>
-
-      {/* Leave trend — backend fills every day in the selected period (zeros when no requests) */}
-      <HighlightSection id="leave-trend">
-      {leaveChartData.length > 0 ? (
-        <div className="bg-white rounded-xl border border-gray-200 shadow-sm overflow-hidden mb-8">
-          <div className="px-6 py-4 border-b border-gray-100">
-            <h2 className="text-lg font-semibold text-gray-900">Leave trend</h2>
-            <p className="text-sm text-gray-500">
-              Approved, rejected, and pending counts for each day in your selected period (daily / weekly / monthly / custom / pay cycle).
-            </p>
-            {leaveChartData.length > LEAVE_CHART_VISIBLE_DAYS && (
-              <p className="text-xs text-teal-700/90 mt-2">
-                About {LEAVE_CHART_VISIBLE_DAYS} days visible at once — drag the scrollbar or use your mouse wheel / trackpad (scroll up-down) over the chart to move along the timeline.
-              </p>
-            )}
-          </div>
-          <div className="p-4 pb-3">
-            <div
-              ref={leaveScrollRef}
-              className="w-full h-72 overflow-x-auto overflow-y-hidden rounded-lg border border-gray-100 bg-gray-50/40 scroll-smooth [scrollbar-width:thin]"
-            >
-              <div
-                className="h-full min-w-full"
-                style={{
-                  width:
-                    leaveChartData.length <= LEAVE_CHART_VISIBLE_DAYS
-                      ? '100%'
-                      : `${(leaveChartData.length / LEAVE_CHART_VISIBLE_DAYS) * 100}%`,
-                }}
-              >
-                <ResponsiveContainer width="100%" height="100%">
-                  <BarChart
-                    data={leaveChartData}
-                    margin={{ bottom: 40, left: 4, right: 12, top: 8 }}
-                    barCategoryGap="18%"
-                  >
-                    <CartesianGrid strokeDasharray="3 3" stroke="#E5E7EB" />
-                    <XAxis
-                      dataKey="label"
-                      tick={{ fontSize: 10 }}
-                      stroke="#9CA3AF"
-                      interval={0}
-                      angle={leaveChartData.length > LEAVE_CHART_VISIBLE_DAYS ? -28 : 0}
-                      textAnchor={leaveChartData.length > LEAVE_CHART_VISIBLE_DAYS ? 'end' : 'middle'}
-                      height={leaveChartData.length > LEAVE_CHART_VISIBLE_DAYS ? 52 : 28}
-                    />
-                    <YAxis tick={{ fontSize: 11 }} stroke="#9CA3AF" allowDecimals={false} width={40} />
-                    <Tooltip
-                      content={({ active, payload, label }) => {
-                        if (!active || !payload?.length) return null;
-                        const row = payload[0].payload as {
-                          date?: string;
-                          label?: string;
-                          approved?: number;
-                          rejected?: number;
-                          pending?: number;
-                        };
-                        return (
-                          <div className="bg-white rounded-lg shadow-lg border border-gray-200 p-3 text-sm min-w-[10rem]">
-                            <p className="font-medium text-gray-900">{row.date ?? label}</p>
-                            <p className="text-xs text-gray-500 mb-2">{row.label}</p>
-                            <p className="text-emerald-700">Approved: {row.approved ?? 0}</p>
-                            <p className="text-red-600">Rejected: {row.rejected ?? 0}</p>
-                            <p className="text-amber-600">Pending: {row.pending ?? 0}</p>
-                          </div>
-                        );
-                      }}
-                    />
-                    <Bar dataKey="approved" stackId="a" fill="#10B981" name="Approved" />
-                    <Bar dataKey="rejected" stackId="a" fill="#EF4444" name="Rejected" />
-                    <Bar dataKey="pending" stackId="a" fill="#F59E0B" name="Pending" />
-                  </BarChart>
-                </ResponsiveContainer>
+          {/* Web-only: Quick insights */}
+          <div className="bg-gradient-to-r from-teal-50 to-cyan-50 rounded-xl border border-teal-100 p-6">
+            <h2 className="text-lg font-semibold text-gray-900 mb-4">Insights for owners</h2>
+            <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-4 gap-4">
+              <div className="bg-white/80 rounded-lg p-4">
+                <p className="text-sm font-medium text-teal-800">Shift coverage</p>
+                <p className="text-sm text-gray-600 mt-1">
+                  {shiftDistribution.find((s: { shift: string }) => s.shift === 'Day')?.count ?? 0} day staff,{' '}
+                  {shiftDistribution.find((s: { shift: string }) => s.shift === 'Night')?.count ?? 0} night staff
+                </p>
+              </div>
+              <div className="bg-white/80 rounded-lg p-4">
+                <p className="text-sm font-medium text-teal-800">Overtime</p>
+                <p className="text-sm text-gray-600 mt-1">
+                  {staffAnalytics.filter((s: { status?: string }) => s.status === 'overtime').length} staff over target hours
+                </p>
+              </div>
+              <div className="bg-white/80 rounded-lg p-4">
+                <p className="text-sm font-medium text-teal-800">Under hours</p>
+                <p className="text-sm text-gray-600 mt-1">
+                  {staffAnalytics.filter((s: { status?: string }) => s.status === 'under').length} staff below target
+                </p>
+              </div>
+              <div className="bg-white/80 rounded-lg p-4">
+                <p className="text-sm font-medium text-teal-800">Export</p>
+                <p className="text-sm text-gray-600 mt-1">Download CSV for accounting or payroll</p>
               </div>
             </div>
-            <div className="flex flex-wrap justify-center gap-x-5 gap-y-1 pt-3 text-xs text-gray-600">
-              <span className="inline-flex items-center gap-1.5">
-                <span className="inline-block size-2.5 rounded-sm bg-[#10B981]" aria-hidden />
-                Approved
-              </span>
-              <span className="inline-flex items-center gap-1.5">
-                <span className="inline-block size-2.5 rounded-sm bg-[#EF4444]" aria-hidden />
-                Rejected
-              </span>
-              <span className="inline-flex items-center gap-1.5">
-                <span className="inline-block size-2.5 rounded-sm bg-[#F59E0B]" aria-hidden />
-                Pending
-              </span>
-            </div>
           </div>
-        </div>
-      ) : (
-        <div className="bg-white rounded-xl border border-gray-200 shadow-sm overflow-hidden mb-8 p-8 text-center text-gray-400">
-          No days in range for leave trend
-        </div>
-      )}
-      </HighlightSection>
-
-      {/* Web-only: Staff compliance & labor cost */}
-      <div className="grid grid-cols-1 lg:grid-cols-2 gap-6 mb-8">
-        <HighlightSection id="staff-compliance">
-        <div className="bg-white rounded-xl border border-gray-200 shadow-sm overflow-hidden">
-          <div className="px-6 py-4 border-b border-gray-100">
-            <h2 className="text-lg font-semibold text-gray-900">Staff compliance</h2>
-            <p className="text-sm text-gray-500">Hours vs target (min hours required)</p>
-          </div>
-          <div className="p-4 h-80 overflow-y-auto">
-            {staffAnalytics.length > 0 ? (
-              <ResponsiveContainer width="100%" height={Math.max(300, staffAnalytics.length * 36)}>
-                <BarChart data={staffAnalytics} layout="vertical" margin={{ left: 80, right: 20 }}>
-                  <CartesianGrid strokeDasharray="3 3" stroke="#E5E7EB" />
-                  <XAxis type="number" tick={{ fontSize: 10 }} stroke="#9CA3AF" />
-                  <YAxis dataKey="name" type="category" width={70} tick={{ fontSize: 10 }} stroke="#9CA3AF" />
-                  <Tooltip
-                    content={({ active, payload }) => {
-                      if (!active || !payload?.length) return null;
-                      const p = payload[0].payload;
-                      return (
-                        <div className="bg-white rounded-lg shadow-lg border p-3 text-sm">
-                          <p className="font-medium">{p.name}</p>
-                          <p>Net: {p.netHours}h | Break: {p.breakHours}h</p>
-                          <p>Status: {p.status}</p>
-                          <p>Compliance: {p.compliancePct}%</p>
-                        </div>
-                      );
-                    }}
-                  />
-                  <Bar dataKey="netHours" name="Net hours" fill="#0F766E" radius={[0, 4, 4, 0]} />
-                </BarChart>
-              </ResponsiveContainer>
-            ) : (
-              <div className="flex items-center justify-center h-full text-gray-400">No staff data</div>
-            )}
-          </div>
-        </div>
-        </HighlightSection>
-
-        {/* Labor cost breakdown */}
-        <HighlightSection id="labor-cost">
-        <div className="bg-white rounded-xl border border-gray-200 shadow-sm overflow-hidden">
-          <div className="px-6 py-4 border-b border-gray-100">
-            <h2 className="text-lg font-semibold text-gray-900">Labor cost estimate</h2>
-            <p className="text-sm text-gray-500">Daily earned per staff (this period)</p>
-          </div>
-          <div className="p-4 max-h-80 overflow-y-auto">
-            {staffAnalytics.filter((s: { dailyEarned?: number }) => (s.dailyEarned ?? 0) > 0).length > 0 ? (
-              <div className="space-y-2">
-                {staffAnalytics
-                  .filter((s: { dailyEarned?: number }) => (s.dailyEarned ?? 0) > 0)
-                  .sort((a: { dailyEarned?: number }, b: { dailyEarned?: number }) => (b.dailyEarned ?? 0) - (a.dailyEarned ?? 0))
-                  .map((s: { id?: string; name?: string; dailyEarned?: number; role?: string }) => (
-                    <div key={s.id} className="flex justify-between items-center py-2 border-b border-gray-100 last:border-0">
-                      <div>
-                        <p className="font-medium text-gray-800">{s.name}</p>
-                        <p className="text-xs text-gray-500">{s.role}</p>
-                      </div>
-                      <p className="font-semibold text-teal-600">₹{(s.dailyEarned ?? 0).toLocaleString()}</p>
-                    </div>
-                  ))}
-                <div className="pt-4 mt-4 border-t-2 border-gray-200 flex justify-between font-bold">
-                  <span>Total</span>
-                  <span className="text-teal-600">₹{laborCostEstimate.toLocaleString()}</span>
-                </div>
-              </div>
-            ) : (
-              <div className="flex items-center justify-center h-48 text-gray-400">No salary data</div>
-            )}
-          </div>
-        </div>
-        </HighlightSection>
-      </div>
-
-      {/* Export Range Modal */}
-      {showExportModal && (
-        <div className="fixed inset-0 bg-black/40 backdrop-blur-sm flex items-center justify-center z-50 p-4 animate-fade-in">
-          <div className="bg-white rounded-2xl shadow-xl w-full max-w-md overflow-hidden animate-slide-up">
-            <div className="p-6 border-b border-gray-100">
-              <h3 className="text-lg font-bold text-gray-900">Export Analytics Report</h3>
-              <p className="text-sm text-gray-500">Choose the time range for your export</p>
-            </div>
-            <div className="p-6 space-y-3">
-              <button
-                onClick={() => void performExport('current')}
-                className="w-full flex items-center justify-between p-4 rounded-xl border border-gray-200 hover:border-teal-500 hover:bg-teal-50 transition-all text-left"
-                disabled={isExporting}
-              >
-                <div>
-                  <p className="font-semibold text-gray-900 text-sm">Current Filter</p>
-                  <p className="text-xs text-gray-500">Export exactly what you see on screen</p>
-                </div>
-                <div className="w-8 h-8 rounded-full bg-teal-100 flex items-center justify-center text-teal-600">
-                  <BarChart3 className="h-4 w-4" />
-                </div>
-              </button>
-              
-              <button
-                onClick={() => void performExport('30days')}
-                className="w-full flex items-center justify-between p-4 rounded-xl border border-gray-200 hover:border-teal-500 hover:bg-teal-50 transition-all text-left"
-                disabled={isExporting}
-              >
-                <div>
-                  <p className="font-semibold text-gray-900 text-sm">Last 30 Days</p>
-                  <p className="text-xs text-gray-500">Full month report regardless of filters</p>
-                </div>
-                <div className="w-8 h-8 rounded-full bg-blue-100 flex items-center justify-center text-blue-600">
-                  <Clock className="h-4 w-4" />
-                </div>
-              </button>
-
-              <button
-                onClick={() => void performExport('custom')}
-                className="w-full flex items-center justify-between p-4 rounded-xl border border-gray-200 hover:border-teal-500 hover:bg-teal-50 transition-all text-left"
-                disabled={isExporting}
-              >
-                <div>
-                  <p className="font-semibold text-gray-900 text-sm">Custom Range</p>
-                  <p className="text-xs text-gray-500">Select specific start and end dates</p>
-                </div>
-                <div className="w-8 h-8 rounded-full bg-amber-100 flex items-center justify-center text-amber-600">
-                  <Download className="h-4 w-4" />
-                </div>
-              </button>
-            </div>
-            <div className="p-4 bg-gray-50 border-t border-gray-100 flex justify-end">
-              <button
-                onClick={() => setShowExportModal(false)}
-                className="px-4 py-2 text-sm font-medium text-gray-600 hover:text-gray-900 transition-colors"
-              >
-                Cancel
-              </button>
-            </div>
-          </div>
-        </div>
-      )}
-
-      {/* Per-staff: days present + hours per IST shift day */}
-      <HighlightSection id="attendance-by-day">
-        <div className="bg-white rounded-xl border border-gray-200 shadow-sm overflow-hidden mb-8">
-          <div className="px-6 py-4 border-b border-gray-100">
-            <h2 className="text-lg font-semibold text-gray-900">Attendance by day</h2>
-            <p className="text-sm text-gray-500">
-              For each staff member: number of IST calendar days with a clock-in, total net hours in the selected
-              period, and a day-by-day table (punch in / punch out in IST, hours after breaks). Uses the same period
-              and search filter as the rest of this page.
-            </p>
-          </div>
-          <div className="divide-y divide-gray-100">
-            {(staffAnalytics as StaffAnalyticsRow[]).length === 0 ? (
-              <p className="p-6 text-center text-gray-400">No staff in view</p>
-            ) : (
-              (staffAnalytics as StaffAnalyticsRow[]).map((s) => {
-                const rows = s.dailyAttendance ?? [];
-                const daysPresent = s.daysPresent ?? 0;
-                return (
-                  <details key={String(s.id ?? s.name)} className="group px-4 sm:px-6 py-2">
-                    <summary className="flex cursor-pointer list-none flex-wrap items-center justify-between gap-3 py-3 [&::-webkit-details-marker]:hidden">
-                      <div className="flex min-w-0 flex-1 flex-col gap-0.5 sm:flex-row sm:items-center sm:gap-3">
-                        <span className="font-medium text-gray-900 truncate">{s.name ?? '—'}</span>
-                        <span className="text-sm text-gray-500 truncate">{s.role ?? ''}</span>
-                      </div>
-                      <div className="flex shrink-0 items-center gap-3 text-sm">
-                        <span className="tabular-nums text-gray-700">
-                          <span className="font-semibold text-teal-800">{daysPresent}</span> day
-                          {daysPresent === 1 ? '' : 's'} present
-                        </span>
-                        <span className="tabular-nums font-medium text-gray-900">
-                          {(s.netHours ?? 0).toFixed(1)}h net
-                        </span>
-                        <span className="rounded border border-gray-200 bg-gray-50 px-2 py-0.5 text-xs text-gray-600 group-open:bg-teal-50 group-open:border-teal-200 group-open:text-teal-800">
-                          Details
-                        </span>
-                      </div>
-                    </summary>
-                    <div className="pb-4 pt-0 overflow-x-auto">
-                      {rows.length === 0 ? (
-                        <p className="text-sm text-gray-500 py-2">No punch data in this period.</p>
-                      ) : (
-                        <table className="w-full min-w-[520px] text-sm border border-gray-100 rounded-lg overflow-hidden">
-                          <thead className="bg-gray-50 text-left text-xs font-semibold uppercase tracking-wide text-gray-600">
-                            <tr>
-                              <th className="px-3 py-2">Shift date (IST)</th>
-                              <th className="px-3 py-2">Punch in</th>
-                              <th className="px-3 py-2">Punch out</th>
-                              <th className="px-3 py-2 text-right">Net hours</th>
-                            </tr>
-                          </thead>
-                          <tbody className="divide-y divide-gray-100">
-                            {rows.map((r) => (
-                              <tr key={r.date} className="bg-white hover:bg-gray-50/80">
-                                <td className="px-3 py-2 font-medium text-gray-800 tabular-nums">{r.date}</td>
-                                <td className="px-3 py-2 text-gray-700">{fmtIst(r.punchIn)}</td>
-                                <td className="px-3 py-2 text-gray-700">{fmtIst(r.punchOut)}</td>
-                                <td className="px-3 py-2 text-right tabular-nums font-medium text-gray-900">
-                                  {r.hours.toFixed(2)}
-                                </td>
-                              </tr>
-                            ))}
-                          </tbody>
-                        </table>
-                      )}
-                    </div>
-                  </details>
-                );
-              })
-            )}
-          </div>
-        </div>
-      </HighlightSection>
-
-      {/* Web-only: Quick insights */}
-      <div className="bg-gradient-to-r from-teal-50 to-cyan-50 rounded-xl border border-teal-100 p-6">
-        <h2 className="text-lg font-semibold text-gray-900 mb-4">Insights for owners</h2>
-        <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-4 gap-4">
-          <div className="bg-white/80 rounded-lg p-4">
-            <p className="text-sm font-medium text-teal-800">Shift coverage</p>
-            <p className="text-sm text-gray-600 mt-1">
-              {shiftDistribution.find((s: { shift: string }) => s.shift === 'Day')?.count ?? 0} day staff,{' '}
-              {shiftDistribution.find((s: { shift: string }) => s.shift === 'Night')?.count ?? 0} night staff
-            </p>
-          </div>
-          <div className="bg-white/80 rounded-lg p-4">
-            <p className="text-sm font-medium text-teal-800">Overtime</p>
-            <p className="text-sm text-gray-600 mt-1">
-              {staffAnalytics.filter((s: { status?: string }) => s.status === 'overtime').length} staff over target hours
-            </p>
-          </div>
-          <div className="bg-white/80 rounded-lg p-4">
-            <p className="text-sm font-medium text-teal-800">Under hours</p>
-            <p className="text-sm text-gray-600 mt-1">
-              {staffAnalytics.filter((s: { status?: string }) => s.status === 'under').length} staff below target
-            </p>
-          </div>
-          <div className="bg-white/80 rounded-lg p-4">
-            <p className="text-sm font-medium text-teal-800">Export</p>
-            <p className="text-sm text-gray-600 mt-1">Download CSV for accounting or payroll</p>
-          </div>
-        </div>
-      </div>
         </>
       )}
     </div>

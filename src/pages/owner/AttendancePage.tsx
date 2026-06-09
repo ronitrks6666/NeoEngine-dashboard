@@ -10,7 +10,6 @@ import { LoadingSpinner } from '@/components/LoadingSpinner';
 import { useDebouncedValue } from '@/hooks/useDebouncedValue';
 import {
   ChevronDown,
-  ChevronLeft,
   ChevronRight,
   Calendar,
   Clock,
@@ -20,7 +19,7 @@ import {
   X,
   Loader2,
 } from 'lucide-react';
-import { format, addDays, subDays } from 'date-fns';
+import { format, startOfDay } from 'date-fns';
 import { CalendarDateField } from '@/components/CalendarDateField';
 
 function statusBadgeLabel(status: string) {
@@ -55,7 +54,8 @@ export function AttendancePage() {
   const staffSearchBlurTimerRef = useRef<ReturnType<typeof setTimeout> | null>(null);
   const [punchMenuOpenId, setPunchMenuOpenId] = useState<string | null>(null);
   const punchMenuRef = useRef<HTMLDivElement | null>(null);
-  const [selectedDate, setSelectedDate] = useState(new Date().toISOString().slice(0, 10));
+  const today = new Date().toISOString().slice(0, 10);
+  const [selectedRange, setSelectedRange] = useState<{ start: string; end: string }>({ start: today, end: today });
   const queryClient = useQueryClient();
 
   const { data: dashboardData } = useQuery({
@@ -84,13 +84,20 @@ export function AttendancePage() {
   const staffSuggestions =
     (staffSuggestPayload as { data?: { employees?: unknown[] } } | undefined)?.data?.employees ?? [];
 
+  const startDate = selectedRange.start.trim() || today;
+  const endDate = selectedRange.end.trim() || startDate;
+  const rangeLabel =
+    startDate === endDate
+      ? format(startOfDay(new Date(startDate)), 'EEE, MMM dd, yyyy')
+      : `${format(startOfDay(new Date(startDate)), 'MMM dd, yyyy')} - ${format(startOfDay(new Date(endDate)), 'MMM dd, yyyy')}`;
+
   const { data: attendanceData, isLoading: isAttendanceLoading } = useQuery({
-    queryKey: ['attendance', selectedOutletId, selectedDate, debouncedAttendanceSearch],
+    queryKey: ['attendance', selectedOutletId, startDate, endDate, debouncedAttendanceSearch],
     queryFn: () =>
       activityApi.getAttendance(selectedOutletId!, {
-        startDate: selectedDate,
-        endDate: selectedDate,
-        limit: 100,
+        startDate,
+        endDate,
+        limit: 1000,
         search: debouncedAttendanceSearch.trim() || undefined,
       }),
     enabled: !!selectedOutletId,
@@ -254,46 +261,19 @@ export function AttendancePage() {
       </div>
 
       {/* Date Navigation */}
-      <div className="bg-white rounded-2xl border border-gray-100 p-4 mb-8 shadow-sm flex flex-col sm:flex-row items-center justify-between gap-4">
-        <div className="flex items-center gap-2">
-          <button
-            onClick={() => setSelectedDate(subDays(new Date(selectedDate), 1).toISOString().slice(0, 10))}
-            className="p-2 rounded-lg hover:bg-gray-100 text-gray-500 transition-colors"
-          >
-            <ChevronLeft className="h-5 w-5" />
-          </button>
-          <div className="flex items-center gap-2 min-w-[180px] justify-center">
-            <Calendar className="h-4 w-4 text-emerald-600" />
-            <span className="font-semibold text-gray-900">
-              {format(new Date(selectedDate), 'EEE, MMM dd, yyyy')}
-            </span>
-          </div>
-          <button
-            onClick={() => setSelectedDate(addDays(new Date(selectedDate), 1).toISOString().slice(0, 10))}
-            className="p-2 rounded-lg hover:bg-gray-100 text-gray-500 transition-colors"
-          >
-            <ChevronRight className="h-5 w-5" />
-          </button>
+      <div className="bg-white rounded-2xl border border-gray-100 p-4 mb-8 shadow-sm flex flex-col sm:flex-row sm:items-center sm:justify-between gap-4">
+        <div>
+          <p className="text-xs font-semibold uppercase tracking-[0.24em] text-gray-400 mb-1">Attendance filter</p>
+          <h2 className="text-lg font-bold text-gray-900">{rangeLabel}</h2>
+          <p className="text-sm text-gray-500">Pick a date range. Selecting the same start and end date shows that day only.</p>
         </div>
-        <div className="flex items-center gap-3">
-          <button
-            onClick={() => setSelectedDate(new Date().toISOString().slice(0, 10))}
-            className={`px-4 py-2 rounded-xl text-sm font-medium transition-all ${
-              selectedDate === new Date().toISOString().slice(0, 10)
-                ? 'bg-emerald-100 text-emerald-700'
-                : 'text-gray-500 hover:bg-gray-100'
-            }`}
-          >
-            Today
-          </button>
-          <div className="w-px h-6 bg-gray-100 mx-1 hidden sm:block" />
-          <div className="w-40">
-            <CalendarDateField
-              value={selectedDate}
-              onChange={setSelectedDate}
-              placeholder="Pick a date"
-            />
-          </div>
+        <div className="sm:w-[320px] md:w-[360px]">
+          <CalendarDateField
+            mode="range"
+            rangeValue={selectedRange}
+            onRangeChange={setSelectedRange}
+            placeholder="Pick a date range"
+          />
         </div>
       </div>
 
@@ -381,8 +361,9 @@ export function AttendancePage() {
           <button
             onClick={() => {
               if (Array.isArray(events) && events.length > 0) {
-                const headers = ['Time', 'Employee', 'Event'];
+                const headers = ['Date', 'Time', 'Employee', 'Event'];
                 const rows = events.map((e: { timestamp?: string; employeeName?: string; label?: string }) => [
+                  e.timestamp ? format(new Date(e.timestamp), 'yyyy-MM-dd') : '-',
                   e.timestamp ? format(new Date(e.timestamp), 'HH:mm:ss') : '-',
                   e.employeeName ?? '-',
                   e.label ?? '-',
@@ -392,7 +373,7 @@ export function AttendancePage() {
                 const url = URL.createObjectURL(blob);
                 const a = document.createElement('a');
                 a.href = url;
-                a.download = `attendance-${selectedDate}.csv`;
+                a.download = `attendance-${startDate}_to_${endDate}.csv`;
                 a.click();
                 URL.revokeObjectURL(url);
               }
@@ -409,6 +390,7 @@ export function AttendancePage() {
             <table className="w-full text-left">
               <thead>
                 <tr className="bg-gray-50/50">
+                  <th className="px-6 py-4 text-[10px] font-bold text-gray-400 uppercase tracking-widest">Date</th>
                   <th className="px-6 py-4 text-[10px] font-bold text-gray-400 uppercase tracking-widest">Time</th>
                   <th className="px-6 py-4 text-[10px] font-bold text-gray-400 uppercase tracking-widest">Employee</th>
                   <th className="px-6 py-4 text-[10px] font-bold text-gray-400 uppercase tracking-widest">Action</th>
@@ -417,6 +399,14 @@ export function AttendancePage() {
               <tbody className="divide-y divide-gray-100">
                 {events.map((e: { _id?: string; timestamp?: string; employeeName?: string; type?: string; label?: string }, i: number) => (
                   <tr key={e._id ?? i} className="group hover:bg-gray-50/50 transition-colors">
+                    <td className="px-6 py-4">
+                      <div className="flex items-center gap-2">
+                        <Calendar className="h-3.5 w-3.5 text-gray-400" />
+                        <span className="text-sm font-medium text-gray-700">
+                          {e.timestamp ? format(new Date(e.timestamp), 'dd MMM yyyy') : '—'}
+                        </span>
+                      </div>
+                    </td>
                     <td className="px-6 py-4">
                       <div className="flex items-center gap-2">
                         <Clock className="h-3.5 w-3.5 text-gray-400" />
@@ -451,7 +441,7 @@ export function AttendancePage() {
               <Search className="h-8 w-8 text-gray-300" />
             </div>
             <p className="text-gray-500 font-medium">
-              {debouncedAttendanceSearch.trim() ? 'No activity matches your search.' : 'No activity recorded for this day.'}
+              {debouncedAttendanceSearch.trim() ? 'No activity matches your search.' : startDate === endDate ? 'No activity recorded for this day.' : 'No activity recorded for this range.'}
             </p>
           </div>
         )}

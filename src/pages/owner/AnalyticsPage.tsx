@@ -4,6 +4,7 @@ import { HighlightSection } from '@/components/HighlightSection';
 import { useOutletStore } from '@/stores/outletStore';
 import { analyticsApi } from '@/api/analytics';
 import { employeeApi } from '@/api/employee';
+import * as XLSX from 'xlsx';
 import {
   BarChart,
   Bar,
@@ -63,6 +64,17 @@ function defaultCustomRange() {
   start.setDate(end.getDate() - 29);
   const y = (d: Date) => d.toISOString().slice(0, 10);
   return { start: y(start), end: y(end) };
+}
+
+function istYmd(date: Date) {
+  return date.toLocaleDateString('en-CA', { timeZone: 'Asia/Kolkata' });
+}
+
+function lastNDaysRange(days: number) {
+  const end = new Date();
+  const start = new Date();
+  start.setDate(end.getDate() - (days - 1));
+  return { start: istYmd(start), end: istYmd(end) };
 }
 
 function fmtIst(iso: string | null) {
@@ -175,9 +187,19 @@ type StaffAnalyticsRow = {
   id?: string;
   name?: string;
   role?: string;
+  shiftType?: string;
+  hours?: number;
+  breakHours?: number;
   daysPresent?: number;
   dailyAttendance?: StaffDailyAttendance[];
   netHours?: number;
+  minHoursRequired?: number;
+  compliancePct?: number;
+  status?: string;
+  overtimeHours?: number;
+  underHours?: number;
+  dailyEarned?: number | null;
+  salary?: number | null;
 };
 
 export function AnalyticsPage() {
@@ -191,6 +213,7 @@ export function AnalyticsPage() {
   // committedSearch is only updated when user selects from dropdown — this drives the API query
   const [committedSearch, setCommittedSearch] = useState('');
   const [showSuggestions, setShowSuggestions] = useState(false);
+  const [isExporting, setIsExporting] = useState(false);
 
   // Fetch ALL staff for the suggestion dropdown (cached independently, never re-fetches on search)
   const { data: staffData } = useQuery({
@@ -256,40 +279,163 @@ export function AnalyticsPage() {
 
   const [showExportModal, setShowExportModal] = useState(false);
 
-  const performExport = (exportPeriod: 'current' | '30days' | 'custom', _range?: { start: string; end: string }) => {
-    // This will be called with the selected range
-    // For now, I'll implement the logic to fetch and export
-    // If it's 'current', use existing 'data'
-    // If it's '30days' or 'custom', we might need a separate fetch or just use what we have if it matches
-    
-    let exportData = data?.data ?? data ?? {};
-    
-    // In a real scenario, if they choose a different range, we might need to trigger a one-off fetch.
-    // But to keep it simple and fast, I'll export what's currently in 'data' if it's 'current'.
-    // The user's request: "ask use to export with current filter or last 30days or custom"
-    
-    const stats = exportData.employeeStats ?? [];
-    const headers = ['Name', 'Role', 'Net Hours', 'Break Hours', 'Status', 'Compliance %', 'Daily Earned'];
-    const rows: (string | number)[][] = stats.map((s: any) => [
-      s.name ?? '-',
-      s.role ?? '-',
-      s.netHours ?? 0,
-      s.breakHours ?? 0,
-      s.status ?? '-',
-      s.compliancePct ?? 0,
-      s.dailyEarned ?? '-',
-    ]);
-    const escapeCsv = (val: string | number) => `"${String(val).replace(/"/g, '""')}"`;
-    const csv = [headers.join(','), ...rows.map((r) => r.map(escapeCsv).join(','))].join('\n');
-    const blob = new Blob([csv], { type: 'text/csv' });
-    const url = URL.createObjectURL(blob);
-    const a = document.createElement('a');
-    a.href = url;
-    const rangeSlug = exportPeriod === 'current' ? (period === 'custom' ? `${appliedCustom?.start}_to_${appliedCustom?.end}` : period) : exportPeriod;
-    a.download = `analytics-report-${rangeSlug}-${new Date().toISOString().slice(0, 10)}.csv`;
-    a.click();
-    URL.revokeObjectURL(url);
-    setShowExportModal(false);
+  const performExport = async (exportPeriod: 'current' | '30days' | 'custom') => {
+    if (!selectedOutletId || isExporting) return;
+
+    const currentRange = period === 'custom' && customQueryRange ? customQueryRange : period === 'custom' ? appliedCustom : null;
+    const searchFilter = exportPeriod === 'current' ? committedSearch.trim() || undefined : undefined;
+    const exportRange =
+      exportPeriod === '30days'
+        ? lastNDaysRange(30)
+        : exportPeriod === 'custom'
+          ? currentRange
+          : period === 'custom' && currentRange
+            ? currentRange
+            : null;
+
+    if (exportPeriod === 'custom' && !exportRange) {
+      setPeriod('custom');
+      setShowExportModal(false);
+      return;
+    }
+
+    setIsExporting(true);
+    try {
+      const exportResponse =
+        exportPeriod === 'current'
+          ? (data?.data ?? data ?? {})
+          : await analyticsApi.getOutletAnalytics(selectedOutletId, {
+              period: exportPeriod === '30days' ? 'custom' : period,
+              ...(exportRange ? { startDate: exportRange.start, endDate: exportRange.end } : {}),
+              search: searchFilter,
+            });
+
+      const payload = exportResponse?.data ?? exportResponse ?? {};
+      const staffStats = Array.isArray(payload.employeeStats) ? payload.employeeStats : [];
+      const summaryRows = [
+        ['Metric', 'Value'],
+        ['Generated at', new Date().toLocaleString('en-IN', { timeZone: 'Asia/Kolkata' })],
+        ['Export scope', exportPeriod === 'current' ? 'Current filter' : exportPeriod === '30days' ? 'Last 30 days' : 'Custom range'],
+        ['Period', payload.period ?? period],
+        ['Search filter', exportPeriod === 'current' ? committedSearch.trim() || 'All staff' : 'All staff'],
+        ['Date range', exportRange ? `${exportRange.start} to ${exportRange.end}` : 'Current dashboard range'],
+        ['Total employees', payload.totalEmployees ?? 0],
+        ['Active employees today', payload.activeEmployeesToday ?? 0],
+        ['Total work hours', payload.totalWorkHours ?? 0],
+        ['Hours compliance rate (%)', payload.hoursComplianceRate ?? 0],
+        ['Employees met min hours', payload.employeesMetMinHours ?? 0],
+        ['Average hours per employee', payload.averageHoursPerEmployee ?? 0],
+        ['Total tasks', payload.totalTasks ?? 0],
+        ['Completed tasks', payload.completedTasks ?? 0],
+        ['Task completion rate (%)', payload.taskCompletionRate ?? 0],
+        ['Estimated labor cost', laborCostEstimate],
+      ];
+
+      const staffSummaryRows = staffStats.map(
+        (s: StaffAnalyticsRow & { shiftType?: string; hours?: number; breakHours?: number; overtimeHours?: number; underHours?: number; salary?: number | null }) => ({
+          Name: s.name ?? '—',
+          Role: s.role ?? '—',
+          Shift: s.shiftType ?? '—',
+          'Net Hours': s.netHours ?? 0,
+          'Break Hours': s.breakHours ?? 0,
+          'Gross Hours': s.hours ?? 0,
+          'Min Hours Required': s.minHoursRequired ?? 0,
+          'Compliance %': s.compliancePct ?? 0,
+          Status: s.status ?? '—',
+          'Overtime Hours': s.overtimeHours ?? 0,
+          'Under Hours': s.underHours ?? 0,
+          'Daily Earned': s.dailyEarned ?? 0,
+          'Days Present': s.daysPresent ?? 0,
+          Salary: s.salary ?? 0,
+        })
+      );
+
+      const dailyAttendanceRows = staffStats.flatMap((s: StaffAnalyticsRow & { dailyAttendance?: StaffDailyAttendance[] }) =>
+        (s.dailyAttendance ?? []).map((row) => ({
+          Staff: s.name ?? '—',
+          Role: s.role ?? '—',
+          Date: row.date,
+          'Punch In (IST)': fmtIst(row.punchIn),
+          'Punch Out (IST)': fmtIst(row.punchOut),
+          'Net Hours': row.hours ?? 0,
+          'Days Present': s.daysPresent ?? 0,
+        }))
+      );
+
+      const workbook = XLSX.utils.book_new();
+      XLSX.utils.book_append_sheet(workbook, XLSX.utils.aoa_to_sheet(summaryRows), 'Summary');
+      XLSX.utils.book_append_sheet(
+        workbook,
+        staffSummaryRows.length > 0
+          ? XLSX.utils.json_to_sheet(staffSummaryRows, {
+              header: [
+                'Name',
+                'Role',
+                'Shift',
+                'Net Hours',
+                'Break Hours',
+                'Gross Hours',
+                'Min Hours Required',
+                'Compliance %',
+                'Status',
+                'Overtime Hours',
+                'Under Hours',
+                'Daily Earned',
+                'Days Present',
+                'Salary',
+              ],
+            })
+          : XLSX.utils.aoa_to_sheet([
+              ['Name', 'Role', 'Shift', 'Net Hours', 'Break Hours', 'Gross Hours', 'Min Hours Required', 'Compliance %', 'Status', 'Overtime Hours', 'Under Hours', 'Daily Earned', 'Days Present', 'Salary'],
+            ]),
+        'Staff Summary'
+      );
+      XLSX.utils.book_append_sheet(
+        workbook,
+        dailyAttendanceRows.length > 0
+          ? XLSX.utils.json_to_sheet(dailyAttendanceRows, {
+              header: ['Staff', 'Role', 'Date', 'Punch In (IST)', 'Punch Out (IST)', 'Net Hours', 'Days Present'],
+            })
+          : XLSX.utils.aoa_to_sheet([['Staff', 'Role', 'Date', 'Punch In (IST)', 'Punch Out (IST)', 'Net Hours', 'Days Present']]),
+        'Daily Working Report'
+      );
+
+      if (Array.isArray(payload.dailyHoursData) && payload.dailyHoursData.length > 0) {
+        XLSX.utils.book_append_sheet(workbook, XLSX.utils.json_to_sheet(payload.dailyHoursData), 'Daily Hours');
+      }
+
+      if (Array.isArray(payload.roleBreakdown) && payload.roleBreakdown.length > 0) {
+        XLSX.utils.book_append_sheet(workbook, XLSX.utils.json_to_sheet(payload.roleBreakdown), 'Role Breakdown');
+      }
+
+      if (Array.isArray(payload.shiftDistribution) && payload.shiftDistribution.length > 0) {
+        XLSX.utils.book_append_sheet(workbook, XLSX.utils.json_to_sheet(payload.shiftDistribution), 'Shift Distribution');
+      }
+
+      if (Array.isArray(payload.taskCompletionByShift) && payload.taskCompletionByShift.length > 0) {
+        XLSX.utils.book_append_sheet(workbook, XLSX.utils.json_to_sheet(payload.taskCompletionByShift), 'Task Completion');
+      }
+
+      if (Array.isArray(payload.leaveTrend) && payload.leaveTrend.length > 0) {
+        XLSX.utils.book_append_sheet(workbook, XLSX.utils.json_to_sheet(payload.leaveTrend), 'Leave Trend');
+      }
+
+      const safeRangeSlug =
+        exportPeriod === 'current'
+          ? period === 'custom' && currentRange
+            ? `${currentRange.start}_to_${currentRange.end}`
+            : period
+          : exportPeriod === '30days'
+            ? 'last-30-days'
+            : exportRange
+              ? `${exportRange.start}_to_${exportRange.end}`
+              : 'custom-range';
+
+      XLSX.writeFile(workbook, `analytics-report-${safeRangeSlug}-${istYmd(new Date())}.xlsx`);
+      setShowExportModal(false);
+    } finally {
+      setIsExporting(false);
+    }
   };
 
   const handleExport = () => {
@@ -403,10 +549,10 @@ export function AnalyticsPage() {
             </button>
             <button
               onClick={handleExport}
-              disabled={isLoading}
+              disabled={isLoading || isExporting}
               className="px-4 py-2.5 rounded-xl text-sm font-semibold bg-white border border-gray-200 text-gray-700 hover:bg-gray-50 hover:border-teal-500 hover:text-teal-600 transition-all shadow-sm flex items-center gap-2 disabled:opacity-50"
             >
-              <Download className="h-4 w-4" /> Export Report
+              <Download className="h-4 w-4" /> {isExporting ? 'Exporting...' : 'Export Report'}
             </button>
           </div>
         </div>
@@ -1000,8 +1146,9 @@ export function AnalyticsPage() {
             </div>
             <div className="p-6 space-y-3">
               <button
-                onClick={() => performExport('current')}
+                onClick={() => void performExport('current')}
                 className="w-full flex items-center justify-between p-4 rounded-xl border border-gray-200 hover:border-teal-500 hover:bg-teal-50 transition-all text-left"
+                disabled={isExporting}
               >
                 <div>
                   <p className="font-semibold text-gray-900 text-sm">Current Filter</p>
@@ -1013,8 +1160,9 @@ export function AnalyticsPage() {
               </button>
               
               <button
-                onClick={() => performExport('30days')}
+                onClick={() => void performExport('30days')}
                 className="w-full flex items-center justify-between p-4 rounded-xl border border-gray-200 hover:border-teal-500 hover:bg-teal-50 transition-all text-left"
+                disabled={isExporting}
               >
                 <div>
                   <p className="font-semibold text-gray-900 text-sm">Last 30 Days</p>
@@ -1026,11 +1174,9 @@ export function AnalyticsPage() {
               </button>
 
               <button
-                onClick={() => {
-                  setPeriod('custom');
-                  setShowExportModal(false);
-                }}
+                onClick={() => void performExport('custom')}
                 className="w-full flex items-center justify-between p-4 rounded-xl border border-gray-200 hover:border-teal-500 hover:bg-teal-50 transition-all text-left"
+                disabled={isExporting}
               >
                 <div>
                   <p className="font-semibold text-gray-900 text-sm">Custom Range</p>

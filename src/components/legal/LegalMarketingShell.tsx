@@ -46,6 +46,12 @@ export function LegalMarketingShell({ title, children, metaLine }: LegalMarketin
               Terms
             </Link>
             <Link
+              to="/contact"
+              className="text-slate-600 hover:text-slate-900 font-medium transition-colors"
+            >
+              Contact
+            </Link>
+            <Link
               to={dashboardPath(token, role)}
               className="px-3 sm:px-4 py-2 rounded-xl bg-primary hover:bg-primary-dark text-white font-medium transition-colors whitespace-nowrap"
             >
@@ -90,6 +96,9 @@ export function LegalMarketingShell({ title, children, metaLine }: LegalMarketin
             </Link>
             <Link to="/terms-of-service" className="hover:text-slate-900 transition-colors">
               Terms of Service
+            </Link>
+            <Link to="/contact" className="hover:text-slate-900 transition-colors">
+              Contact
             </Link>
             <Link
               to={NEOENGINE_APK_ROUTE}

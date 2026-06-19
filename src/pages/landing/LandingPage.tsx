@@ -598,9 +598,9 @@ export function LandingPage() {
               <a href="#pricing" className="hover:text-slate-900 transition-colors">
                 Pricing
               </a>
-              <a href="#contact" className="hover:text-slate-900 transition-colors">
+              <Link to="/contact" className="hover:text-slate-900 transition-colors">
                 Contact
-              </a>
+              </Link>
               <Link to="/privacy-policy" className="hover:text-slate-900 transition-colors">
                 Privacy Policy
               </Link>

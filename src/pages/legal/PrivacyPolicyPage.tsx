@@ -165,36 +165,76 @@ export function PrivacyPolicyPage() {
         </p>
 
         <h3 className="text-lg font-medium text-slate-800 pt-2">3.4 Location</h3>
-        <p>We process location for workforce compliance and attendance, including:</p>
+        <p>
+          We process location for attendance verification, geofencing, and operational features. What is
+          collected depends on your device platform, the permissions you grant, and how your employer
+          configures NeoEngine.
+        </p>
+        <p className="font-medium text-slate-800 pt-1">Shared (iOS and Android)</p>
         <LegalUnorderedList
           items={[
             <>
-              <strong>Punch / attendance events:</strong> latitude and longitude captured when you punch
-              in/out or during verification flows tied to attendance.
+              <strong>Punch and attendance:</strong> latitude and longitude when you punch in or out,
+              start or end a break (where the flow requires it), and during face-verification steps tied
+              to attendance.
             </>,
             <>
-              <strong>Location logs during work:</strong> periodic or event-driven records that may
-              include latitude, longitude, accuracy, timestamps, whether you are inside an employer
-              geofence, estimated distance from outlet, battery level, movement-related signals (e.g.
-              speed), mock/fake location flags, provider name, punch session linkage, and &quot;away&quot;
-              period linkage when you leave an expected area.
+              <strong>Tasks:</strong> GPS coordinates at task completion when the app sends them.
             </>,
             <>
-              <strong>Live status fields on an employee profile</strong> such as last known location
-              status (inside / away / far away / offline / unknown) and last update time for operational
-              visibility to authorized managers.
+              <strong>Issues and chat:</strong> coordinates when you choose to share a map pin or location
+              in a message.
             </>,
             <>
-              <strong>Post-shift location enforcement:</strong> where enabled by the organization,
-              outcomes and evidence metadata may be stored to support compliance workflows after a shift.
+              <strong>Profile and outlet setup:</strong> coordinates you or your employer enter for
+              addresses, geofences, or map links.
+            </>,
+            <>
+              <strong>Post-shift verification:</strong> where enabled, you may receive a notification and
+              confirm location by opening the app (foreground capture).
             </>,
           ]}
         />
+        <p className="font-medium text-slate-800 pt-3">On iOS</p>
+        <LegalUnorderedList
+          items={[
+            <>
+              Location is requested as <strong>&quot;While Using the App&quot;</strong> only. We do{' '}
+              <strong>not</strong> use continuous background location tracking on iOS.
+            </>,
+            <>
+              Location is captured at <strong>discrete user actions</strong> (punch, break, task
+              completion, shared pins, and explicit verification taps)—not as all-day movement
+              monitoring.
+            </>,
+            <>
+              Motion activity may be used by the device location library to improve GPS accuracy; we do
+              not use motion for advertising or unrelated tracking.
+            </>,
+          ]}
+        />
+        <p className="font-medium text-slate-800 pt-3">On Android</p>
+        <LegalUnorderedList
+          items={[
+            <>
+              The app may request <strong>foreground</strong> and, where enabled for your organization,{' '}
+              <strong>background</strong> location and a <strong>foreground service</strong> so location
+              can be logged periodically during an active work session (for example while clocked in),
+              subject to permissions and employer settings.
+            </>,
+            <>
+              Background collection stops when you clock out, log out, or when the app stops the tracking
+              session as configured.
+            </>,
+          ]}
+        />
+        <p className="font-medium text-slate-800 pt-3">Server-side records</p>
         <p>
-          On Android, our app configuration may request <strong>foreground</strong> and, where enabled,{' '}
-          <strong>background</strong> location and foreground service permissions so tracking can continue
-          during a shift as the employer configures. iOS location use is requested in line with Apple
-          guidelines when those features are used.
+          We may store coordinates, accuracy, timestamps, geofence status (inside / away), estimated
+          distance from outlet, mock-location flags, provider name, punch session linkage, and
+          &quot;away&quot; period records when your device sends location data. Manager dashboards may show
+          attendance location check-ins and derived status; the <strong>frequency</strong> of updates
+          differs by platform as described above.
         </p>
 
         <h3 className="text-lg font-medium text-slate-800 pt-2">

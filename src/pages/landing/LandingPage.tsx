@@ -11,6 +11,7 @@ import {
   Smartphone,
   Play,
   ArrowRight,
+  X,
   UtensilsCrossed,
   Store,
   Wrench,
@@ -44,10 +45,22 @@ const ICON_MAP: Record<string, LucideIcon> = {
 };
 
 function formatNumber(n: number): string {
-  if (n >= 1_000_000) return `${(n / 1_000_000).toFixed(1)}M`;
-  if (n >= 1_000) return `${(n / 1_000).toFixed(1)}K`;
+  if (n >= 1_000_000) {
+    const m = n / 1_000_000;
+    return Number.isInteger(m) ? `${m}M` : `${m.toFixed(1)}M`;
+  }
+  if (n >= 1_000) {
+    const k = n / 1_000;
+    return Number.isInteger(k) ? `${k}K` : `${k.toFixed(1)}K`;
+  }
   return String(n);
 }
+
+const DEFAULT_TRUST_STATS = {
+  businesses: 75,
+  staffManaged: 900,
+  tasksCompleted: 85000,
+};
 
 function FeatureIcon({ icon }: { icon: string }) {
   const Icon = ICON_MAP[icon] ?? BarChart3;
@@ -74,11 +87,27 @@ function landingDashboardPath(token: string | null, role: string | null): string
   return '/owner/dashboard';
 }
 
+const DEMO_VIDEO_EMBED_URL = 'https://www.youtube.com/embed/vMDQaVT1ZVg?autoplay=1&rel=0';
+
 export function LandingPage() {
   const { token, role } = useAuth();
   const [config, setConfig] = useState<LandingConfig | null>(null);
   const [loading, setLoading] = useState(true);
   const [configError, setConfigError] = useState(false);
+  const [showDemoVideo, setShowDemoVideo] = useState(false);
+
+  useEffect(() => {
+    if (!showDemoVideo) return;
+    const onKey = (e: KeyboardEvent) => {
+      if (e.key === 'Escape') setShowDemoVideo(false);
+    };
+    document.addEventListener('keydown', onKey);
+    document.body.style.overflow = 'hidden';
+    return () => {
+      document.removeEventListener('keydown', onKey);
+      document.body.style.overflow = '';
+    };
+  }, [showDemoVideo]);
 
   useEffect(() => {
     fetchLandingConfig()
@@ -163,13 +192,14 @@ export function LandingPage() {
                   {token ? 'Go to Dashboard' : 'Get Started'}
                   <ArrowRight className="h-4 w-4 shrink-0" />
                 </Link>
-                <a
-                  href="#demo"
+                <button
+                  type="button"
+                  onClick={() => setShowDemoVideo(true)}
                   className="inline-flex items-center justify-center gap-2 px-5 py-2.5 md:px-6 md:py-2.5 rounded-xl border-2 border-emerald-200 text-slate-700 hover:border-emerald-500 hover:text-emerald-700 font-semibold text-sm md:text-base transition-colors"
                 >
                   <Play className="h-4 w-4 shrink-0" />
                   Watch Demo
-                </a>
+                </button>
               </div>
             </motion.div>
             <motion.div
@@ -205,36 +235,39 @@ export function LandingPage() {
             className="max-w-6xl mx-auto"
           >
             <div className="grid grid-cols-2 md:grid-cols-4 gap-8 text-center">
-              {config?.trustStats && (
-                <>
-                  <div>
-                    <p className="text-3xl sm:text-4xl font-bold text-primary">
-                      {formatNumber(config.trustStats.businesses)}+
-                    </p>
-                    <p className="text-slate-600 mt-1">Businesses</p>
-                  </div>
-                  <div>
-                    <p className="text-3xl sm:text-4xl font-bold text-primary">
-                      {formatNumber(config.trustStats.staffManaged)}+
-                    </p>
-                    <p className="text-slate-600 mt-1">Staff Managed</p>
-                  </div>
-                  <div>
-                    <p className="text-3xl sm:text-4xl font-bold text-primary">
-                      {config.trustStats.tasksCompleted
-                        ? `${formatNumber(config.trustStats.tasksCompleted)}+`
-                        : '1M+'}
-                    </p>
-                    <p className="text-slate-600 mt-1">Tasks Completed</p>
-                  </div>
-                  <div>
-                    <p className="text-3xl sm:text-4xl font-bold text-primary">
-                      99.9%
-                    </p>
-                    <p className="text-slate-600 mt-1">Uptime</p>
-                  </div>
-                </>
-              )}
+              {(() => {
+                const stats = config?.trustStats ?? DEFAULT_TRUST_STATS;
+                return (
+                  <>
+                    <div>
+                      <p className="text-3xl sm:text-4xl font-bold text-primary">
+                        {formatNumber(stats.businesses)}+
+                      </p>
+                      <p className="text-slate-600 mt-1">Businesses</p>
+                    </div>
+                    <div>
+                      <p className="text-3xl sm:text-4xl font-bold text-primary">
+                        {formatNumber(stats.staffManaged)}+
+                      </p>
+                      <p className="text-slate-600 mt-1">Staff Managed</p>
+                    </div>
+                    <div>
+                      <p className="text-3xl sm:text-4xl font-bold text-primary">
+                        {stats.tasksCompleted
+                          ? `${formatNumber(stats.tasksCompleted)}+`
+                          : '85K+'}
+                      </p>
+                      <p className="text-slate-600 mt-1">Tasks Completed Everyday</p>
+                    </div>
+                    <div>
+                      <p className="text-3xl sm:text-4xl font-bold text-primary">
+                        99.99%
+                      </p>
+                      <p className="text-slate-600 mt-1">Uptime</p>
+                    </div>
+                  </>
+                );
+              })()}
             </div>
           </motion.div>
         </section>
@@ -621,6 +654,40 @@ export function LandingPage() {
           </div>
         </footer>
       </main>
+
+      {showDemoVideo && (
+        <div
+          className="fixed inset-0 z-[100] flex items-center justify-center bg-black/70 backdrop-blur-sm p-4 sm:p-6 animate-fade-in"
+          role="dialog"
+          aria-modal="true"
+          aria-label="NeoEngine product demo video"
+          onClick={() => setShowDemoVideo(false)}
+        >
+          <div
+            className="relative w-full max-w-4xl rounded-2xl bg-slate-900 p-2 sm:p-3 shadow-2xl animate-slide-up"
+            onClick={(e) => e.stopPropagation()}
+          >
+            <button
+              type="button"
+              onClick={() => setShowDemoVideo(false)}
+              className="absolute -top-3 -right-3 z-10 flex h-10 w-10 items-center justify-center rounded-full bg-white text-slate-700 shadow-lg hover:bg-emerald-50 hover:text-emerald-700 transition-colors"
+              aria-label="Close demo video"
+            >
+              <X className="h-5 w-5" />
+            </button>
+            <div className="aspect-video w-full overflow-hidden rounded-xl bg-black">
+              <iframe
+                src={DEMO_VIDEO_EMBED_URL}
+                title="YouTube video player"
+                className="h-full w-full border-0"
+                allow="accelerometer; autoplay; clipboard-write; encrypted-media; gyroscope; picture-in-picture; web-share"
+                referrerPolicy="strict-origin-when-cross-origin"
+                allowFullScreen
+              />
+            </div>
+          </div>
+        </div>
+      )}
     </div>
   );
 }

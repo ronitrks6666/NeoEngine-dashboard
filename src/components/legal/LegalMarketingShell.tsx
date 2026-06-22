@@ -2,7 +2,7 @@ import { Link } from 'react-router-dom';
 import { NeoEngineLogo } from '@/components/NeoEngineLogo';
 import { useAuth } from '@/hooks/useAuth';
 import { NEOENGINE_APK_ROUTE } from '@/constants/downloads';
-import { LEGAL_COMPANY_NAME } from '@/constants/legal';
+import { LEGAL_COMPANY_NAME, LEGAL_LAST_UPDATED } from '@/constants/legal';
 import { Download } from 'lucide-react';
 
 function dashboardPath(token: string | null, role: string | null): string {
@@ -46,6 +46,12 @@ export function LegalMarketingShell({ title, children, metaLine }: LegalMarketin
               Terms
             </Link>
             <Link
+              to="/contact"
+              className="text-slate-600 hover:text-slate-900 font-medium transition-colors"
+            >
+              Contact
+            </Link>
+            <Link
               to={dashboardPath(token, role)}
               className="px-3 sm:px-4 py-2 rounded-xl bg-primary hover:bg-primary-dark text-white font-medium transition-colors whitespace-nowrap"
             >
@@ -66,7 +72,7 @@ export function LegalMarketingShell({ title, children, metaLine }: LegalMarketin
                 metaLine
               ) : (
                 <>
-                  Last updated: June 6, 2026. NeoEngine is operated by {LEGAL_COMPANY_NAME} (&quot;we&quot;,
+                  Last updated: {LEGAL_LAST_UPDATED}. NeoEngine is operated by {LEGAL_COMPANY_NAME} (&quot;we&quot;,
                   &quot;us&quot;, &quot;our&quot;).
                 </>
               )}
@@ -90,6 +96,9 @@ export function LegalMarketingShell({ title, children, metaLine }: LegalMarketin
             </Link>
             <Link to="/terms-of-service" className="hover:text-slate-900 transition-colors">
               Terms of Service
+            </Link>
+            <Link to="/contact" className="hover:text-slate-900 transition-colors">
+              Contact
             </Link>
             <Link
               to={NEOENGINE_APK_ROUTE}

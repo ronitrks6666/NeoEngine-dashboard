@@ -51,7 +51,8 @@ export function TermsOfServicePage() {
           responsible for the legality of its HR practices, notices to employees, and its instructions to
           us concerning personal data it controls (subject to our Privacy Policy and any data-processing
           agreement). You acknowledge that NeoEngine may process sensitive categories of data your
-          organization submits—including biometric-derived vectors, location histories, financial
+          organization submits—including biometric-derived vectors, location data (event-based on iOS;
+          event-based and, on Android where enabled, periodic during work sessions), financial
           identifiers, health-related notes when entered, and government ID documents—solely to provide the
           Services at the organization’s direction.
         </p>
@@ -77,9 +78,17 @@ export function TermsOfServicePage() {
       <LegalSection title="6. Device permissions">
         <p>
           Mobile features may require permissions such as camera, microphone, contacts, notifications,
-          location (including background location where configured), storage/media access, and Android
-          foreground service or full-screen alert capabilities. You control many permissions through your
-          device settings; denying them may limit functionality.
+          location, storage/media access, and (on Android) foreground service or full-screen alert
+          capabilities. You control many permissions through your device settings; denying them may limit
+          functionality.
+        </p>
+        <p>
+          <strong>Location:</strong> On <strong>iOS</strong>, location is used only while the app is in use,
+          at attendance-related actions (punch in/out, break start/end where required), task completion,
+          shared location in messages, and explicit verification flows. Continuous background location is
+          not used on iOS. On <strong>Android</strong>, foreground and, where your organization enables
+          them, background location and a foreground service may be used during active work sessions (for
+          example while clocked in).
         </p>
       </LegalSection>
 

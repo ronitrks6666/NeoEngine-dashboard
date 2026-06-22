@@ -32,12 +32,18 @@ import {
   BookOpen,
   Headset,
   ClipboardList,
+  CreditCard,
+  Gift,
+  Building2,
 } from 'lucide-react';
 
 import { NeoEngineLogo } from '@/components/NeoEngineLogo';
 import { DashboardVoiceButton } from '@/components/DashboardVoiceButton';
 import { SiteSearchTypeahead } from '@/components/SiteSearchTypeahead';
 import { useHighlightSection } from '@/hooks/useHighlightSection';
+import { useSuperAdminPermissions } from '@/hooks/useSuperAdminPermissions';
+import { SUPER_ADMIN_PERMISSIONS as P } from '@/constants/superAdminPermissions';
+import type { SuperAdminPermission } from '@/constants/superAdminPermissions';
 import type { LucideIcon } from 'lucide-react';
 
 interface AppLayoutProps {
@@ -45,18 +51,22 @@ interface AppLayoutProps {
   role: 'SUPER_ADMIN' | 'OWNER';
 }
 
-const superAdminNav: { to: string; label: string; icon: LucideIcon }[] = [
-  { to: '/super-admin/dashboard', label: 'Dashboard', icon: LayoutDashboard },
-  { to: '/super-admin/owners', label: 'Owners', icon: Users },
-  { to: '/super-admin/outlets', label: 'Outlets', icon: Store },
-  { to: '/super-admin/support', label: 'Support Tickets', icon: Headset },
-  { to: '/super-admin/audit-logs', label: 'Audit Logs', icon: ClipboardList },
-  { to: '/super-admin/analytics', label: 'Analytics', icon: BarChart3 },
+const superAdminNav: { to: string; label: string; icon: LucideIcon; permission?: SuperAdminPermission }[] = [
+  { to: '/super-admin/dashboard', label: 'Dashboard', icon: LayoutDashboard, permission: P.DASHBOARD_VIEW },
+  { to: '/super-admin/owners', label: 'Owners', icon: Users, permission: P.OWNERS_VIEW },
+  { to: '/super-admin/outlets', label: 'Outlets', icon: Store, permission: P.OUTLETS_VIEW },
+  { to: '/super-admin/subscriptions', label: 'Subscriptions', icon: CreditCard, permission: P.SUBSCRIPTIONS_VIEW },
+  { to: '/super-admin/coupons', label: 'Coupons', icon: Gift, permission: P.COUPONS_VIEW },
+  { to: '/super-admin/sub-admins', label: 'Sub Admins', icon: Shield, permission: P.SUB_ADMINS_VIEW },
+  { to: '/super-admin/support', label: 'Support Tickets', icon: Headset, permission: P.SUPPORT_VIEW },
+  { to: '/super-admin/audit-logs', label: 'Audit Logs', icon: ClipboardList, permission: P.AUDIT_VIEW },
+  { to: '/super-admin/analytics', label: 'Analytics', icon: BarChart3, permission: P.ANALYTICS_VIEW },
 ];
 
 const ownerNav: { to: string; label: string; icon: LucideIcon }[] = [
   { to: '/owner/dashboard', label: 'Dashboard', icon: LayoutDashboard },
   { to: '/owner/tasks', label: 'Tasks', icon: CheckSquare },
+  { to: '/owner/sops', label: 'SOPs', icon: BookOpen },
   { to: '/owner/issues', label: 'Issues', icon: AlertTriangle },
   { to: '/owner/staff', label: 'Staff', icon: Users },
   { to: '/owner/payroll', label: 'Payroll', icon: Wallet },
@@ -73,6 +83,7 @@ const ownerNav: { to: string; label: string; icon: LucideIcon }[] = [
   { to: '/owner/permissions', label: 'Permissions', icon: Shield },
   { to: '/owner/activity', label: 'Activity', icon: Activity },
   { to: '/owner/roles', label: 'Roles', icon: UserCog },
+  { to: '/owner/departments', label: 'Departments', icon: Building2 },
   { to: '/owner/outlets', label: 'Outlets', icon: Store },
   { to: '/owner/support', label: 'Support', icon: Headset },
 ];
@@ -112,7 +123,8 @@ function SidebarFlyoutLayer({ flyout }: { flyout: SidebarFlyout }) {
 }
 
 export function AppLayout({ children, role }: AppLayoutProps) {
-  const { user, logout } = useAuth();
+  const { user, logout, refreshSuperAdminProfile } = useAuth();
+  const { can } = useSuperAdminPermissions();
   const { selectedOutletId, setOutlets, clear } = useOutletStore();
   const [sidebarCollapsed, setSidebarCollapsed] = useState(false);
   const [profileOpen, setProfileOpen] = useState(false);
@@ -155,7 +167,16 @@ export function AppLayout({ children, role }: AppLayoutProps) {
     if (!sidebarCollapsed) setSidebarFlyout(null);
   }, [sidebarCollapsed]);
 
-  const navItems = role === 'SUPER_ADMIN' ? superAdminNav : ownerNav;
+  useEffect(() => {
+    if (role === 'SUPER_ADMIN') {
+      void refreshSuperAdminProfile();
+    }
+  }, [role, refreshSuperAdminProfile]);
+
+  const navItems =
+    role === 'SUPER_ADMIN'
+      ? superAdminNav.filter((item) => !item.permission || can(item.permission))
+      : ownerNav;
   const basePath = role === 'SUPER_ADMIN' ? '/super-admin' : '/owner';
   const sidebarWidth = sidebarCollapsed ? 72 : 256;
   const dashboardPath = `${basePath}/dashboard`;

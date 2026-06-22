@@ -1,7 +1,7 @@
 import { useState, useRef, useEffect, useMemo } from 'react';
 import { useLocation, useNavigate } from 'react-router-dom';
 import { useQuery, useMutation, useQueryClient } from '@tanstack/react-query';
-import { useForm, Controller, useFieldArray } from 'react-hook-form';
+import { useForm, useFieldArray } from 'react-hook-form';
 import { zodResolver } from '@hookform/resolvers/zod';
 import { z } from 'zod';
 import { startOfDay } from 'date-fns';
@@ -11,20 +11,15 @@ import { employeeApi } from '@/api/employee';
 import { getApiErrorMessage } from '@/api/auth';
 import { LoadingSpinner } from '@/components/LoadingSpinner';
 import { SearchableSelect } from '@/components/SearchableSelect';
-import { TimePickerField } from '@/components/TimePickerField';
-import { CalendarDateField } from '@/components/CalendarDateField';
+import { TaskScheduleCard } from '@/components/TaskScheduleCard';
 import { ListSearchBar } from '@/components/ListSearchBar';
 import { useDebouncedValue } from '@/hooks/useDebouncedValue';
 import { VoiceInputButton } from '@/components/VoiceInputButton';
 import {
   CheckSquare,
-  Calendar,
-  Clock,
   Users,
   User,
   ImagePlus,
-  Sun,
-  Moon,
   ListTodo,
   Pencil,
   Trash2,
@@ -44,6 +39,7 @@ const taskSchema = z.object({
   specificDays: z.array(z.number()).optional(),
   multipleTimesPerDay: z.boolean().default(false),
   intervalMinutes: z.coerce.number().optional(),
+  repeatEndTime: z.string().optional(),
   startTime: z.string().optional(),
   timeLimitMinutes: z.coerce.number().optional(),
   checklistItems: z.array(z.object({
@@ -65,8 +61,6 @@ const taskSchema = z.object({
 });
 
 type TaskForm = z.infer<typeof taskSchema>;
-
-const DAY_NAMES = ['Sun', 'Mon', 'Tue', 'Wed', 'Thu', 'Fri', 'Sat'];
 
 export function TasksPage() {
   const { selectedOutletId, outlets } = useOutletStore();
@@ -111,7 +105,7 @@ export function TasksPage() {
   const { data: employeesData } = useQuery({
     queryKey: ['my-employees', selectedOutletId],
     queryFn: () => employeeApi.getMyEmployees({ outletId: selectedOutletId!, limit: 200 }),
-    enabled: !!selectedOutletId && showCreate,
+    enabled: !!selectedOutletId && (showCreate || !!editing),
   });
 
   const createRoleMutation = useMutation({
@@ -151,6 +145,8 @@ export function TasksPage() {
           data.multipleTimesPerDay && data.intervalMinutes
             ? Math.max(1, Math.floor(60 / (Number(data.intervalMinutes) || 60)))
             : 1,
+        intervalMinutes: data.multipleTimesPerDay && data.intervalMinutes ? Number(data.intervalMinutes) : undefined,
+        repeatEndTime: data.multipleTimesPerDay && data.repeatEndTime ? data.repeatEndTime : undefined,
         assignToRoleId: assignToType === 'role' ? data.parentRoleId : undefined,
         assignToEmployeeId: assignToType === 'staff' ? data.assignToEmployeeId : undefined,
         parentRoleId: assignToType === 'role' ? data.parentRoleId : undefined,
@@ -191,9 +187,10 @@ export function TasksPage() {
     taskType: 'daily',
     specificDate: '',
     specificDays: [],
-    multipleTimesPerDay: false,
+    multipleTimesPerDay: true,
     intervalMinutes: 60,
-    startTime: '',
+    repeatEndTime: '20:00',
+    startTime: '06:00',
     timeLimitMinutes: undefined,
     assignToType: 'role',
     assignToEmployeeId: '',
@@ -230,7 +227,7 @@ export function TasksPage() {
       (employees as { _id: string; name: string; activeRoleId?: { name?: string; parentRoleId?: { name?: string } } }[]).map(
         (emp) => ({
           value: emp._id,
-          label: `${emp.activeRoleId?.name || emp.activeRoleId?.parentRoleId?.name || 'Staff'} — ${emp.name}`,
+          label: `${emp.activeRoleId?.parentRoleId?.name || 'Staff'} — ${emp.name}`,
         })
       ),
     [employees]
@@ -262,6 +259,13 @@ export function TasksPage() {
     }
   }, [location.state, navigate, location.pathname, selectedOutletId]);
 
+  const resolveEmployeeId = (raw: unknown) => {
+    if (!raw) return '';
+    if (typeof raw === 'string') return raw;
+    if (typeof raw === 'object' && raw !== null && '_id' in raw) return String((raw as { _id: string })._id);
+    return String(raw);
+  };
+
   const openEdit = (t: any) => {
     setEditing(t);
     setImageUrl(t.imageUrl || '');
@@ -272,14 +276,15 @@ export function TasksPage() {
       description: t.description ?? '',
       assignToType: t.assignToType ?? 'role',
       parentRoleId: (t.parentRoleId as { _id?: string })?._id ?? t.parentRoleId ?? '',
-      assignToEmployeeId: t.assignToEmployeeId ?? '',
+      assignToEmployeeId: resolveEmployeeId(t.assignToEmployeeId),
       shiftType: (t.shiftType as 'Day' | 'Night' | 'Both') ?? 'Both',
       taskType: (t.taskType as 'daily' | 'onetime' | 'specific-days' | 'weekly') ?? 'daily',
       specificDate: t.specificDate ?? '',
       specificDays: t.specificDays ?? [],
-      multipleTimesPerDay: t.hourlyFrequency ? t.hourlyFrequency > 1 : false,
-      intervalMinutes: t.hourlyFrequency ? Math.floor(60 / t.hourlyFrequency) : 60,
-      startTime: t.startTime ?? '',
+      multipleTimesPerDay: Boolean(t.intervalMinutes && Number(t.intervalMinutes) > 0) || (t.hourlyFrequency ? t.hourlyFrequency > 1 : false),
+      intervalMinutes: t.intervalMinutes ?? (t.hourlyFrequency ? Math.max(5, Math.floor(60 / t.hourlyFrequency)) : 60),
+      repeatEndTime: t.repeatEndTime || '20:00',
+      startTime: t.startTime || '06:00',
       timeLimitMinutes: t.timeLimitMinutes != null ? Number(t.timeLimitMinutes) : undefined,
       checklistItems: t.checklistItems ?? [],
     });
@@ -318,6 +323,8 @@ export function TasksPage() {
         d.multipleTimesPerDay && d.intervalMinutes
           ? Math.max(1, Math.floor(60 / (Number(d.intervalMinutes) || 60)))
           : 1,
+      intervalMinutes: d.multipleTimesPerDay && d.intervalMinutes ? Number(d.intervalMinutes) : undefined,
+      repeatEndTime: d.multipleTimesPerDay && d.repeatEndTime ? d.repeatEndTime : undefined,
       assignToType,
       assignToRoleId: assignToType === 'role' ? d.parentRoleId : undefined,
       assignToEmployeeId: assignToType === 'staff' ? d.assignToEmployeeId : undefined,
@@ -415,21 +422,23 @@ export function TasksPage() {
 
       {/* Create modal */}
       {showCreate && (
-        <div className="fixed inset-0 bg-black/50 backdrop-blur-sm flex items-center justify-center z-50 animate-fade-in p-4">
-          <div className="bg-white rounded-2xl shadow-2xl w-full max-w-2xl mx-auto animate-slide-up overflow-hidden border border-gray-100 max-h-[90vh] flex flex-col relative">
-            <button type="button" onClick={() => setShowCreate(false)} className="absolute top-4 right-4 p-2 rounded-lg text-white/90 hover:text-white hover:bg-white/20 transition-colors z-10" aria-label="Close"><X className="h-5 w-5" /></button>
-            <div className="bg-gradient-to-br from-emerald-600 to-emerald-700 px-6 py-5 flex-shrink-0">
-              <div className="flex items-center gap-3">
-                <div className="w-12 h-12 rounded-xl bg-white/20 flex items-center justify-center">
-                  <CheckSquare className="h-6 w-6 text-white" />
-                </div>
-                <div>
-                  <h2 className="text-xl font-bold text-white">Create Task</h2>
-                  <p className="text-emerald-100 text-sm mt-0.5">Define a new task with all options</p>
-                </div>
+        <div className="fixed inset-0 z-50 flex items-end sm:items-center justify-center bg-black/50 backdrop-blur-sm p-0 sm:p-4 animate-fade-in">
+          <div className="relative flex max-h-[96vh] sm:max-h-[92vh] w-full max-w-3xl flex-col overflow-hidden rounded-t-2xl sm:rounded-2xl border border-gray-200/80 bg-white shadow-2xl animate-slide-up">
+            <div className="flex shrink-0 items-center justify-between border-b border-gray-100 px-5 py-4 sm:px-6">
+              <div>
+                <h2 className="text-lg font-semibold text-gray-900">Create task</h2>
+                <p className="text-sm text-gray-500 mt-0.5">Templates your staff complete each shift</p>
               </div>
+              <button
+                type="button"
+                onClick={() => setShowCreate(false)}
+                className="flex h-10 w-10 items-center justify-center rounded-xl text-gray-400 hover:bg-gray-100 hover:text-gray-700 transition-colors"
+                aria-label="Close"
+              >
+                <X className="h-5 w-5" />
+              </button>
             </div>
-            <div className="flex-1 overflow-y-auto p-6">
+            <div className="flex-1 overflow-y-auto overflow-x-hidden px-5 py-5 sm:px-6">
               {createMutation.isError && (
                 <p className="mb-4 p-3 rounded-xl bg-red-50 text-red-600 text-sm border border-red-100">{getApiErrorMessage(createMutation.error)}</p>
               )}
@@ -448,14 +457,12 @@ export function TasksPage() {
                   console.log('[TasksPage] Submit attempt');
                   handleCreateSubmit(e);
                 }} 
-                className="space-y-6"
+                className="space-y-5"
               >
                 {/* Basic info */}
                 <section className="space-y-4">
                   <div className="flex items-center justify-between gap-4">
-                    <h3 className="text-sm font-semibold text-gray-500 uppercase tracking-wider flex items-center gap-2">
-                      <CheckSquare className="h-4 w-4" /> Basic info
-                    </h3>
+                    <h3 className="text-sm font-semibold text-gray-900">Details</h3>
                     <VoiceInputButton
                       onResult={async (blob) => {
                         const outletId = selectedOutletId || outlets[0]?._id;
@@ -481,6 +488,7 @@ export function TasksPage() {
                           const ae = task.assignToEmployeeId;
                           if (typeof ae === 'string') form.setValue('assignToEmployeeId', ae);
                           if (task.startTime) form.setValue('startTime', task.startTime as string);
+                          if (task.repeatEndTime) form.setValue('repeatEndTime', task.repeatEndTime as string);
                           if (task.timeLimitMinutes != null) form.setValue('timeLimitMinutes', Number(task.timeLimitMinutes));
                         } catch (err) {
                           setVoiceError(getApiErrorMessage(err as Error) || 'Voice processing failed');
@@ -505,138 +513,11 @@ export function TasksPage() {
                   </div>
                 </section>
 
-                {/* Schedule & Shift Row */}
-                <div className="grid grid-cols-1 sm:grid-cols-2 gap-6">
-                  <section className="space-y-4">
-                    <h3 className="text-xs font-bold text-gray-400 uppercase tracking-widest flex items-center gap-2">
-                      <Calendar className="h-3.5 w-3.5" /> Schedule
-                    </h3>
-                    <div>
-                      <label className="block text-xs font-semibold text-gray-500 mb-2">Repeat Type</label>
-                      <div className="flex flex-wrap gap-1.5">
-                        {(['daily', 'onetime', 'specific-days'] as const).map((type) => (
-                          <button
-                            key={type}
-                            type="button"
-                            onClick={() => form.setValue('taskType', type)}
-                            className={`px-3 py-1.5 rounded-lg text-xs font-medium transition-all ${
-                              form.watch('taskType') === type ? 'bg-emerald-600 text-white shadow-sm' : 'bg-gray-100 text-gray-600 hover:bg-gray-200'
-                            }`}
-                          >
-                            {type === 'daily' ? 'Daily' : type === 'onetime' ? 'One-time' : 'Specific days'}
-                          </button>
-                        ))}
-                      </div>
-                    </div>
-                    {form.watch('taskType') === 'onetime' && (
-                      <div className="animate-slide-up">
-                        <label className="block text-xs font-semibold text-gray-500 mb-1.5">Date</label>
-                        <Controller
-                          name="specificDate"
-                          control={form.control}
-                          render={({ field }) => (
-                            <CalendarDateField
-                              value={field.value ?? ''}
-                              onChange={field.onChange}
-                              minDate={minOneTimeTaskDate}
-                              placeholder="Choose date"
-                            />
-                          )}
-                        />
-                      </div>
-                    )}
-                    {form.watch('taskType') === 'specific-days' && (
-                      <div className="animate-slide-up">
-                        <label className="block text-xs font-semibold text-gray-500 mb-2">Select days</label>
-                        <div className="flex flex-wrap gap-1">
-                          {[0, 1, 2, 3, 4, 5, 6].map((d) => {
-                            const selected = (form.watch('specificDays') ?? []).includes(d);
-                            return (
-                              <button
-                                key={d}
-                                type="button"
-                                onClick={() => {
-                                  const current = form.watch('specificDays') ?? [];
-                                  const next = selected ? current.filter((x) => x !== d) : [...current, d].sort();
-                                  form.setValue('specificDays', next);
-                                }}
-                                className={`w-8 h-8 rounded-lg text-[10px] font-bold transition-all flex items-center justify-center ${
-                                  selected ? 'bg-emerald-600 text-white' : 'bg-gray-100 text-gray-400 hover:bg-gray-200'
-                                }`}
-                                title={DAY_NAMES[d]}
-                              >
-                                {DAY_NAMES[d][0]}
-                              </button>
-                            );
-                          })}
-                        </div>
-                      </div>
-                    )}
-                  </section>
-
-                  <section className="space-y-4">
-                    <h3 className="text-xs font-bold text-gray-400 uppercase tracking-widest flex items-center gap-2">
-                      <Clock className="h-3.5 w-3.5" /> Shift Settings
-                    </h3>
-                    <div>
-                      <label className="block text-xs font-semibold text-gray-500 mb-2">Active During</label>
-                      <div className="flex gap-1.5">
-                        {(['Both', 'Day', 'Night'] as const).map((s) => (
-                          <button
-                            key={s}
-                            type="button"
-                            onClick={() => form.setValue('shiftType', s)}
-                            className={`flex-1 flex items-center justify-center gap-1.5 px-3 py-1.5 rounded-lg text-xs font-medium transition-all ${
-                              form.watch('shiftType') === s ? 'bg-emerald-600 text-white shadow-sm' : 'bg-gray-100 text-gray-600 hover:bg-gray-200'
-                            }`}
-                          >
-                            {s === 'Day' ? <Sun className="h-3 w-3" /> : s === 'Night' ? <Moon className="h-3 w-3" /> : null}
-                            {s}
-                          </button>
-                        ))}
-                      </div>
-                    </div>
-                  </section>
-                </div>
-
-                {/* Frequency */}
-                <section className="p-4 rounded-2xl bg-gray-50 border border-gray-100 space-y-3">
-                  <div className="flex items-center justify-between">
-                    <label className="text-sm font-semibold text-gray-700">Multiple times per day?</label>
-                    <div className="flex gap-1 bg-white p-1 rounded-xl border border-gray-200">
-                      <button
-                        type="button"
-                        onClick={() => form.setValue('multipleTimesPerDay', false)}
-                        className={`px-4 py-1.5 rounded-lg text-xs font-bold transition-all ${!form.watch('multipleTimesPerDay') ? 'bg-emerald-600 text-white shadow-sm' : 'text-gray-400 hover:bg-gray-50'}`}
-                      >
-                        No
-                      </button>
-                      <button
-                        type="button"
-                        onClick={() => form.setValue('multipleTimesPerDay', true)}
-                        className={`px-4 py-1.5 rounded-lg text-xs font-bold transition-all ${form.watch('multipleTimesPerDay') ? 'bg-emerald-600 text-white shadow-sm' : 'text-gray-400 hover:bg-gray-50'}`}
-                      >
-                        Yes
-                      </button>
-                    </div>
-                  </div>
-                  {form.watch('multipleTimesPerDay') && (
-                    <div className="flex items-center gap-3 animate-slide-up bg-white p-3 rounded-xl border border-emerald-100">
-                      <Clock className="h-4 w-4 text-emerald-500" />
-                      <span className="text-xs font-medium text-gray-600">Repeat every</span>
-                      <div className="flex items-center gap-2">
-                        <input
-                          type="number"
-                          {...form.register('intervalMinutes')}
-                          min={5}
-                          max={120}
-                          className="w-16 px-2 py-1.5 rounded-lg border border-emerald-200 text-center text-sm font-bold text-emerald-700 focus:ring-2 focus:ring-emerald-500/20"
-                        />
-                        <span className="text-xs font-medium text-gray-600">minutes</span>
-                      </div>
-                    </div>
-                  )}
-                </section>
+                <TaskScheduleCard
+                  form={form}
+                  control={form.control}
+                  minOneTimeDate={minOneTimeTaskDate}
+                />
 
                 {/* Assignment */}
                 <section className="space-y-4">
@@ -702,34 +583,6 @@ export function TasksPage() {
                       />
                     </div>
                   )}
-                </section>
-
-                {/* Timing */}
-                <section className="space-y-4">
-                  <h3 className="text-sm font-semibold text-gray-500 uppercase tracking-wider flex items-center gap-2">
-                    <Clock className="h-4 w-4" /> Time settings
-                  </h3>
-                  <div className="grid grid-cols-1 sm:grid-cols-2 gap-4">
-                    <div>
-                      <label className="block text-sm font-medium text-gray-700 mb-1.5">Start time</label>
-                      <Controller
-                        name="startTime"
-                        control={form.control}
-                        render={({ field }) => (
-                          <TimePickerField
-                            value={field.value ?? ''}
-                            onChange={field.onChange}
-                            placeholder="09:00"
-                            use12Hour={true}
-                          />
-                        )}
-                      />
-                    </div>
-                    <div>
-                      <label className="block text-sm font-medium text-gray-700 mb-1.5">Time limit (mins)</label>
-                      <input type="number" {...form.register('timeLimitMinutes')} placeholder="e.g. 30" className="w-full px-4 py-2.5 rounded-xl border border-gray-200 focus:ring-2 focus:ring-emerald-500/20 focus:border-emerald-500" />
-                    </div>
-                  </div>
                 </section>
 
                 {/* Checklist Builder */}
@@ -899,21 +752,23 @@ export function TasksPage() {
       )}
 
       {editing && (
-        <div className="fixed inset-0 bg-black/50 backdrop-blur-sm flex items-center justify-center z-50 animate-fade-in p-4">
-          <div className="bg-white rounded-2xl shadow-2xl w-full max-w-2xl mx-auto animate-slide-up overflow-hidden border border-gray-100 max-h-[90vh] flex flex-col relative">
-            <button type="button" onClick={() => setEditing(null)} className="absolute top-4 right-4 p-2 rounded-lg text-white/90 hover:text-white hover:bg-white/20 transition-colors z-10" aria-label="Close"><X className="h-5 w-5" /></button>
-            <div className="bg-gradient-to-br from-emerald-600 to-emerald-700 px-6 py-5 flex-shrink-0">
-              <div className="flex items-center gap-3">
-                <div className="w-12 h-12 rounded-xl bg-white/20 flex items-center justify-center">
-                  <Pencil className="h-6 w-6 text-white" />
-                </div>
-                <div>
-                  <h2 className="text-xl font-bold text-white">Edit Task</h2>
-                  <p className="text-emerald-100 text-sm mt-0.5">{editing.title}</p>
-                </div>
+        <div className="fixed inset-0 z-50 flex items-end sm:items-center justify-center bg-black/50 backdrop-blur-sm p-0 sm:p-4 animate-fade-in">
+          <div className="relative flex max-h-[96vh] sm:max-h-[92vh] w-full max-w-3xl flex-col overflow-hidden rounded-t-2xl sm:rounded-2xl border border-gray-200/80 bg-white shadow-2xl animate-slide-up">
+            <div className="flex shrink-0 items-center justify-between border-b border-gray-100 px-5 py-4 sm:px-6">
+              <div>
+                <h2 className="text-lg font-semibold text-gray-900">Edit task</h2>
+                <p className="text-sm text-gray-500 mt-0.5 truncate max-w-[280px] sm:max-w-md">{editing.title}</p>
               </div>
+              <button
+                type="button"
+                onClick={() => setEditing(null)}
+                className="flex h-10 w-10 items-center justify-center rounded-xl text-gray-400 hover:bg-gray-100 hover:text-gray-700 transition-colors"
+                aria-label="Close"
+              >
+                <X className="h-5 w-5" />
+              </button>
             </div>
-            <div className="flex-1 overflow-y-auto p-6">
+            <div className="flex-1 overflow-y-auto overflow-x-hidden px-5 py-5 sm:px-6">
               {updateMutation.isError && (
                 <p className="mb-4 p-3 rounded-xl bg-red-50 text-red-600 text-sm border border-red-100">{getApiErrorMessage(updateMutation.error)}</p>
               )}
@@ -927,12 +782,10 @@ export function TasksPage() {
                   </ul>
                 </div>
               )}
-              <form onSubmit={editForm.handleSubmit((d) => updateMutation.mutate({ id: editing._id, data: d }))} className="space-y-6">
+              <form onSubmit={editForm.handleSubmit((d) => updateMutation.mutate({ id: editing._id, data: d }))} className="space-y-5">
                 {/* Basic info */}
                 <section className="space-y-4">
-                  <h3 className="text-sm font-semibold text-gray-500 uppercase tracking-wider flex items-center gap-2">
-                    <CheckSquare className="h-4 w-4" /> Basic info
-                  </h3>
+                  <h3 className="text-sm font-semibold text-gray-900">Details</h3>
                   <div>
                     <label className="block text-sm font-medium text-gray-700 mb-1.5">Title *</label>
                     <input {...editForm.register('title')} className="w-full px-4 py-3 rounded-xl border border-gray-200 focus:ring-2 focus:ring-emerald-500/20 focus:border-emerald-500" placeholder="e.g. Cut vegetables" />
@@ -944,138 +797,11 @@ export function TasksPage() {
                   </div>
                 </section>
 
-                {/* Schedule & Shift Row */}
-                <div className="grid grid-cols-1 sm:grid-cols-2 gap-6">
-                  <section className="space-y-4">
-                    <h3 className="text-xs font-bold text-gray-400 uppercase tracking-widest flex items-center gap-2">
-                      <Calendar className="h-3.5 w-3.5" /> Schedule
-                    </h3>
-                    <div>
-                      <label className="block text-xs font-semibold text-gray-500 mb-2">Repeat Type</label>
-                      <div className="flex flex-wrap gap-1.5">
-                        {(['daily', 'onetime', 'specific-days'] as const).map((type) => (
-                          <button
-                            key={type}
-                            type="button"
-                            onClick={() => editForm.setValue('taskType', type)}
-                            className={`px-3 py-1.5 rounded-lg text-xs font-medium transition-all ${
-                              editForm.watch('taskType') === type ? 'bg-emerald-600 text-white shadow-sm' : 'bg-gray-100 text-gray-600 hover:bg-gray-200'
-                            }`}
-                          >
-                            {type === 'daily' ? 'Daily' : type === 'onetime' ? 'One-time' : 'Specific days'}
-                          </button>
-                        ))}
-                      </div>
-                    </div>
-                    {editForm.watch('taskType') === 'onetime' && (
-                      <div className="animate-slide-up">
-                        <label className="block text-xs font-semibold text-gray-500 mb-1.5">Date</label>
-                        <Controller
-                          name="specificDate"
-                          control={editForm.control}
-                          render={({ field }) => (
-                            <CalendarDateField
-                              value={field.value ?? ''}
-                              onChange={field.onChange}
-                              minDate={minOneTimeTaskDate}
-                              placeholder="Choose date"
-                            />
-                          )}
-                        />
-                      </div>
-                    )}
-                    {editForm.watch('taskType') === 'specific-days' && (
-                      <div className="animate-slide-up">
-                        <label className="block text-xs font-semibold text-gray-500 mb-2">Select days</label>
-                        <div className="flex flex-wrap gap-1">
-                          {[0, 1, 2, 3, 4, 5, 6].map((d) => {
-                            const selected = (editForm.watch('specificDays') ?? []).includes(d);
-                            return (
-                              <button
-                                key={d}
-                                type="button"
-                                onClick={() => {
-                                  const current = editForm.watch('specificDays') ?? [];
-                                  const next = selected ? current.filter((x) => x !== d) : [...current, d].sort();
-                                  editForm.setValue('specificDays', next);
-                                }}
-                                className={`w-8 h-8 rounded-lg text-[10px] font-bold transition-all flex items-center justify-center ${
-                                  selected ? 'bg-emerald-600 text-white' : 'bg-gray-100 text-gray-400 hover:bg-gray-200'
-                                }`}
-                                title={DAY_NAMES[d]}
-                              >
-                                {DAY_NAMES[d][0]}
-                              </button>
-                            );
-                          })}
-                        </div>
-                      </div>
-                    )}
-                  </section>
-
-                  <section className="space-y-4">
-                    <h3 className="text-xs font-bold text-gray-400 uppercase tracking-widest flex items-center gap-2">
-                      <Clock className="h-3.5 w-3.5" /> Shift Settings
-                    </h3>
-                    <div>
-                      <label className="block text-xs font-semibold text-gray-500 mb-2">Active During</label>
-                      <div className="flex gap-1.5">
-                        {(['Both', 'Day', 'Night'] as const).map((s) => (
-                          <button
-                            key={s}
-                            type="button"
-                            onClick={() => editForm.setValue('shiftType', s)}
-                            className={`flex-1 flex items-center justify-center gap-1.5 px-3 py-1.5 rounded-lg text-xs font-medium transition-all ${
-                              editForm.watch('shiftType') === s ? 'bg-emerald-600 text-white shadow-sm' : 'bg-gray-100 text-gray-600 hover:bg-gray-200'
-                            }`}
-                          >
-                            {s === 'Day' ? <Sun className="h-3 w-3" /> : s === 'Night' ? <Moon className="h-3 w-3" /> : null}
-                            {s}
-                          </button>
-                        ))}
-                      </div>
-                    </div>
-                  </section>
-                </div>
-
-                {/* Frequency */}
-                <section className="p-4 rounded-2xl bg-gray-50 border border-gray-100 space-y-3">
-                  <div className="flex items-center justify-between">
-                    <label className="text-sm font-semibold text-gray-700">Multiple times per day?</label>
-                    <div className="flex gap-1 bg-white p-1 rounded-xl border border-gray-200">
-                      <button
-                        type="button"
-                        onClick={() => editForm.setValue('multipleTimesPerDay', false)}
-                        className={`px-4 py-1.5 rounded-lg text-xs font-bold transition-all ${!editForm.watch('multipleTimesPerDay') ? 'bg-emerald-600 text-white shadow-sm' : 'text-gray-400 hover:bg-gray-50'}`}
-                      >
-                        No
-                      </button>
-                      <button
-                        type="button"
-                        onClick={() => editForm.setValue('multipleTimesPerDay', true)}
-                        className={`px-4 py-1.5 rounded-lg text-xs font-bold transition-all ${editForm.watch('multipleTimesPerDay') ? 'bg-emerald-600 text-white shadow-sm' : 'text-gray-400 hover:bg-gray-50'}`}
-                      >
-                        Yes
-                      </button>
-                    </div>
-                  </div>
-                  {editForm.watch('multipleTimesPerDay') && (
-                    <div className="flex items-center gap-3 animate-slide-up bg-white p-3 rounded-xl border border-emerald-100">
-                      <Clock className="h-4 w-4 text-emerald-500" />
-                      <span className="text-xs font-medium text-gray-600">Repeat every</span>
-                      <div className="flex items-center gap-2">
-                        <input
-                          type="number"
-                          {...editForm.register('intervalMinutes')}
-                          min={5}
-                          max={120}
-                          className="w-16 px-2 py-1.5 rounded-lg border border-emerald-200 text-center text-sm font-bold text-emerald-700 focus:ring-2 focus:ring-emerald-500/20"
-                        />
-                        <span className="text-xs font-medium text-gray-600">minutes</span>
-                      </div>
-                    </div>
-                  )}
-                </section>
+                <TaskScheduleCard
+                  form={editForm}
+                  control={editForm.control}
+                  minOneTimeDate={minOneTimeTaskDate}
+                />
 
                 {/* Assignment */}
                 <section className="space-y-4">
@@ -1134,34 +860,6 @@ export function TasksPage() {
                       />
                     </div>
                   )}
-                </section>
-
-                {/* Timing */}
-                <section className="space-y-4">
-                  <h3 className="text-sm font-semibold text-gray-500 uppercase tracking-wider flex items-center gap-2">
-                    <Clock className="h-4 w-4" /> Time settings
-                  </h3>
-                  <div className="grid grid-cols-1 sm:grid-cols-2 gap-4">
-                    <div>
-                      <label className="block text-sm font-medium text-gray-700 mb-1.5">Start time</label>
-                      <Controller
-                        name="startTime"
-                        control={editForm.control}
-                        render={({ field }) => (
-                          <TimePickerField
-                            value={field.value ?? ''}
-                            onChange={field.onChange}
-                            placeholder="09:00"
-                            use12Hour={true}
-                          />
-                        )}
-                      />
-                    </div>
-                    <div>
-                      <label className="block text-sm font-medium text-gray-700 mb-1.5">Time limit (mins)</label>
-                      <input type="number" {...editForm.register('timeLimitMinutes')} placeholder="e.g. 30" className="w-full px-4 py-2.5 rounded-xl border border-gray-200 focus:ring-2 focus:ring-emerald-500/20 focus:border-emerald-500" />
-                    </div>
-                  </div>
                 </section>
 
                 {/* Checklist Builder */}

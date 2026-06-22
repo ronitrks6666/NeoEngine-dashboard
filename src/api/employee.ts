@@ -97,6 +97,7 @@ export const employeeApi = {
     shiftType: string;
     isActive: boolean;
     activeRoleId?: string | null;
+    parentRoleId?: string | null;
     salary?: number | null;
     minHoursPerDay?: number | null;
     punchInTime?: string | null;
@@ -152,16 +153,59 @@ export const employeeApi = {
     return data;
   },
 
-  createParentRole: async (name: string, outletId?: string) => {
+  createParentRole: async (name: string, outletId?: string, departmentId?: string) => {
     const { data } = await api.post('/employee/create-parent-role', {
       name,
       ...(outletId ? { outletId } : {}),
+      ...(departmentId ? { departmentId } : {}),
     });
     return data;
   },
 
   createRole: async (payload: { name: string; parentRoleId: string; outletId: string }) => {
     const { data } = await api.post('/employee/create-role', payload);
+    return data;
+  },
+
+  updateRole: async (
+    roleId: string,
+    payload: { name?: string; minHoursPerDay?: number; punchInTime?: string | null }
+  ) => {
+    const { data } = await api.put(`/employee/role/${roleId}`, payload);
+    return data;
+  },
+
+  getDepartments: async (outletId: string) => {
+    const { data } = await api.get(`/employee/departments/${outletId}`);
+    return data;
+  },
+
+  createDepartment: async (payload: { name: string; outletId: string }) => {
+    const { data } = await api.post('/employee/departments', payload);
+    return data;
+  },
+
+  updateDepartment: async (departmentId: string, payload: { name?: string; isActive?: boolean }) => {
+    const { data } = await api.put(`/employee/departments/${departmentId}`, payload);
+    return data;
+  },
+
+  getRolesOverview: async (outletId: string) => {
+    const { data } = await api.get(`/employee/roles-overview/${outletId}`);
+    return data;
+  },
+
+  updateParentRole: async (
+    parentRoleId: string,
+    payload: { name?: string; description?: string; departmentId?: string | null }
+  ) => {
+    const { data } = await api.put(`/employee/parent-role/${parentRoleId}`, payload);
+    return data;
+  },
+
+  getFreeRoles: async (outletId: string, parentRoleId?: string) => {
+    const q = parentRoleId ? `?parentRoleId=${encodeURIComponent(parentRoleId)}` : '';
+    const { data } = await api.get(`/employee/free-roles/${outletId}${q}`);
     return data;
   },
 };

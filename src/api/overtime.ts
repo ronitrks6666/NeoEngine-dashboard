@@ -14,6 +14,8 @@ export interface OvertimeRequest {
   rejectedAt?: string;
   rejectedBy?: string;
   rejectionReason?: string;
+  /** Payroll month label derived from date (IST) */
+  payrollMonthLabel?: string;
 }
 
 export const overtimeApi = {
@@ -34,23 +36,23 @@ export const overtimeApi = {
 
   getRequestDetail: async (requestId: string) => {
     const { data } = await api.get<{ success: boolean; data: { request: OvertimeRequest; canUnapprove: boolean } }>(
-      `/overtime/request/${requestId}`
+      `/overtime/owner/${requestId}`
     );
     return data;
   },
 
   approve: async (requestId: string) => {
-    const { data } = await api.post(`/overtime/${requestId}/approve`);
+    const { data } = await api.put(`/overtime/${requestId}/approve`);
     return data;
   },
 
   reject: async (requestId: string, reason?: string) => {
-    const { data } = await api.post(`/overtime/${requestId}/reject`, { reason });
+    const { data } = await api.put(`/overtime/${requestId}/reject`, { rejectionReason: reason });
     return data;
   },
 
   unapprove: async (requestId: string, reason?: string) => {
-    const { data } = await api.post(`/overtime/${requestId}/unapprove`, { reason });
+    const { data } = await api.put(`/overtime/${requestId}/unapprove`, { unapproveReason: reason });
     return data;
   },
 };

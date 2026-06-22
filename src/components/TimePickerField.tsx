@@ -1,7 +1,5 @@
-import { useState, useRef, useEffect, useCallback } from 'react';
-import { Clock } from 'lucide-react';
-
-// ─── Helpers ──────────────────────────────────────────────────────────────────
+import { useState, useRef, useEffect } from 'react';
+import { Clock, ChevronDown } from 'lucide-react';
 
 function parseHHmm(value: string | undefined): { h: number; m: number } | null {
   const v = (value ?? '').trim();
@@ -29,97 +27,9 @@ function from12Hour(h12: number, period: 'AM' | 'PM'): number {
   return h12 === 12 ? 12 : h12 + 12;
 }
 
-// ─── Scroll Column ─────────────────────────────────────────────────────────────
-
-interface ScrollColumnProps {
-  items: Array<{ value: number; label: string }>;
-  selected: number;
-  onSelect: (v: number) => void;
-  height?: number;
-}
-
-const ITEM_H = 40;
-
-function ScrollColumn({ items, selected, onSelect, height = 200 }: ScrollColumnProps) {
-  const containerRef = useRef<HTMLDivElement>(null);
-  const isInternalScroll = useRef(false);
-  const selectedIdx = items.findIndex((i) => i.value === selected);
-
-  const scrollTo = useCallback(
-    (idx: number, behavior: ScrollBehavior = 'smooth') => {
-      const el = containerRef.current;
-      if (!el) return;
-      isInternalScroll.current = true;
-      const target = idx * ITEM_H - (height / 2 - ITEM_H / 2);
-      el.scrollTo({ top: Math.max(0, target), behavior });
-      // Reset after a bit to allow manual scroll again
-      setTimeout(() => { isInternalScroll.current = false; }, 100);
-    },
-    [height]
-  );
-
-  // Scroll to selected on mount and when selected changes
-  useEffect(() => {
-    if (selectedIdx >= 0) scrollTo(selectedIdx, 'instant' as ScrollBehavior);
-  }, [selectedIdx, scrollTo]);
-
-  const handleScroll = useCallback(() => {
-    if (isInternalScroll.current) return;
-    const el = containerRef.current;
-    if (!el) return;
-    const center = el.scrollTop + height / 2;
-    const idx = Math.round((center - ITEM_H / 2) / ITEM_H);
-    const clamped = Math.max(0, Math.min(items.length - 1, idx));
-    if (items[clamped].value !== selected) {
-      onSelect(items[clamped].value);
-    }
-  }, [height, items, selected, onSelect]);
-
-  useEffect(() => {
-    const el = containerRef.current;
-    if (!el) return;
-    el.addEventListener('scroll', handleScroll, { passive: true });
-    return () => el.removeEventListener('scroll', handleScroll);
-  }, [handleScroll]);
-
-  return (
-    <div className="relative flex-1" style={{ height }}>
-      {/* Highlight band */}
-      <div
-        className="pointer-events-none absolute left-0 right-0 z-10 rounded-xl bg-emerald-500/10 border-y-2 border-emerald-400/40"
-        style={{ top: height / 2 - ITEM_H / 2, height: ITEM_H }}
-      />
-      <div
-        ref={containerRef}
-        className="overflow-y-auto scrollbar-none"
-        style={{ height, scrollSnapType: 'y mandatory' }}
-      >
-        {/* Padding so first/last items can reach center */}
-        <div style={{ height: height / 2 - ITEM_H / 2 }} />
-        {items.map((item) => (
-          <div
-            key={item.value}
-            onClick={() => {
-              onSelect(item.value);
-              scrollTo(items.indexOf(item));
-            }}
-            style={{ height: ITEM_H, scrollSnapAlign: 'center' }}
-            className={`flex items-center justify-center cursor-pointer select-none transition-all duration-150 text-sm font-semibold ${
-              item.value === selected
-                ? 'text-emerald-700 scale-110'
-                : 'text-gray-400 hover:text-gray-700'
-            }`}
-          >
-            {item.label}
-          </div>
-        ))}
-        <div style={{ height: height / 2 - ITEM_H / 2 }} />
-      </div>
-    </div>
-  );
-}
-
-// ─── Main Component ────────────────────────────────────────────────────────────
+const QUICK_TIMES = ['06:00', '09:00', '12:00', '14:00', '18:00', '20:00'];
+const HOURS_12 = Array.from({ length: 12 }, (_, i) => i + 1);
+const MINUTES = Array.from({ length: 12 }, (_, i) => i * 5);
 
 export interface TimePickerFieldProps {
   value: string;
@@ -127,9 +37,179 @@ export interface TimePickerFieldProps {
   disabled?: boolean;
   className?: string;
   id?: string;
-  /** 12-hour UI with AM/PM; stored value stays 24h HH:mm. */
   use12Hour?: boolean;
   placeholder?: string;
+  /** `inline` embeds the picker (best in modals). `field` uses a trigger button. */
+  variant?: 'field' | 'inline';
+}
+
+function TimePickerPanel({
+  value,
+  onChange,
+  use12Hour,
+  onDone,
+}: {
+  value: string;
+  onChange: (next: string) => void;
+  use12Hour: boolean;
+  onDone?: () => void;
+}) {
+  const parsed = parseHHmm(value);
+  const currentH = parsed?.h ?? -1;
+  const currentM = parsed?.m ?? -1;
+  const { h: display12H, period } = use12Hour && parsed ? to12Hour(currentH) : { h: 12, period: 'AM' as const };
+
+  const setParts = (h24: number, m: number) => {
+    onChange(toHHmm(h24, m));
+  };
+
+  const handleHour = (h12: number) => {
+    const m = currentM >= 0 ? currentM : 0;
+    const h24 = use12Hour ? from12Hour(h12, period) : h12;
+    setParts(h24, m);
+  };
+
+  const handleMinute = (m: number) => {
+    const h = currentH >= 0 ? currentH : use12Hour ? from12Hour(12, period) : 9;
+    setParts(h, m);
+  };
+
+  const handlePeriod = (p: 'AM' | 'PM') => {
+    if (!use12Hour) return;
+    const h12 = parsed ? display12H : 9;
+    const m = currentM >= 0 ? currentM : 0;
+    setParts(from12Hour(h12, p), m);
+  };
+
+  const selectedHour = use12Hour ? (parsed ? display12H : null) : parsed ? currentH : null;
+  const selectedMin = parsed ? Math.round(currentM / 5) * 5 : null;
+
+  return (
+    <div className="space-y-3">
+      <div>
+        <p className="text-[10px] font-semibold uppercase tracking-wider text-gray-400 mb-1.5">Quick pick</p>
+        <div className="flex flex-wrap gap-1.5">
+          {QUICK_TIMES.map((t) => {
+            const active = value === t;
+            const label = use12Hour && parseHHmm(t)
+              ? (() => {
+                  const p = parseHHmm(t)!;
+                  const { h, period: per } = to12Hour(p.h);
+                  return `${h}:${String(p.m).padStart(2, '0')} ${per}`;
+                })()
+              : t;
+            return (
+              <button
+                key={t}
+                type="button"
+                onClick={() => {
+                  onChange(t);
+                  onDone?.();
+                }}
+                className={`px-2.5 py-1 rounded-lg text-xs font-semibold tabular-nums transition-all ${
+                  active
+                    ? 'bg-emerald-600 text-white shadow-sm'
+                    : 'bg-gray-100 text-gray-600 hover:bg-emerald-50 hover:text-emerald-700'
+                }`}
+              >
+                {label}
+              </button>
+            );
+          })}
+        </div>
+      </div>
+
+      <div className="rounded-xl border border-gray-100 bg-gray-50/80 p-3 space-y-3">
+        <p className="text-[10px] font-semibold uppercase tracking-wider text-gray-400">Custom time</p>
+        <div className={`grid gap-3 ${use12Hour ? 'grid-cols-3' : 'grid-cols-2'}`}>
+          <div>
+            <p className="text-xs font-medium text-gray-500 mb-1.5 text-center">Hour</p>
+            <div className="grid grid-cols-3 gap-1 max-h-28 overflow-y-auto pr-0.5">
+              {(use12Hour ? HOURS_12 : Array.from({ length: 24 }, (_, i) => i)).map((h) => {
+                const label = use12Hour ? String(h) : String(h).padStart(2, '0');
+                const active = selectedHour === h;
+                return (
+                  <button
+                    key={h}
+                    type="button"
+                    onClick={() => handleHour(h)}
+                    className={`py-1.5 rounded-lg text-xs font-bold tabular-nums ${
+                      active ? 'bg-emerald-600 text-white' : 'bg-white border border-gray-200 text-gray-700 hover:border-emerald-300'
+                    }`}
+                  >
+                    {label}
+                  </button>
+                );
+              })}
+            </div>
+          </div>
+          <div>
+            <p className="text-xs font-medium text-gray-500 mb-1.5 text-center">Min</p>
+            <div className="grid grid-cols-3 gap-1 max-h-28 overflow-y-auto">
+              {MINUTES.map((m) => {
+                const active = selectedMin === m;
+                return (
+                  <button
+                    key={m}
+                    type="button"
+                    onClick={() => handleMinute(m)}
+                    className={`py-1.5 rounded-lg text-xs font-bold tabular-nums ${
+                      active ? 'bg-emerald-600 text-white' : 'bg-white border border-gray-200 text-gray-700 hover:border-emerald-300'
+                    }`}
+                  >
+                    {String(m).padStart(2, '0')}
+                  </button>
+                );
+              })}
+            </div>
+          </div>
+          {use12Hour && (
+            <div>
+              <p className="text-xs font-medium text-gray-500 mb-1.5 text-center">Period</p>
+              <div className="flex flex-col gap-1.5">
+                {(['AM', 'PM'] as const).map((p) => (
+                  <button
+                    key={p}
+                    type="button"
+                    onClick={() => handlePeriod(p)}
+                    className={`py-2.5 rounded-lg text-sm font-bold ${
+                      period === p ? 'bg-emerald-600 text-white' : 'bg-white border border-gray-200 text-gray-600'
+                    }`}
+                  >
+                    {p}
+                  </button>
+                ))}
+              </div>
+            </div>
+          )}
+        </div>
+      </div>
+
+      {onDone && (
+        <div className="flex gap-2 pt-1">
+          {value && (
+            <button
+              type="button"
+              onClick={() => {
+                onChange('');
+                onDone();
+              }}
+              className="flex-1 py-2 rounded-xl text-xs font-medium text-gray-500 hover:bg-gray-100"
+            >
+              Clear
+            </button>
+          )}
+          <button
+            type="button"
+            onClick={onDone}
+            className="flex-1 py-2 rounded-xl bg-emerald-600 text-white text-xs font-semibold hover:bg-emerald-700"
+          >
+            Done
+          </button>
+        </div>
+      )}
+    </div>
+  );
 }
 
 export function TimePickerField({
@@ -140,26 +220,23 @@ export function TimePickerField({
   id,
   use12Hour = false,
   placeholder = 'Select time',
+  variant = 'field',
 }: TimePickerFieldProps) {
   const [open, setOpen] = useState(false);
   const wrapRef = useRef<HTMLDivElement>(null);
 
   const parsed = parseHHmm(value);
-  const currentH = parsed?.h ?? -1;
-  const currentM = parsed?.m ?? -1;
-
-  // Display label
   const displayLabel = (() => {
     if (!parsed) return '';
     if (use12Hour) {
-      const { h, period } = to12Hour(currentH);
-      return `${h}:${String(currentM).padStart(2, '0')} ${period}`;
+      const { h, period } = to12Hour(parsed.h);
+      return `${h}:${String(parsed.m).padStart(2, '0')} ${period}`;
     }
-    return toHHmm(currentH, currentM);
+    return toHHmm(parsed.h, parsed.m);
   })();
 
-  // Close on outside click
   useEffect(() => {
+    if (variant === 'inline') return;
     const handler = (e: MouseEvent) => {
       if (wrapRef.current && !wrapRef.current.contains(e.target as Node)) {
         setOpen(false);
@@ -167,143 +244,47 @@ export function TimePickerField({
     };
     document.addEventListener('mousedown', handler);
     return () => document.removeEventListener('mousedown', handler);
-  }, []);
+  }, [variant]);
 
-  // Columns
-  const hourItems = use12Hour
-    ? Array.from({ length: 12 }, (_, i) => {
-        const v = i + 1;
-        return { value: v, label: String(v).padStart(2, '0') };
-      })
-    : Array.from({ length: 24 }, (_, i) => ({
-        value: i,
-        label: String(i).padStart(2, '0'),
-      }));
-
-  const minuteItems = Array.from({ length: 12 }, (_, i) => {
-    const v = i * 5;
-    return { value: v, label: String(v).padStart(2, '0') };
-  });
-
-  const { h: display12H, period } = use12Hour && parsed ? to12Hour(currentH) : { h: 12, period: 'AM' as const };
-
-  const handleHourChange = (v: number) => {
-    const newH = use12Hour ? from12Hour(v, (period as 'AM' | 'PM')) : v;
-    const newM = currentM >= 0 ? currentM : 0;
-    onChange(toHHmm(newH, newM));
-  };
-
-  const handleMinuteChange = (v: number) => {
-    const curH = currentH >= 0 ? currentH : 0;
-    onChange(toHHmm(curH, v));
-  };
-
-  const handlePeriodChange = (p: 'AM' | 'PM') => {
-    if (!parsed) return;
-    onChange(toHHmm(from12Hour(display12H, p), currentM));
-  };
+  if (variant === 'inline') {
+    return (
+      <div id={id} className={className}>
+        {displayLabel && (
+          <p className="text-sm font-semibold text-emerald-700 tabular-nums mb-2 flex items-center gap-1.5">
+            <Clock className="h-3.5 w-3.5" />
+            {displayLabel}
+          </p>
+        )}
+        <TimePickerPanel value={value} onChange={onChange} use12Hour={use12Hour} />
+      </div>
+    );
+  }
 
   return (
     <div id={id} ref={wrapRef} className={`relative ${className}`}>
-      {/* Trigger */}
       <button
         type="button"
         disabled={disabled}
         onClick={() => !disabled && setOpen((o) => !o)}
-        className={`w-full flex items-center gap-2.5 px-4 py-2.5 rounded-xl border text-sm transition-all ${
+        className={`w-full flex items-center justify-between gap-2 px-4 py-3 rounded-xl border text-sm transition-all ${
           open
-            ? 'border-emerald-500 ring-2 ring-emerald-500/20 bg-white'
-            : 'border-gray-200 bg-gray-50/50 hover:border-emerald-400 hover:bg-white'
+            ? 'border-emerald-500 ring-2 ring-emerald-500/20 bg-white shadow-sm'
+            : 'border-gray-200 bg-white hover:border-emerald-400 hover:shadow-sm'
         } ${disabled ? 'opacity-50 cursor-not-allowed' : 'cursor-pointer'}`}
       >
-        <Clock className={`h-4 w-4 shrink-0 ${open ? 'text-emerald-500' : 'text-gray-400'}`} />
-        <span className={displayLabel ? 'text-gray-900 font-medium' : 'text-gray-400'}>
-          {displayLabel || placeholder}
-        </span>
+        <div className="flex items-center gap-2.5 min-w-0">
+          <Clock className={`h-4 w-4 shrink-0 ${open ? 'text-emerald-600' : 'text-gray-400'}`} />
+          <span className={`truncate ${displayLabel ? 'text-gray-900 font-semibold tabular-nums' : 'text-gray-400 font-normal'}`}>
+            {displayLabel || placeholder}
+          </span>
+        </div>
+        <ChevronDown className={`h-4 w-4 shrink-0 text-gray-400 transition-transform ${open ? 'rotate-180 text-emerald-600' : ''}`} />
       </button>
 
-      {/* Dropdown */}
       {open && (
-        <div className="absolute top-full left-0 mt-1.5 z-50 animate-fade-in">
-          <div className="bg-white rounded-2xl shadow-2xl border border-gray-100 overflow-hidden min-w-[220px]">
-            {/* Header */}
-            <div className="px-4 py-3 bg-gradient-to-r from-emerald-600 to-emerald-700 flex items-center gap-2">
-              <Clock className="h-4 w-4 text-white/80" />
-              <span className="text-sm font-semibold text-white">
-                {displayLabel || 'Pick a time'}
-              </span>
-            </div>
-
-            {/* Columns */}
-            <div className="flex items-stretch divide-x divide-gray-100 p-2">
-              {/* Hour */}
-              <div className="flex-1 flex flex-col items-center px-1">
-                <span className="text-[10px] font-semibold text-gray-400 uppercase tracking-wider mb-1">HH</span>
-                <ScrollColumn
-                  items={hourItems}
-                  selected={use12Hour ? display12H : currentH >= 0 ? currentH : 0}
-                  onSelect={handleHourChange}
-                  height={160}
-                />
-              </div>
-
-              {/* Separator */}
-              <div className="flex items-center px-2">
-                <span className="text-xl font-bold text-gray-300">:</span>
-              </div>
-
-              {/* Minute */}
-              <div className="flex-1 flex flex-col items-center px-1">
-                <span className="text-[10px] font-semibold text-gray-400 uppercase tracking-wider mb-1">MM</span>
-                <ScrollColumn
-                  items={minuteItems}
-                  selected={currentM >= 0 ? Math.round(currentM / 5) * 5 : 0}
-                  onSelect={handleMinuteChange}
-                  height={160}
-                />
-              </div>
-
-              {/* AM/PM */}
-              {use12Hour && (
-                <div className="flex flex-col items-center justify-center gap-1 px-2 pl-3">
-                  <span className="text-[10px] font-semibold text-gray-400 uppercase tracking-wider mb-1">AM/PM</span>
-                  {(['AM', 'PM'] as const).map((p) => (
-                    <button
-                      key={p}
-                      type="button"
-                      onClick={() => handlePeriodChange(p)}
-                      className={`px-3 py-2 rounded-lg text-sm font-semibold transition-all ${
-                        period === p
-                          ? 'bg-emerald-600 text-white shadow-sm'
-                          : 'text-gray-400 hover:bg-gray-100 hover:text-gray-700'
-                      }`}
-                    >
-                      {p}
-                    </button>
-                  ))}
-                </div>
-              )}
-            </div>
-
-            {/* Footer */}
-            <div className="px-3 pb-3 flex gap-2">
-              {value && (
-                <button
-                  type="button"
-                  onClick={() => { onChange(''); setOpen(false); }}
-                  className="flex-1 py-2 rounded-xl text-xs font-medium text-gray-500 hover:bg-gray-100 transition-colors"
-                >
-                  Clear
-                </button>
-              )}
-              <button
-                type="button"
-                onClick={() => setOpen(false)}
-                className="flex-1 py-2 rounded-xl bg-emerald-600 text-white text-xs font-semibold hover:bg-emerald-700 transition-colors"
-              >
-                Done
-              </button>
-            </div>
+        <div className="absolute top-full left-0 right-0 mt-1.5 z-[70] animate-fade-in">
+          <div className="bg-white rounded-2xl shadow-2xl border border-emerald-100 p-3 w-full min-w-[280px]">
+            <TimePickerPanel value={value} onChange={onChange} use12Hour={use12Hour} onDone={() => setOpen(false)} />
           </div>
         </div>
       )}

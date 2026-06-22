@@ -21,6 +21,9 @@ type SearchableSelectProps = {
   className?: string;
   /** When false, hides the search box (short lists like shift or hour/minute). */
   showSearch?: boolean;
+  /** Override displayed label on the trigger (e.g. formatted time). */
+  triggerLabel?: string;
+  ariaLabel?: string;
 };
 
 /**
@@ -39,6 +42,8 @@ export function SearchableSelect({
   allowClear = false,
   className = '',
   showSearch = true,
+  triggerLabel,
+  ariaLabel,
 }: SearchableSelectProps) {
   const [open, setOpen] = useState(false);
   const [q, setQ] = useState('');
@@ -50,6 +55,7 @@ export function SearchableSelect({
     return options.filter(
       (o) =>
         o.label.toLowerCase().includes(s) ||
+        o.value.toLowerCase().includes(s) ||
         (o.subtitle && o.subtitle.toLowerCase().includes(s))
     );
   }, [options, q]);
@@ -79,17 +85,15 @@ export function SearchableSelect({
           type="button"
           disabled={disabled}
           onClick={() => !disabled && setOpen((o) => !o)}
-          className="flex min-h-[2.75rem] w-full min-w-0 flex-1 items-center justify-between gap-2 rounded-xl border border-emerald-200/90 bg-white px-3 py-2 text-left text-sm shadow-sm transition-colors hover:border-emerald-300 focus:outline-none focus:ring-2 focus:ring-emerald-500/25 disabled:cursor-not-allowed disabled:opacity-50"
+          className="flex min-h-[2.75rem] w-full min-w-0 flex-1 items-center justify-between gap-2 rounded-xl border border-gray-200 bg-white px-3 py-2 text-left text-sm shadow-sm transition-colors hover:border-gray-300 focus:outline-none focus:ring-2 focus:ring-emerald-500/25 disabled:cursor-not-allowed disabled:opacity-50"
           aria-expanded={open}
           aria-haspopup="listbox"
+          aria-label={ariaLabel}
         >
           <span className="min-w-0 flex-1">
-            {selected ? (
-              <span className="flex flex-col gap-0.5">
-                <span className="truncate font-medium text-gray-900">{selected.label}</span>
-                {selected.subtitle ? (
-                  <span className="truncate text-xs text-gray-500">{selected.subtitle}</span>
-                ) : null}
+            {selected || triggerLabel ? (
+              <span className="truncate font-semibold text-gray-900">
+                {triggerLabel ?? selected?.label}
               </span>
             ) : (
               <span className="text-gray-400">{placeholder}</span>

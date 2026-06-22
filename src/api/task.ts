@@ -23,6 +23,8 @@ export interface TaskTemplatePayload {
   assignToEmployeeId?: string;
   startTime?: string;
   timeLimitMinutes?: number;
+  intervalMinutes?: number;
+  repeatEndTime?: string;
   escalationEnabled?: boolean;
   checklistItems?: ChecklistItem[];
 }
@@ -69,6 +71,38 @@ export const taskApi = {
 
   deleteTemplate: async (templateId: string) => {
     const { data } = await api.delete(`/task/template/${templateId}`);
+    return data;
+  },
+
+  getTemplateGroups: async (outletId: string, params?: { deleted?: boolean }) => {
+    const q = params?.deleted ? '?deleted=1' : '';
+    const { data } = await api.get(`/task/template-groups/${outletId}${q}`);
+    return data;
+  },
+
+  createTemplateGroup: async (payload: Record<string, unknown>) => {
+    const { data } = await api.post('/task/template-group/create', payload);
+    return data;
+  },
+
+  updateTemplateGroup: async (groupId: string, payload: Record<string, unknown>) => {
+    const { data } = await api.put(`/task/template-group/${groupId}`, payload);
+    return data;
+  },
+
+  deleteTemplateGroup: async (groupId: string) => {
+    const { data } = await api.delete(`/task/template-group/${groupId}`);
+    return data;
+  },
+
+  restoreTemplateGroup: async (groupId: string) => {
+    const { data } = await api.post(`/task/template-group/${groupId}/restore`);
+    return data;
+  },
+
+  getSopAcknowledgments: async (outletId: string, groupId?: string) => {
+    const q = groupId ? `?groupId=${encodeURIComponent(groupId)}` : '';
+    const { data } = await api.get(`/task/sop-acknowledgments/${outletId}${q}`);
     return data;
   },
 

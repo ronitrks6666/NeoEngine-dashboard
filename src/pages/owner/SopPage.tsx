@@ -1,0 +1,604 @@
+import { useMemo, useState } from 'react';
+import { useQuery, useMutation, useQueryClient } from '@tanstack/react-query';
+import { useOutletStore } from '@/stores/outletStore';
+import { taskApi } from '@/api/task';
+import { employeeApi } from '@/api/employee';
+import { getApiErrorMessage } from '@/api/auth';
+import { LoadingSpinner } from '@/components/LoadingSpinner';
+import { SearchableSelect } from '@/components/SearchableSelect';
+import { MultiSearchableSelect } from '@/components/MultiSearchableSelect';
+import { CalendarDateField } from '@/components/CalendarDateField';
+import {
+  BookOpen,
+  Plus,
+  Pencil,
+  Trash2,
+  X,
+  Users,
+  CheckCircle2,
+  Archive,
+  RotateCcw,
+  AlertTriangle,
+  Calendar,
+  Sun,
+  Moon,
+} from 'lucide-react';
+
+type OccurrenceType = 'daily' | 'every-n-days' | 'specific-days' | 'specific-date-of-month' | 'onetime';
+
+type SopGroup = {
+  _id: string;
+  name: string;
+  parentRoleId?: { _id?: string; name?: string };
+  taskIds?: { _id: string; title?: string }[];
+  assignToType?: 'role' | 'staff';
+  assignedEmployeeIds?: { _id: string; name?: string }[];
+  occurrenceType?: OccurrenceType;
+  intervalDays?: number;
+  specificDays?: number[];
+  specificDatesOfMonth?: number[];
+  specificDate?: string;
+  shiftType?: 'Day' | 'Night' | 'Both';
+  sopVersion?: number;
+  deletedAt?: string;
+};
+
+const OCCURRENCE_OPTIONS: { value: OccurrenceType; label: string; hint: string }[] = [
+  { value: 'daily', label: 'Daily', hint: 'Runs every day' },
+  { value: 'every-n-days', label: 'Every N days', hint: 'e.g. every 10 days' },
+  { value: 'specific-days', label: 'Weekdays', hint: 'Sun–Sat pick' },
+  { value: 'specific-date-of-month', label: 'Month dates', hint: 'e.g. 1st & 15th' },
+  { value: 'onetime', label: 'One time', hint: 'Single calendar date' },
+];
+
+const DAY_NAMES = ['Sun', 'Mon', 'Tue', 'Wed', 'Thu', 'Fri', 'Sat'];
+
+function toYmd(value?: string | Date | null): string {
+  if (!value) return '';
+  const s = typeof value === 'string' ? value.split('T')[0] : new Date(value).toISOString().split('T')[0];
+  return s || '';
+}
+
+function scheduleSummary(g: SopGroup): string {
+  switch (g.occurrenceType) {
+    case 'every-n-days':
+      return `Every ${g.intervalDays ?? '?'} days`;
+    case 'specific-days':
+      return (g.specificDays ?? []).map((d) => DAY_NAMES[d]).join(', ') || 'Weekdays';
+    case 'specific-date-of-month':
+      return (g.specificDatesOfMonth ?? []).map((d) => `${d}${d === 1 ? 'st' : d === 2 ? 'nd' : d === 3 ? 'rd' : 'th'}`).join(', ') || 'Month dates';
+    case 'onetime':
+      return g.specificDate ? `Once · ${toYmd(g.specificDate)}` : 'One time';
+    default:
+      return 'Daily';
+  }
+}
+
+export function SopPage() {
+  const { selectedOutletId } = useOutletStore();
+  const queryClient = useQueryClient();
+  const [tab, setTab] = useState<'active' | 'deleted'>('active');
+  const [modal, setModal] = useState<'create' | 'edit' | null>(null);
+  const [editing, setEditing] = useState<SopGroup | null>(null);
+  const [deleteTarget, setDeleteTarget] = useState<SopGroup | null>(null);
+
+  const [name, setName] = useState('');
+  const [roleIds, setRoleIds] = useState<string[]>([]);
+  const [taskIds, setTaskIds] = useState<string[]>([]);
+  const [assignToType, setAssignToType] = useState<'role' | 'staff'>('role');
+  const [staffIds, setStaffIds] = useState<string[]>([]);
+  const [occurrenceType, setOccurrenceType] = useState<OccurrenceType>('daily');
+  const [intervalDays, setIntervalDays] = useState('10');
+  const [specificDays, setSpecificDays] = useState<number[]>([]);
+  const [specificDatesOfMonth, setSpecificDatesOfMonth] = useState<number[]>([]);
+  const [specificDate, setSpecificDate] = useState('');
+  const [shiftType, setShiftType] = useState<'Day' | 'Night' | 'Both'>('Both');
+
+  const { data: groupsData, isLoading } = useQuery({
+    queryKey: ['sop-groups', selectedOutletId, tab],
+    queryFn: () => taskApi.getTemplateGroups(selectedOutletId!, { deleted: tab === 'deleted' }),
+    enabled: !!selectedOutletId,
+  });
+
+  const { data: templatesData } = useQuery({
+    queryKey: ['task-templates', selectedOutletId, 'sop-pick'],
+    queryFn: () => taskApi.getTemplates(selectedOutletId!, { limit: 200 }),
+    enabled: !!selectedOutletId,
+  });
+
+  const { data: rolesData } = useQuery({
+    queryKey: ['parent-roles'],
+    queryFn: () => employeeApi.getParentRoles(),
+  });
+
+  const { data: employeesData } = useQuery({
+    queryKey: ['my-employees', selectedOutletId, 'sop'],
+    queryFn: () => employeeApi.getMyEmployees({ outletId: selectedOutletId!, limit: 200 }),
+    enabled: !!selectedOutletId,
+  });
+
+  const { data: ackData } = useQuery({
+    queryKey: ['sop-ack', selectedOutletId],
+    queryFn: () => taskApi.getSopAcknowledgments(selectedOutletId!),
+    enabled: !!selectedOutletId && tab === 'active',
+  });
+
+  const groups: SopGroup[] = groupsData?.data?.groups ?? [];
+  const templates = templatesData?.data?.templates ?? [];
+  const parentRoles = rolesData?.data?.parentRoles ?? [];
+  const employees = (employeesData as { data?: { employees?: { _id: string; name: string }[] } })?.data?.employees ?? [];
+  const acknowledgments = ackData?.data?.acknowledgments ?? [];
+
+  const templateOptions = useMemo(
+    () => templates.map((t: { _id: string; title: string }) => ({ value: t._id, label: t.title })),
+    [templates]
+  );
+  const roleOptions = useMemo(
+    () => parentRoles.map((r: { _id: string; name: string }) => ({ value: r._id, label: r.name })),
+    [parentRoles]
+  );
+  const staffOptions = useMemo(
+    () => employees.map((e) => ({ value: e._id, label: e.name })),
+    [employees]
+  );
+
+  const resetForm = () => {
+    setName('');
+    setRoleIds([]);
+    setTaskIds([]);
+    setAssignToType('role');
+    setStaffIds([]);
+    setOccurrenceType('daily');
+    setIntervalDays('10');
+    setSpecificDays([]);
+    setSpecificDatesOfMonth([]);
+    setSpecificDate('');
+    setShiftType('Both');
+    setEditing(null);
+  };
+
+  const openCreate = () => {
+    resetForm();
+    setModal('create');
+  };
+
+  const openEditGroup = (g: SopGroup) => {
+    setEditing(g);
+    setName(g.name);
+    const prId = (g.parentRoleId as { _id?: string })?._id ?? '';
+    setRoleIds(prId ? [prId] : []);
+    setTaskIds((g.taskIds ?? []).map((t) => (typeof t === 'string' ? t : t._id)));
+    setAssignToType(g.assignToType ?? 'role');
+    setStaffIds((g.assignedEmployeeIds ?? []).map((e) => (typeof e === 'string' ? e : e._id)));
+    setOccurrenceType((g.occurrenceType as OccurrenceType) ?? 'daily');
+    setIntervalDays(String(g.intervalDays ?? 10));
+    setSpecificDays(g.specificDays ?? []);
+    setSpecificDatesOfMonth(g.specificDatesOfMonth ?? []);
+    setSpecificDate(toYmd(g.specificDate));
+    setShiftType(g.shiftType ?? 'Both');
+    setModal('edit');
+  };
+
+  const buildPayload = () => {
+    const parentRoleId = roleIds[0] ?? '';
+    const payload: Record<string, unknown> = {
+      name: name.trim(),
+      outletId: selectedOutletId!,
+      parentRoleId,
+      taskIds,
+      assignToType,
+      assignedEmployeeIds: assignToType === 'staff' ? staffIds : [],
+      shiftType,
+      occurrenceType,
+      intervalDays: occurrenceType === 'every-n-days' ? Math.max(1, parseInt(intervalDays, 10) || 10) : undefined,
+      specificDays: occurrenceType === 'specific-days' && specificDays.length ? specificDays : undefined,
+      specificDatesOfMonth:
+        occurrenceType === 'specific-date-of-month' && specificDatesOfMonth.length ? specificDatesOfMonth : undefined,
+      specificDate: occurrenceType === 'onetime' && specificDate ? specificDate : undefined,
+    };
+    return payload;
+  };
+
+  const saveMutation = useMutation({
+    mutationFn: async () => {
+      if (modal === 'edit' && editing) {
+        return taskApi.updateTemplateGroup(editing._id, buildPayload());
+      }
+      const targets = assignToType === 'role' && roleIds.length > 1 ? roleIds : [roleIds[0]];
+      let last;
+      for (let i = 0; i < targets.length; i++) {
+        const rid = targets[i];
+        const roleLabel = roleOptions.find((o) => o.value === rid)?.label;
+        const payload = {
+          ...buildPayload(),
+          parentRoleId: rid,
+          name: targets.length > 1 ? `${name.trim()} (${roleLabel})` : name.trim(),
+        };
+        last = await taskApi.createTemplateGroup(payload);
+      }
+      return last;
+    },
+    onSuccess: async () => {
+      await queryClient.invalidateQueries({ queryKey: ['sop-groups', selectedOutletId] });
+      setModal(null);
+      resetForm();
+    },
+  });
+
+  const deleteMutation = useMutation({
+    mutationFn: (id: string) => taskApi.deleteTemplateGroup(id),
+    onSuccess: async () => {
+      await queryClient.invalidateQueries({ queryKey: ['sop-groups', selectedOutletId] });
+      setDeleteTarget(null);
+      setTab('deleted');
+    },
+  });
+
+  const restoreMutation = useMutation({
+    mutationFn: (id: string) => taskApi.restoreTemplateGroup(id),
+    onSuccess: async () => {
+      await queryClient.invalidateQueries({ queryKey: ['sop-groups', selectedOutletId] });
+      setTab('active');
+    },
+  });
+
+  const toggleDay = (d: number) => {
+    setSpecificDays((prev) => (prev.includes(d) ? prev.filter((x) => x !== d) : [...prev, d].sort((a, b) => a - b)));
+  };
+
+  const toggleMonthDate = (d: number) => {
+    setSpecificDatesOfMonth((prev) =>
+      prev.includes(d) ? prev.filter((x) => x !== d) : [...prev, d].sort((a, b) => a - b)
+    );
+  };
+
+  const selectAllRoles = () => setRoleIds(roleOptions.map((o) => o.value));
+
+  const canSave =
+    name.trim() &&
+    roleIds.length > 0 &&
+    taskIds.length > 0 &&
+    (assignToType === 'role' || staffIds.length > 0) &&
+    (occurrenceType !== 'onetime' || specificDate) &&
+    (occurrenceType !== 'every-n-days' || (parseInt(intervalDays, 10) >= 1 && parseInt(intervalDays, 10) <= 90));
+
+  if (!selectedOutletId) {
+    return <div className="p-6 text-amber-600">Select an outlet first.</div>;
+  }
+
+  return (
+    <div className="p-6 max-w-6xl mx-auto animate-fade-in">
+      <div className="flex flex-col sm:flex-row sm:items-center sm:justify-between gap-4 mb-6">
+        <div>
+          <h1 className="text-2xl font-bold text-gray-900 flex items-center gap-2">
+            <BookOpen className="h-7 w-7 text-emerald-600" /> SOPs
+          </h1>
+          <p className="text-gray-500 mt-1">Bundled tasks, schedules, and acknowledgment tracking</p>
+        </div>
+        {tab === 'active' && (
+          <button
+            type="button"
+            onClick={openCreate}
+            className="px-5 py-2.5 bg-emerald-600 text-white rounded-xl font-medium hover:bg-emerald-700 flex items-center gap-2 w-fit shadow-sm"
+          >
+            <Plus className="h-4 w-4" /> Create SOP
+          </button>
+        )}
+      </div>
+
+      <div className="flex gap-2 mb-6 p-1 bg-gray-100 rounded-xl w-fit">
+        <button
+          type="button"
+          onClick={() => setTab('active')}
+          className={`px-4 py-2 rounded-lg text-sm font-medium transition-all ${tab === 'active' ? 'bg-white text-emerald-700 shadow-sm' : 'text-gray-600'}`}
+        >
+          Active
+        </button>
+        <button
+          type="button"
+          onClick={() => setTab('deleted')}
+          className={`flex items-center gap-1.5 px-4 py-2 rounded-lg text-sm font-medium transition-all ${tab === 'deleted' ? 'bg-white text-gray-800 shadow-sm' : 'text-gray-600'}`}
+        >
+          <Archive className="h-4 w-4" /> Deleted
+        </button>
+      </div>
+
+      {isLoading ? (
+        <LoadingSpinner className="py-16" />
+      ) : groups.length === 0 ? (
+        <div className="text-center py-16 text-gray-500 rounded-2xl border border-dashed border-gray-200">
+          {tab === 'active' ? 'No SOPs yet. Create one to bundle tasks for your team.' : 'No deleted SOPs.'}
+        </div>
+      ) : (
+        <div className="grid gap-4">
+          {groups.map((g) => {
+            const ackCount =
+              tab === 'active'
+                ? acknowledgments.filter(
+                    (a: { templateGroupId?: { _id?: string } | string }) =>
+                      String((a.templateGroupId as { _id?: string })?._id ?? a.templateGroupId) === g._id
+                  ).length
+                : 0;
+            return (
+              <div
+                key={g._id}
+                className={`rounded-2xl border bg-white p-5 card-hover ${tab === 'deleted' ? 'border-gray-200 opacity-90' : 'border-gray-200'}`}
+              >
+                <div className="flex items-start justify-between gap-4">
+                  <div className="min-w-0">
+                    <h2 className="text-lg font-semibold text-gray-900">{g.name}</h2>
+                    <p className="text-sm text-gray-500 mt-0.5">
+                      {g.parentRoleId?.name ?? '—'} · {g.taskIds?.length ?? 0} tasks · {scheduleSummary(g)} ·{' '}
+                      {g.shiftType ?? 'Both'} shift
+                    </p>
+                    {tab === 'active' && (
+                      <p className="text-xs text-emerald-700 mt-2 flex items-center gap-1">
+                        <CheckCircle2 className="h-3.5 w-3.5" /> {ackCount} acknowledgment(s)
+                      </p>
+                    )}
+                    {tab === 'deleted' && g.deletedAt && (
+                      <p className="text-xs text-gray-400 mt-1">Deleted {new Date(g.deletedAt).toLocaleDateString()}</p>
+                    )}
+                  </div>
+                  <div className="flex gap-2 shrink-0">
+                    {tab === 'active' ? (
+                      <>
+                        <button type="button" onClick={() => openEditGroup(g)} className="p-2 rounded-lg hover:bg-emerald-50 text-emerald-700">
+                          <Pencil className="h-4 w-4" />
+                        </button>
+                        <button type="button" onClick={() => setDeleteTarget(g)} className="p-2 rounded-lg hover:bg-red-50 text-red-600">
+                          <Trash2 className="h-4 w-4" />
+                        </button>
+                      </>
+                    ) : (
+                      <button
+                        type="button"
+                        onClick={() => restoreMutation.mutate(g._id)}
+                        disabled={restoreMutation.isPending}
+                        className="flex items-center gap-1.5 px-3 py-2 rounded-lg bg-emerald-50 text-emerald-700 text-sm font-medium hover:bg-emerald-100"
+                      >
+                        <RotateCcw className="h-4 w-4" /> Restore
+                      </button>
+                    )}
+                  </div>
+                </div>
+                <ul className="mt-3 text-sm text-gray-600 list-disc list-inside">
+                  {(g.taskIds ?? []).map((t) => (
+                    <li key={typeof t === 'string' ? t : t._id}>{typeof t === 'object' ? t.title : t}</li>
+                  ))}
+                </ul>
+              </div>
+            );
+          })}
+        </div>
+      )}
+
+      {/* Create / Edit modal */}
+      {modal && (
+        <div className="fixed inset-0 bg-black/45 backdrop-blur-sm flex items-center justify-center z-50 p-4">
+          <div className="bg-white rounded-2xl shadow-2xl w-full max-w-lg max-h-[92vh] overflow-y-auto relative border border-emerald-100">
+            <button type="button" onClick={() => setModal(null)} className="absolute top-4 right-4 p-2 rounded-lg text-gray-400 hover:bg-gray-100 z-10">
+              <X className="h-5 w-5" />
+            </button>
+            <div className="p-6 border-b border-emerald-50 bg-gradient-to-r from-emerald-50/80 to-white">
+              <h2 className="text-xl font-semibold text-gray-900">{modal === 'create' ? 'Create SOP' : 'Edit SOP'}</h2>
+              <p className="text-sm text-gray-500 mt-0.5">Match mobile app schedule & assignment rules</p>
+            </div>
+            <div className="p-6 space-y-5">
+              <div>
+                <label className="block text-sm font-medium text-gray-700 mb-1.5">SOP name</label>
+                <input
+                  value={name}
+                  onChange={(e) => setName(e.target.value)}
+                  className="w-full px-4 py-2.5 rounded-xl border border-gray-200 focus:ring-2 focus:ring-emerald-500/20 focus:border-emerald-500"
+                  placeholder="e.g. Opening checklist"
+                />
+              </div>
+
+              <div>
+                <label className="block text-sm font-medium text-gray-700 mb-1.5">Tasks in this SOP</label>
+                <MultiSearchableSelect values={taskIds} onChange={setTaskIds} options={templateOptions} placeholder="Search & select tasks…" />
+              </div>
+
+              <div>
+                <label className="block text-sm font-medium text-gray-700 mb-1.5">Shift</label>
+                <div className="flex gap-2">
+                  {(['Day', 'Night', 'Both'] as const).map((s) => (
+                    <button
+                      key={s}
+                      type="button"
+                      onClick={() => setShiftType(s)}
+                      className={`flex items-center gap-1.5 px-4 py-2 rounded-xl text-sm font-medium border transition-all ${
+                        shiftType === s
+                          ? 'bg-emerald-600 text-white border-emerald-600 shadow-sm'
+                          : 'bg-white text-gray-600 border-gray-200 hover:border-emerald-300'
+                      }`}
+                    >
+                      {s === 'Day' ? <Sun className="h-3.5 w-3.5" /> : s === 'Night' ? <Moon className="h-3.5 w-3.5" /> : null}
+                      {s}
+                    </button>
+                  ))}
+                </div>
+              </div>
+
+              <div>
+                <label className="block text-sm font-medium text-gray-700 mb-1.5">Schedule</label>
+                <SearchableSelect
+                  value={occurrenceType}
+                  onChange={(v) => setOccurrenceType(v as OccurrenceType)}
+                  options={OCCURRENCE_OPTIONS.map((o) => ({ value: o.value, label: o.label, subtitle: o.hint }))}
+                  placeholder="Choose schedule…"
+                  showSearch={false}
+                />
+                {occurrenceType === 'every-n-days' && (
+                  <div className="mt-3 flex items-center gap-3 p-3 rounded-xl bg-emerald-50/60 border border-emerald-100 animate-slide-up">
+                    <Calendar className="h-4 w-4 text-emerald-600 shrink-0" />
+                    <span className="text-sm text-gray-600">Every</span>
+                    <input
+                      type="number"
+                      min={1}
+                      max={90}
+                      value={intervalDays}
+                      onChange={(e) => setIntervalDays(e.target.value)}
+                      className="w-16 px-2 py-1.5 rounded-lg border border-emerald-200 text-center text-sm font-semibold"
+                    />
+                    <span className="text-sm text-gray-600">days</span>
+                  </div>
+                )}
+                {occurrenceType === 'specific-days' && (
+                  <div className="mt-3 flex flex-wrap gap-2 p-3 rounded-xl bg-emerald-50/60 border border-emerald-100 animate-slide-up">
+                    {DAY_NAMES.map((label, d) => {
+                      const on = specificDays.includes(d);
+                      return (
+                        <button
+                          key={d}
+                          type="button"
+                          onClick={() => toggleDay(d)}
+                          className={`w-10 h-10 rounded-xl text-xs font-bold transition-all ${
+                            on ? 'bg-emerald-600 text-white shadow-sm' : 'bg-white border border-gray-200 text-gray-600 hover:border-emerald-300'
+                          }`}
+                          title={label}
+                        >
+                          {label.slice(0, 2)}
+                        </button>
+                      );
+                    })}
+                  </div>
+                )}
+                {occurrenceType === 'specific-date-of-month' && (
+                  <div className="mt-3 p-3 rounded-xl bg-emerald-50/60 border border-emerald-100 animate-slide-up max-h-40 overflow-y-auto">
+                    <div className="flex flex-wrap gap-1.5">
+                      {Array.from({ length: 31 }, (_, i) => i + 1).map((d) => {
+                        const on = specificDatesOfMonth.includes(d);
+                        return (
+                          <button
+                            key={d}
+                            type="button"
+                            onClick={() => toggleMonthDate(d)}
+                            className={`w-9 h-9 rounded-lg text-xs font-semibold ${
+                              on ? 'bg-emerald-600 text-white' : 'bg-white border border-gray-200 text-gray-600'
+                            }`}
+                          >
+                            {d}
+                          </button>
+                        );
+                      })}
+                    </div>
+                  </div>
+                )}
+                {occurrenceType === 'onetime' && (
+                  <div className="mt-3 animate-slide-up">
+                    <label className="block text-xs font-medium text-gray-500 mb-1">Run on date</label>
+                    <CalendarDateField value={specificDate} onChange={setSpecificDate} placeholder="Pick date" />
+                  </div>
+                )}
+              </div>
+
+              <div>
+                <label className="block text-sm font-medium text-gray-700 mb-1.5 flex items-center gap-1">
+                  <Users className="h-4 w-4 text-emerald-600" /> Assign to
+                </label>
+                <div className="flex gap-2 mb-3">
+                  <button
+                    type="button"
+                    onClick={() => setAssignToType('role')}
+                    className={`flex-1 py-2 rounded-xl text-sm font-medium border transition-all ${
+                      assignToType === 'role' ? 'bg-emerald-600 text-white border-emerald-600' : 'bg-white border-gray-200 text-gray-600'
+                    }`}
+                  >
+                    Whole role
+                  </button>
+                  <button
+                    type="button"
+                    onClick={() => setAssignToType('staff')}
+                    className={`flex-1 py-2 rounded-xl text-sm font-medium border transition-all ${
+                      assignToType === 'staff' ? 'bg-emerald-600 text-white border-emerald-600' : 'bg-white border-gray-200 text-gray-600'
+                    }`}
+                  >
+                    Specific staff
+                  </button>
+                </div>
+                {assignToType === 'role' ? (
+                  <div className="space-y-2">
+                    <p className="text-xs text-gray-500">All staff in the selected master role(s) receive this SOP. Pick one or more master roles.</p>
+                    <MultiSearchableSelect
+                      values={roleIds}
+                      onChange={setRoleIds}
+                      options={roleOptions}
+                      placeholder="Select master role(s)…"
+                    />
+                    {roleOptions.length > 1 && (
+                      <button type="button" onClick={selectAllRoles} className="text-xs font-medium text-emerald-700 hover:underline">
+                        Select all roles
+                      </button>
+                    )}
+                  </div>
+                ) : (
+                  <div className="space-y-3">
+                    <MultiSearchableSelect values={staffIds} onChange={setStaffIds} options={staffOptions} placeholder="Select staff…" />
+                    <div>
+                      <label className="block text-xs font-medium text-gray-500 mb-1">Master role (required for bundle)</label>
+                      <SearchableSelect
+                        value={roleIds[0] ?? ''}
+                        onChange={(v) => setRoleIds(v ? [v] : [])}
+                        options={roleOptions}
+                        placeholder="Select master role…"
+                      />
+                    </div>
+                  </div>
+                )}
+              </div>
+
+              {saveMutation.isError && <p className="text-red-600 text-sm">{getApiErrorMessage(saveMutation.error)}</p>}
+              <button
+                type="button"
+                disabled={!canSave || saveMutation.isPending}
+                onClick={() => saveMutation.mutate()}
+                className="w-full py-3 bg-emerald-600 text-white rounded-xl font-semibold disabled:opacity-50 hover:bg-emerald-700 transition-colors"
+              >
+                {saveMutation.isPending ? 'Saving…' : 'Save SOP'}
+              </button>
+            </div>
+          </div>
+        </div>
+      )}
+
+      {/* Delete confirm */}
+      {deleteTarget && (
+        <div className="fixed inset-0 bg-black/50 backdrop-blur-sm flex items-center justify-center z-[60] p-4 animate-fade-in">
+          <div className="bg-white rounded-2xl shadow-2xl w-full max-w-md overflow-hidden border border-red-100">
+            <div className="p-6 bg-gradient-to-br from-red-50 to-white">
+              <div className="w-12 h-12 rounded-full bg-red-100 flex items-center justify-center mb-4">
+                <AlertTriangle className="h-6 w-6 text-red-600" />
+              </div>
+              <h3 className="text-lg font-bold text-gray-900">Delete this SOP?</h3>
+              <p className="text-sm text-gray-600 mt-2">
+                <strong>{deleteTarget.name}</strong> will move to <em>Deleted</em>. You can restore it later. Staff will no longer receive new assignments from this bundle.
+              </p>
+            </div>
+            <div className="flex gap-3 p-6 pt-0">
+              <button
+                type="button"
+                onClick={() => setDeleteTarget(null)}
+                className="flex-1 py-2.5 rounded-xl border border-gray-200 font-medium text-gray-700 hover:bg-gray-50"
+              >
+                Cancel
+              </button>
+              <button
+                type="button"
+                disabled={deleteMutation.isPending}
+                onClick={() => deleteMutation.mutate(deleteTarget._id)}
+                className="flex-1 py-2.5 rounded-xl bg-red-600 text-white font-semibold hover:bg-red-700 disabled:opacity-50"
+              >
+                {deleteMutation.isPending ? 'Deleting…' : 'Delete SOP'}
+              </button>
+            </div>
+            {deleteMutation.isError && (
+              <p className="px-6 pb-4 text-red-600 text-sm">{getApiErrorMessage(deleteMutation.error)}</p>
+            )}
+          </div>
+        </div>
+      )}
+    </div>
+  );
+}

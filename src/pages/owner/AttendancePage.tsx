@@ -38,10 +38,10 @@ const PUNCH_OPTIONS: { action: PunchAction; label: string }[] = [
 ];
 
 function suggestionRoleLabel(emp: {
-  activeRoleId?: { name?: string } | string | null;
+  activeRoleId?: { name?: string; parentRoleId?: { name?: string } } | string | null;
 }): string | null {
   const r = emp.activeRoleId;
-  if (r && typeof r === 'object' && r.name?.trim()) return r.name.trim();
+  if (r && typeof r === 'object' && r.parentRoleId?.name?.trim()) return r.parentRoleId.name.trim();
   return null;
 }
 

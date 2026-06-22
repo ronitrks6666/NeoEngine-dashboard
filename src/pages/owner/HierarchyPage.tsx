@@ -6,7 +6,7 @@ import type { Owner } from '@/types/auth';
 import { employeeApi } from '@/api/employee';
 import { getApiErrorMessage } from '@/api/auth';
 import { LoadingSpinner } from '@/components/LoadingSpinner';
-import { SearchableSelect } from '@/components/SearchableSelect';
+import { MultiSearchableSelect } from '@/components/MultiSearchableSelect';
 import { GripVertical, X, Plus, Crown, ChevronRight } from 'lucide-react';
 
 const DROP_OWNER_KEY = '__owner__';
@@ -30,14 +30,10 @@ function refId(ref: ReportsRef): string | null {
   return id ? String(id) : null;
 }
 
-/** One line: "MASTER · Outlet role" or fallbacks */
 function roleCaption(emp: EmpRow): string {
   const ar = emp.activeRoleId;
   if (!ar || typeof ar === 'string') return 'No role assigned';
-  const master = ar.parentRoleId?.name?.trim();
-  const role = ar.name?.trim();
-  if (master && role) return `${master} · ${role}`;
-  return role || master || 'No role assigned';
+  return ar.parentRoleId?.name?.trim() || 'No role assigned';
 }
 
 function reportsToOwner(emp: EmpRow, ownerId: string): boolean {
@@ -341,7 +337,7 @@ export function HierarchyPage() {
   const { selectedOutletId } = useOutletStore();
   const { user, role: authRole } = useAuth();
   const [directReportPicker, setDirectReportPicker] = useState<DirectReportPicker | null>(null);
-  const [selectedSubordinateId, setSelectedSubordinateId] = useState('');
+  const [selectedSubordinateIds, setSelectedSubordinateIds] = useState<string[]>([]);
   const [pendingMove, setPendingMove] = useState<PendingMove | null>(null);
   const [hierarchyNotice, setHierarchyNotice] = useState<string | null>(null);
   const [draggedEmployeeId, setDraggedEmployeeId] = useState<string | null>(null);
@@ -438,7 +434,7 @@ export function HierarchyPage() {
       });
       setPendingMove(null);
       setDirectReportPicker(null);
-      setSelectedSubordinateId('');
+      setSelectedSubordinateIds([]);
       clearDragUi();
       return { previous };
     },
@@ -458,7 +454,7 @@ export function HierarchyPage() {
 
   const closeDirectReportPicker = () => {
     setDirectReportPicker(null);
-    setSelectedSubordinateId('');
+    setSelectedSubordinateIds([]);
   };
 
   const handleDragOver = useCallback((e: React.DragEvent, targetId: string) => {
@@ -816,8 +812,7 @@ export function HierarchyPage() {
             <div className="p-6 border-b border-gray-100 pr-12">
               <h2 className="text-xl font-semibold text-gray-900">Set direct report</h2>
               <p className="text-sm text-gray-500 mt-0.5">
-                Choose who will report to <strong>{directReportPicker.managerName}</strong>. Existing reporting lines update
-                automatically.
+                Choose who will report to <strong>{directReportPicker.managerName}</strong>. You can select multiple staff at once.
               </p>
             </div>
             <button
@@ -830,14 +825,13 @@ export function HierarchyPage() {
             </button>
             <div className="p-6 space-y-4">
               <div>
-                <label className="block text-sm font-medium text-gray-700 mb-1">Staff member</label>
-                <SearchableSelect
-                  value={selectedSubordinateId}
-                  onChange={setSelectedSubordinateId}
+                <label className="block text-sm font-medium text-gray-700 mb-1">Staff members</label>
+                <MultiSearchableSelect
+                  values={selectedSubordinateIds}
+                  onChange={setSelectedSubordinateIds}
                   options={directReportStaffOptions}
-                  placeholder="Select…"
+                  placeholder="Select one or more…"
                   searchPlaceholder="Search staff…"
-                  allowClear
                   noOptionsText="No eligible staff"
                   emptyText="No matches"
                 />
@@ -848,28 +842,31 @@ export function HierarchyPage() {
               <div className="flex gap-3 pt-2">
                 <button
                   type="button"
-                  onClick={() => {
-                    if (!selectedSubordinateId) return;
-                    if (directReportPicker.kind === 'owner') {
-                      mutateReporting({
-                        kind: 'simple',
-                        employeeId: selectedSubordinateId,
-                        reportsToOwnerId: directReportPicker.ownerId,
-                        reportsToEmployeeId: null,
-                      });
-                    } else {
-                      mutateReporting({
-                        kind: 'simple',
-                        employeeId: selectedSubordinateId,
-                        reportsToEmployeeId: directReportPicker.managerId,
-                        reportsToOwnerId: null,
-                      });
+                  onClick={async () => {
+                    if (selectedSubordinateIds.length === 0) return;
+                    for (const employeeId of selectedSubordinateIds) {
+                      if (directReportPicker.kind === 'owner') {
+                        await reportingMutation.mutateAsync({
+                          kind: 'simple',
+                          employeeId,
+                          reportsToOwnerId: directReportPicker.ownerId,
+                          reportsToEmployeeId: null,
+                        });
+                      } else {
+                        await reportingMutation.mutateAsync({
+                          kind: 'simple',
+                          employeeId,
+                          reportsToEmployeeId: directReportPicker.managerId,
+                          reportsToOwnerId: null,
+                        });
+                      }
                     }
+                    closeDirectReportPicker();
                   }}
-                  disabled={!selectedSubordinateId || reportingMutation.isPending}
+                  disabled={selectedSubordinateIds.length === 0 || reportingMutation.isPending}
                   className="flex-1 px-4 py-2.5 bg-emerald-600 text-white rounded-xl font-medium hover:bg-emerald-700 disabled:opacity-50"
                 >
-                  {reportingMutation.isPending ? 'Saving…' : 'Save'}
+                  {reportingMutation.isPending ? 'Saving…' : `Save (${selectedSubordinateIds.length})`}
                 </button>
                 <button
                   type="button"

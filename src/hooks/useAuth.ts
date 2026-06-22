@@ -39,6 +39,7 @@ interface AuthStore extends AuthState {
   loginAsOwner: (identifier: string, password: string, isPhone?: boolean) => Promise<{ isFirstLogin: boolean }>;
   loginAsOwnerWithOtp: (phone: string, otp: string) => Promise<{ isFirstLogin: boolean }>;
   impersonateAsOwner: (ownerId: string) => Promise<{ token: string; owner: Owner }>;
+  refreshSuperAdminProfile: () => Promise<void>;
   logout: () => void;
   hydrate: () => void;
 }
@@ -125,6 +126,19 @@ export const useAuth = create<AuthStore>()((set) => ({
         };
         
         return { token: res.token, owner };
+      },
+
+      refreshSuperAdminProfile: async () => {
+        const state = useAuth.getState();
+        if (state.role !== 'SUPER_ADMIN' || !state.token) return;
+        try {
+          const { adminApi } = await import('@/api/admin');
+          const me = await adminApi.getMe();
+          persistAuth(state.token, me, 'SUPER_ADMIN');
+          set({ user: me as SuperAdmin });
+        } catch {
+          // ignore — stale profile ok
+        }
       },
 
       logout: () => {

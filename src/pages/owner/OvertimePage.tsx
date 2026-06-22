@@ -144,6 +144,9 @@ export function OvertimePage() {
                 <div className="flex-1 min-w-0">
                   <p className="font-semibold text-gray-900 truncate">{req.employeeId?.name || '—'}</p>
                   <p className="text-sm text-gray-500 mt-0.5">{formatDisplayDate(req.date)}</p>
+                  {req.payrollMonthLabel && (
+                    <p className="text-xs text-emerald-700 mt-0.5 font-medium">Payroll: {req.payrollMonthLabel}</p>
+                  )}
                 </div>
                 <div className="flex items-center gap-4 shrink-0">
                   <span className="text-lg font-bold text-emerald-700">{req.overtimeHours}h</span>
@@ -169,6 +172,12 @@ export function OvertimePage() {
                 <div className="flex justify-between items-center">
                   <span className="text-sm text-gray-500">Employee</span>
                   <span className="font-semibold text-gray-900">{detailRequest?.employeeId?.name || detailModal.employeeId?.name || '—'}</span>
+                </div>
+                <div className="flex justify-between items-center">
+                  <span className="text-sm text-gray-500">Payroll month</span>
+                  <span className="font-semibold text-gray-900">
+                    {detailRequest?.payrollMonthLabel ?? detailModal.payrollMonthLabel ?? '—'}
+                  </span>
                 </div>
                 <div className="flex justify-between items-center">
                   <span className="text-sm text-gray-500">Date</span>

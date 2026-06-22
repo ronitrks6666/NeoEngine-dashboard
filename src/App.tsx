@@ -11,6 +11,11 @@ import { OutletsPage } from '@/pages/super-admin/OutletsPage';
 import { AnalyticsPage } from '@/pages/super-admin/AnalyticsPage';
 import { SupportTicketsPage } from '@/pages/super-admin/SupportTicketsPage';
 import { AuditLogsPage } from '@/pages/super-admin/AuditLogsPage';
+import { SubAdminsPage } from '@/pages/super-admin/SubAdminsPage';
+import { SubscriptionsPage } from '@/pages/super-admin/SubscriptionsPage';
+import { CouponsPage } from '@/pages/super-admin/CouponsPage';
+import { SuperAdminPermissionRoute } from '@/components/SuperAdminPermissionRoute';
+import { SUPER_ADMIN_PERMISSIONS as P } from '@/constants/superAdminPermissions';
 import { OwnerDashboardPage } from '@/pages/owner/OwnerDashboardPage';
 import { OwnerSupportTicketsPage } from '@/pages/owner/OwnerSupportTicketsPage';
 import { OwnerOutletsPage } from '@/pages/owner/OwnerOutletsPage';
@@ -31,6 +36,8 @@ import { EventsPage } from '@/pages/owner/EventsPage';
 import { ActivityPage } from '@/pages/owner/ActivityPage';
 import { PayrollSettingsPage } from '@/pages/owner/PayrollSettingsPage';
 import { LeaveRulesPage } from '@/pages/owner/LeaveRulesPage';
+import { SopPage } from '@/pages/owner/SopPage';
+import { DepartmentsPage } from '@/pages/owner/DepartmentsPage';
 import { useAuth } from '@/hooks/useAuth';
 import { NeoEngineApkDownloadPage } from '@/pages/NeoEngineApkDownloadPage';
 import { PrivacyPolicyPage } from '@/pages/legal/PrivacyPolicyPage';
@@ -64,11 +71,71 @@ function App() {
             <AppLayout role="SUPER_ADMIN">
               <Routes>
                 <Route path="dashboard" element={<SuperAdminDashboardPage />} />
-                <Route path="owners" element={<OwnersPage />} />
-                <Route path="outlets" element={<OutletsPage />} />
-                <Route path="analytics" element={<AnalyticsPage />} />
-                <Route path="support" element={<SupportTicketsPage />} />
-                <Route path="audit-logs" element={<AuditLogsPage />} />
+                <Route
+                  path="owners"
+                  element={
+                    <SuperAdminPermissionRoute permission={P.OWNERS_VIEW}>
+                      <OwnersPage />
+                    </SuperAdminPermissionRoute>
+                  }
+                />
+                <Route
+                  path="outlets"
+                  element={
+                    <SuperAdminPermissionRoute permission={P.OUTLETS_VIEW}>
+                      <OutletsPage />
+                    </SuperAdminPermissionRoute>
+                  }
+                />
+                <Route
+                  path="subscriptions"
+                  element={
+                    <SuperAdminPermissionRoute permission={P.SUBSCRIPTIONS_VIEW}>
+                      <SubscriptionsPage />
+                    </SuperAdminPermissionRoute>
+                  }
+                />
+                <Route
+                  path="coupons"
+                  element={
+                    <SuperAdminPermissionRoute permission={P.COUPONS_VIEW}>
+                      <CouponsPage />
+                    </SuperAdminPermissionRoute>
+                  }
+                />
+                <Route
+                  path="sub-admins"
+                  element={
+                    <SuperAdminPermissionRoute permission={P.SUB_ADMINS_VIEW}>
+                      <SubAdminsPage />
+                    </SuperAdminPermissionRoute>
+                  }
+                />
+                <Route
+                  path="analytics"
+                  element={
+                    <SuperAdminPermissionRoute permission={P.ANALYTICS_VIEW}>
+                      <AnalyticsPage />
+                    </SuperAdminPermissionRoute>
+                  }
+                />
+                <Route
+                  path="support"
+                  element={
+                    <SuperAdminPermissionRoute permission={P.SUPPORT_VIEW}>
+                      <SupportTicketsPage />
+                    </SuperAdminPermissionRoute>
+                  }
+                />
+                <Route
+                  path="audit-logs"
+                  element={
+                    <SuperAdminPermissionRoute permission={P.AUDIT_VIEW}>
+                      <AuditLogsPage />
+                    </SuperAdminPermissionRoute>
+                  }
+                />
+                <Route path="" element={<Navigate to="dashboard" replace />} />
               </Routes>
             </AppLayout>
           </ProtectedRoute>
@@ -85,6 +152,8 @@ function App() {
                 <Route path="outlets" element={<OwnerOutletsPage />} />
                 <Route path="staff" element={<StaffPage />} />
                 <Route path="roles" element={<RolesPage />} />
+                <Route path="departments" element={<DepartmentsPage />} />
+                <Route path="sops" element={<SopPage />} />
                 <Route path="tasks" element={<TasksPage />} />
                 <Route path="issues" element={<IssuesPage />} />
                 <Route path="attendance" element={<AttendancePage />} />

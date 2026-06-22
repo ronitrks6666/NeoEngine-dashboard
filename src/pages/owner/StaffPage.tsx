@@ -22,10 +22,7 @@ function employeeRoleSubtitle(
   activeRoleId?: { name?: string; parentRoleId?: { name?: string } } | string | null
 ): string {
   if (!activeRoleId || typeof activeRoleId === 'string') return 'No role assigned';
-  const sub = activeRoleId.name;
-  const master = activeRoleId.parentRoleId?.name;
-  if (sub && master) return `${sub} · ${master}`;
-  return sub || master || 'No role assigned';
+  return activeRoleId.parentRoleId?.name?.trim() || 'No role assigned';
 }
 
 /** Form value: staff id or `owner:<ownerId>` for reports-to */
@@ -57,6 +54,7 @@ const editSchema = z.object({
   name: z.string().min(1, 'Name required'),
   phone: zPhone10,
   shiftType: z.enum(['Day', 'Night']).optional(),
+  parentRoleId: z.string().optional(),
   activeRoleId: z.string().optional(),
   salary: z.any().optional().transform((v) => {
     if (v === '' || v == null) return undefined;
@@ -70,6 +68,7 @@ const editSchema = z.object({
   }),
   punchInTime: z.string().optional(),
   upiId: z.string().optional(),
+  reportsToTarget: z.string().optional(),
   // Personal
   dateOfBirth: z.string().optional(),
   gender: z.enum(['male', 'female', 'other', 'prefer_not_to_say']).optional(),
@@ -217,13 +216,14 @@ export function StaffPage() {
   const createMutation = useMutation({
     mutationFn: (d: CreateForm) => {
       const rt = d.reportsToTarget?.trim();
+      const parentId = d.parentRoleId?.trim();
+      const activeId = d.activeRoleId?.trim();
       return employeeApi.create({
         name: d.name,
         phone: d.phone,
         tempPassword: d.tempPassword,
         outletId: selectedOutletId!,
-        parentRoleId: d.parentRoleId?.trim() || undefined,
-        activeRoleId: d.activeRoleId?.trim() || undefined,
+        ...(activeId ? { activeRoleId: activeId } : parentId ? { parentRoleId: parentId } : {}),
         ...(rt?.startsWith(REPORTS_TO_OWNER_PREFIX)
           ? { reportsToOwnerId: rt.slice(REPORTS_TO_OWNER_PREFIX.length) }
           : rt
@@ -310,6 +310,7 @@ export function StaffPage() {
       const newId = (res as { data?: { parentRole?: { _id?: string } } })?.data?.parentRole?._id;
       if (newId) {
         form.setValue('parentRoleId', newId, { shouldValidate: true });
+        editForm.setValue('parentRoleId', newId, { shouldValidate: true });
       }
     },
   });
@@ -346,7 +347,7 @@ export function StaffPage() {
 
   const editForm = useForm<EditForm>({
     resolver: zodResolver(editSchema),
-    defaultValues: { name: '', phone: '', shiftType: 'Day', activeRoleId: '', salary: undefined, minHoursPerDay: undefined, punchInTime: '', upiId: '' },
+    defaultValues: { name: '', phone: '', shiftType: 'Day', parentRoleId: '', activeRoleId: '', salary: undefined, minHoursPerDay: undefined, punchInTime: '', upiId: '' },
   });
 
   const employees = empData?.data?.employees ?? [];
@@ -455,16 +456,40 @@ export function StaffPage() {
     setNewRoleName('');
     setNewRoleParentId('');
     const roleId = (e.activeRoleId as { _id?: string })?._id ?? (typeof e.activeRoleId === 'string' ? e.activeRoleId : '');
+    const parentRoleId =
+      (e.activeRoleId as { parentRoleId?: { _id?: string } })?.parentRoleId?._id ??
+      (typeof (e.activeRoleId as { parentRoleId?: string })?.parentRoleId === 'string'
+        ? (e.activeRoleId as { parentRoleId: string }).parentRoleId
+        : '');
+    const reportsToEmp =
+      typeof e.reportsToEmployeeId === 'object' && e.reportsToEmployeeId
+        ? (e.reportsToEmployeeId as { _id?: string })._id
+        : typeof e.reportsToEmployeeId === 'string'
+          ? e.reportsToEmployeeId
+          : '';
+    const reportsToOwner =
+      typeof e.reportsToOwnerId === 'object' && e.reportsToOwnerId
+        ? (e.reportsToOwnerId as { _id?: string })._id
+        : typeof e.reportsToOwnerId === 'string'
+          ? e.reportsToOwnerId
+          : '';
+    const reportsToTarget = reportsToOwner
+      ? `${REPORTS_TO_OWNER_PREFIX}${reportsToOwner}`
+      : reportsToEmp
+        ? String(reportsToEmp)
+        : '';
     editForm.reset({
       name: e.name,
       // Always normalise to last 10 digits — backend may store with country code prefix
       phone: String(e.phone ?? '').replace(/\D/g, '').slice(-10),
       shiftType: (e.shiftType as 'Day' | 'Night') || 'Day',
+      parentRoleId: parentRoleId || '',
       activeRoleId: roleId || '',
       salary: e.salary ?? undefined,
       minHoursPerDay: e.minHoursPerDay ?? undefined,
       punchInTime: e.punchInTime ?? '',
       upiId: e.upiId ?? '',
+      reportsToTarget,
       dateOfBirth: e.dateOfBirth ?? '',
       gender: (e.gender as 'male' | 'female' | 'other' | 'prefer_not_to_say') ?? undefined,
       secondaryPhone: e.secondaryPhone ?? '',
@@ -632,8 +657,7 @@ export function StaffPage() {
                   <span className={`px-2.5 py-0.5 rounded-lg text-xs font-medium ${
                     e.isActive === false ? 'bg-amber-100 text-amber-700' : 'bg-emerald-100 text-emerald-700'
                   }`}>
-                    {(e.activeRoleId as { name?: string; parentRoleId?: { name?: string } })?.name ??
-                      (e.activeRoleId as { parentRoleId?: { name?: string } })?.parentRoleId?.name ?? 'No role'}
+                    {(e.activeRoleId as { parentRoleId?: { name?: string } })?.parentRoleId?.name ?? 'No role'}
                   </span>
                   <span className="px-2.5 py-0.5 rounded-lg text-xs font-medium bg-gray-100 text-gray-600">
                     {e.shiftType ?? 'Day'}
@@ -896,14 +920,27 @@ export function StaffPage() {
                   (d) =>
                     updateMutation.mutate({
                       id: editing._id,
-                      data: {
-                        ...d,
-                        activeRoleId: d.activeRoleId || undefined,
-                        salary: d.salary ?? undefined,
-                        minHoursPerDay: d.minHoursPerDay ?? undefined,
-                        punchInTime: d.punchInTime?.trim() || undefined,
-                        upiId: d.upiId?.trim() || undefined,
-                      },
+                      data: (() => {
+                        const rt = d.reportsToTarget?.trim();
+                        const reportsPayload = rt?.startsWith(REPORTS_TO_OWNER_PREFIX)
+                          ? {
+                              reportsToOwnerId: rt.slice(REPORTS_TO_OWNER_PREFIX.length),
+                              reportsToEmployeeId: null,
+                            }
+                          : rt
+                            ? { reportsToEmployeeId: rt, reportsToOwnerId: null }
+                            : {};
+                        const { activeRoleId: _omitActiveRole, ...profile } = d;
+                        return {
+                          ...profile,
+                          ...reportsPayload,
+                          parentRoleId: d.parentRoleId?.trim() ? d.parentRoleId.trim() : null,
+                          salary: d.salary ?? undefined,
+                          minHoursPerDay: d.minHoursPerDay ?? undefined,
+                          punchInTime: d.punchInTime?.trim() || undefined,
+                          upiId: d.upiId?.trim() || undefined,
+                        };
+                      })(),
                     }),
                   (validationErrors) => {
                     // Log validation errors so they're visible in the console during debugging
@@ -957,34 +994,24 @@ export function StaffPage() {
                       <div className="flex gap-2 min-w-0">
                         <div className="flex-1 min-w-0">
                           <SearchableSelect
-                            value={editForm.watch('activeRoleId') || ''}
-                            onChange={(v) => editForm.setValue('activeRoleId', v, { shouldValidate: true })}
-                            options={outletRoleSelectOptions}
-                            placeholder="No role"
+                            value={editForm.watch('parentRoleId') || ''}
+                            onChange={(v) => editForm.setValue('parentRoleId', v, { shouldValidate: true })}
+                            options={parentRoleSelectOptions}
+                            placeholder="Select master role"
                             searchPlaceholder="Search roles…"
-                            noOptionsText="No roles in this outlet"
+                            noOptionsText="No master roles yet"
                             emptyText="No matches"
                             allowClear
                           />
                         </div>
-                        <div className="flex gap-1.5 shrink-0">
-                          <button
-                            type="button"
-                            onClick={() => { setShowCreateMasterRole(true); setShowCreateRole(false); }}
-                            className="px-3 py-2.5 rounded-xl border border-emerald-200 bg-emerald-50 text-emerald-700 hover:bg-emerald-100 transition-colors flex items-center gap-1.5 text-sm font-medium"
-                            title="Create role"
-                          >
-                            <Shield className="h-4 w-4" /> Role
-                          </button>
-                          <button
-                            type="button"
-                            onClick={() => { setShowCreateRole(true); setShowCreateMasterRole(false); setNewRoleParentId(parentRoles[0]?._id ?? ''); }}
-                            className="px-3 py-2.5 rounded-xl border border-emerald-200 bg-emerald-50 text-emerald-700 hover:bg-emerald-100 transition-colors flex items-center gap-1.5 text-sm font-medium"
-                            title="Create role"
-                          >
-                            <Briefcase className="h-4 w-4" /> Role
-                          </button>
-                        </div>
+                        <button
+                          type="button"
+                          onClick={() => { setShowCreateMasterRole(true); setShowCreateRole(false); }}
+                          className="shrink-0 px-3 py-2.5 rounded-xl border border-emerald-200 bg-emerald-50 text-emerald-700 hover:bg-emerald-100 transition-colors flex items-center gap-1.5 text-sm font-medium"
+                          title="Create master role"
+                        >
+                          <Shield className="h-4 w-4" /> Role
+                        </button>
                       </div>
 
                       {showCreateMasterRole && (
@@ -1011,51 +1038,6 @@ export function StaffPage() {
                         </div>
                       )}
 
-                      {showCreateRole && (
-                        <div className="mt-3 p-4 rounded-xl border border-emerald-100 bg-emerald-50/50">
-                          <p className="text-sm font-medium text-gray-700 mb-2">Create role</p>
-                          <div className="space-y-2">
-                            <div className="flex gap-2 min-w-0">
-                              <div className="flex-1 min-w-0">
-                                <SearchableSelect
-                                  value={newRoleParentId}
-                                  onChange={setNewRoleParentId}
-                                  options={parentRoleSelectOptions}
-                                  placeholder="Select role"
-                                  searchPlaceholder="Search roles…"
-                                  noOptionsText="Create a role first"
-                                  emptyText="No matches"
-                                />
-                              </div>
-                              <button
-                                type="button"
-                                onClick={() => { setShowCreateMasterRole(true); setShowCreateRole(false); }}
-                                className="px-2 py-2 rounded-lg border border-dashed border-emerald-300 text-emerald-600 hover:bg-emerald-50 text-xs font-medium flex items-center gap-1"
-                              >
-                                <Plus className="h-3.5 w-3.5" /> Role
-                              </button>
-                            </div>
-                            <div className="flex gap-2">
-                              <input
-                                value={newRoleName}
-                                onChange={(e) => setNewRoleName(e.target.value)}
-                                placeholder="Role name (e.g. Store Manager)"
-                                className="flex-1 px-3 py-2 rounded-lg border border-emerald-200 focus:ring-2 focus:ring-emerald-500/20 focus:border-emerald-500"
-                              />
-                              <button
-                                type="button"
-                                onClick={() => newRoleParentId && selectedOutletId && createRoleMutation.mutate({ name: newRoleName.trim(), parentRoleId: newRoleParentId, outletId: selectedOutletId })}
-                                disabled={!newRoleName.trim() || !newRoleParentId || createRoleMutation.isPending}
-                                className="px-4 py-2 bg-emerald-600 text-white rounded-lg font-medium hover:bg-emerald-700 disabled:opacity-50"
-                              >
-                                {createRoleMutation.isPending ? 'Creating...' : 'Create'}
-                              </button>
-                              <button type="button" onClick={() => { setShowCreateRole(false); setNewRoleName(''); setNewRoleParentId(''); }} className="px-3 py-2 border border-gray-200 rounded-lg hover:bg-gray-100">Cancel</button>
-                            </div>
-                          </div>
-                          {createRoleMutation.isError && <p className="text-red-600 text-xs mt-2">{getApiErrorMessage(createRoleMutation.error)}</p>}
-                        </div>
-                      )}
                     </div>
                     <div>
                       <label className="block text-sm font-medium text-gray-600 mb-1.5">Shift</label>
@@ -1102,14 +1084,21 @@ export function StaffPage() {
                         <input type="number" min={0.5} max={24} step={0.5} {...editForm.register('minHoursPerDay', { valueAsNumber: true })} className="w-full px-4 py-2.5 rounded-xl border border-emerald-200 bg-gray-50/50 focus:bg-white focus:ring-2 focus:ring-emerald-500/20 focus:border-emerald-500" placeholder="e.g. 8" />
                       </div>
                       <div className="sm:col-span-2">
+                        <label className="block text-sm font-medium text-gray-600 mb-1.5">Reports to</label>
+                        <SearchableSelect
+                          value={editForm.watch('reportsToTarget') || ''}
+                          onChange={(v) => editForm.setValue('reportsToTarget', v, { shouldValidate: true })}
+                          options={reportsToSelectOptions.filter((o) => o.value !== editing._id)}
+                          placeholder="Choose owner or staff…"
+                          searchPlaceholder="Search by name or role…"
+                          allowClear
+                        />
+                      </div>
+                      <div className="sm:col-span-2">
                         <label className="block text-sm font-medium text-gray-600 mb-1.5">Punch-in time</label>
                         <Controller name="punchInTime" control={editForm.control} render={({ field }) => (
                           <TimePickerField use12Hour value={field.value ?? ''} onChange={field.onChange} />
                         )} />
-                      </div>
-                      <div className="sm:col-span-2">
-                        <label className="block text-sm font-medium text-gray-600 mb-1.5">UPI ID</label>
-                        <input {...editForm.register('upiId')} className="w-full px-4 py-2.5 rounded-xl border border-emerald-200 bg-gray-50/50 focus:bg-white focus:ring-2 focus:ring-emerald-500/20 focus:border-emerald-500" placeholder="e.g. user@okaxis" />
                       </div>
                       <div className="sm:col-span-2">
                         <label className="block text-sm font-medium text-gray-600 mb-1.5">Status</label>
@@ -1186,6 +1175,14 @@ export function StaffPage() {
                   {/* Financial tab */}
                   {editActiveTab === 'financial' && (
                     <div className="grid grid-cols-1 sm:grid-cols-2 gap-4">
+                      <div className="sm:col-span-2">
+                        <label className="block text-sm font-medium text-gray-600 mb-1.5">UPI ID</label>
+                        <input
+                          {...editForm.register('upiId')}
+                          className="w-full px-4 py-2.5 rounded-xl border border-gray-200 focus:ring-2 focus:ring-emerald-500/20 focus:border-emerald-500 font-mono"
+                          placeholder="e.g. name@okaxis"
+                        />
+                      </div>
                       <div className="sm:col-span-2">
                         <label className="block text-sm font-medium text-gray-600 mb-1.5">Bank Account Number</label>
                         <input {...editForm.register('bankAccountNumber')} className="w-full px-4 py-2.5 rounded-xl border border-gray-200 focus:ring-2 focus:ring-emerald-500/20 focus:border-emerald-500 font-mono" placeholder="Account number" />

@@ -1,4 +1,4 @@
-export type UserRole = 'SUPER_ADMIN' | 'OWNER';
+export type UserRole = 'SUPER_ADMIN' | 'OWNER' | 'EMPLOYEE';
 
 export type SuperAdminRole = 'PRIMARY' | 'SUB';
 
@@ -20,9 +20,22 @@ export interface Owner {
   phone: string;
 }
 
+export interface EmployeeUser {
+  id: string;
+  name: string;
+  phone: string;
+  outletId?: string;
+  outletName?: string;
+  activeRoleId?: string;
+  roleLabel?: string;
+}
+
+export type AuthUser = SuperAdmin | Owner | EmployeeUser;
+
 export interface AuthState {
-  user: SuperAdmin | Owner | null;
+  user: AuthUser | null;
   role: UserRole | null;
   token: string | null;
   isFirstLogin?: boolean;
+  featurePermissions?: Record<string, boolean> | null;
 }

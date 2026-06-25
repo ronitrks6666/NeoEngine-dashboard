@@ -134,7 +134,7 @@ export function SopPage() {
     [templates]
   );
   const roleOptions = useMemo(
-    () => parentRoles.map((r: { _id: string; name: string }) => ({ value: r._id, label: r.name })),
+    () => parentRoles.map((r: { _id: string; name: string }) => ({ value: String(r._id), label: r.name })),
     [parentRoles]
   );
   const staffOptions = useMemo(

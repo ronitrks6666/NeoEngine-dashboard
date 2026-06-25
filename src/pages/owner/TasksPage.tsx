@@ -115,7 +115,7 @@ export function TasksPage() {
       if (newRole) {
         queryClient.invalidateQueries({ queryKey: ['parent-roles'] });
         queryClient.invalidateQueries({ queryKey: ['hierarchy'] });
-        form.setValue('parentRoleId', newRole._id);
+        form.setValue('parentRoleId', String(newRole._id));
         setShowCreateRole(false);
         setNewRoleName('');
       }

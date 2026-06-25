@@ -4,6 +4,7 @@ import { ProtectedRoute } from '@/components/ProtectedRoute';
 import { AppLayout } from '@/layouts/AppLayout';
 import { LandingPage } from '@/pages/landing/LandingPage';
 import { LoginPage } from '@/pages/auth/LoginPage';
+import { SuperAdminLoginPage } from '@/pages/auth/SuperAdminLoginPage';
 import { SetPasswordPage } from '@/pages/owner/SetPasswordPage';
 import { SuperAdminDashboardPage } from '@/pages/super-admin/SuperAdminDashboardPage';
 import { OwnersPage } from '@/pages/super-admin/OwnersPage';
@@ -15,6 +16,7 @@ import { SubAdminsPage } from '@/pages/super-admin/SubAdminsPage';
 import { SubscriptionsPage } from '@/pages/super-admin/SubscriptionsPage';
 import { CouponsPage } from '@/pages/super-admin/CouponsPage';
 import { SuperAdminPermissionRoute } from '@/components/SuperAdminPermissionRoute';
+import { EmployeeWebPermissionRoute } from '@/components/EmployeeWebPermissionRoute';
 import { SUPER_ADMIN_PERMISSIONS as P } from '@/constants/superAdminPermissions';
 import { OwnerDashboardPage } from '@/pages/owner/OwnerDashboardPage';
 import { OwnerSupportTicketsPage } from '@/pages/owner/OwnerSupportTicketsPage';
@@ -39,11 +41,20 @@ import { LeaveRulesPage } from '@/pages/owner/LeaveRulesPage';
 import { SopPage } from '@/pages/owner/SopPage';
 import { DepartmentsPage } from '@/pages/owner/DepartmentsPage';
 import { useAuth } from '@/hooks/useAuth';
+import { getDefaultEmployeeDashboardPath } from '@/lib/webDashboardAccess';
 import { NeoEngineApkDownloadPage } from '@/pages/NeoEngineApkDownloadPage';
 import { PrivacyPolicyPage } from '@/pages/legal/PrivacyPolicyPage';
 import { TermsOfServicePage } from '@/pages/legal/TermsOfServicePage';
 import { AccountDeletionPage } from '@/pages/legal/AccountDeletionPage';
 import { ContactPage } from '@/pages/legal/ContactPage';
+
+function OwnerDefaultRedirect() {
+  const { role, featurePermissions } = useAuth();
+  if (role === 'EMPLOYEE') {
+    return <Navigate to={getDefaultEmployeeDashboardPath(featurePermissions)} replace />;
+  }
+  return <Navigate to="dashboard" replace />;
+}
 
 function App() {
   const { hydrate } = useAuth();
@@ -55,6 +66,7 @@ function App() {
   return (
     <Routes>
       <Route path="/login" element={<LoginPage />} />
+      <Route path="/super-admin/login" element={<SuperAdminLoginPage />} />
 
       <Route
         path="/owner/set-password"
@@ -68,7 +80,7 @@ function App() {
       <Route
         path="/super-admin/*"
         element={
-          <ProtectedRoute allowedRoles={['SUPER_ADMIN']}>
+          <ProtectedRoute allowedRoles={['SUPER_ADMIN']} loginPath="/super-admin/login">
             <AppLayout role="SUPER_ADMIN">
               <Routes>
                 <Route path="dashboard" element={<SuperAdminDashboardPage />} />
@@ -146,31 +158,186 @@ function App() {
       <Route
         path="/owner/*"
         element={
-          <ProtectedRoute allowedRoles={['OWNER']}>
+          <ProtectedRoute allowedRoles={['OWNER', 'EMPLOYEE']}>
             <AppLayout role="OWNER">
               <Routes>
-                <Route path="dashboard" element={<OwnerDashboardPage />} />
-                <Route path="outlets" element={<OwnerOutletsPage />} />
-                <Route path="staff" element={<StaffPage />} />
-                <Route path="roles" element={<RolesPage />} />
-                <Route path="departments" element={<DepartmentsPage />} />
-                <Route path="sops" element={<SopPage />} />
-                <Route path="tasks" element={<TasksPage />} />
-                <Route path="issues" element={<IssuesPage />} />
-                <Route path="attendance" element={<AttendancePage />} />
-                <Route path="overtime" element={<OvertimePage />} />
-                <Route path="leave" element={<LeavePage />} />
-                <Route path="leave-rules" element={<LeaveRulesPage />} />
-                <Route path="events" element={<EventsPage />} />
-                <Route path="payroll" element={<PayrollPage />} />
-                <Route path="payroll-settings" element={<PayrollSettingsPage />} />
-                <Route path="activity" element={<ActivityPage />} />
-                <Route path="analytics" element={<OwnerAnalyticsPage />} />
-                <Route path="briefing-pool" element={<BriefingPoolPage />} />
-                <Route path="hierarchy" element={<HierarchyPage />} />
-                <Route path="reports" element={<ReportsPage />} />
-                <Route path="permissions" element={<PermissionsPage />} />
-                <Route path="support" element={<OwnerSupportTicketsPage />} />
+                <Route
+                  path="dashboard"
+                  element={
+                    <EmployeeWebPermissionRoute routePath="/owner/dashboard">
+                      <OwnerDashboardPage />
+                    </EmployeeWebPermissionRoute>
+                  }
+                />
+                <Route
+                  path="outlets"
+                  element={
+                    <EmployeeWebPermissionRoute routePath="/owner/outlets">
+                      <OwnerOutletsPage />
+                    </EmployeeWebPermissionRoute>
+                  }
+                />
+                <Route
+                  path="staff"
+                  element={
+                    <EmployeeWebPermissionRoute routePath="/owner/staff">
+                      <StaffPage />
+                    </EmployeeWebPermissionRoute>
+                  }
+                />
+                <Route
+                  path="roles"
+                  element={
+                    <EmployeeWebPermissionRoute routePath="/owner/roles">
+                      <RolesPage />
+                    </EmployeeWebPermissionRoute>
+                  }
+                />
+                <Route
+                  path="departments"
+                  element={
+                    <EmployeeWebPermissionRoute routePath="/owner/departments">
+                      <DepartmentsPage />
+                    </EmployeeWebPermissionRoute>
+                  }
+                />
+                <Route
+                  path="sops"
+                  element={
+                    <EmployeeWebPermissionRoute routePath="/owner/sops">
+                      <SopPage />
+                    </EmployeeWebPermissionRoute>
+                  }
+                />
+                <Route
+                  path="tasks"
+                  element={
+                    <EmployeeWebPermissionRoute routePath="/owner/tasks">
+                      <TasksPage />
+                    </EmployeeWebPermissionRoute>
+                  }
+                />
+                <Route
+                  path="issues"
+                  element={
+                    <EmployeeWebPermissionRoute routePath="/owner/issues">
+                      <IssuesPage />
+                    </EmployeeWebPermissionRoute>
+                  }
+                />
+                <Route
+                  path="attendance"
+                  element={
+                    <EmployeeWebPermissionRoute routePath="/owner/attendance">
+                      <AttendancePage />
+                    </EmployeeWebPermissionRoute>
+                  }
+                />
+                <Route
+                  path="overtime"
+                  element={
+                    <EmployeeWebPermissionRoute routePath="/owner/overtime">
+                      <OvertimePage />
+                    </EmployeeWebPermissionRoute>
+                  }
+                />
+                <Route
+                  path="leave"
+                  element={
+                    <EmployeeWebPermissionRoute routePath="/owner/leave">
+                      <LeavePage />
+                    </EmployeeWebPermissionRoute>
+                  }
+                />
+                <Route
+                  path="leave-rules"
+                  element={
+                    <EmployeeWebPermissionRoute routePath="/owner/leave-rules">
+                      <LeaveRulesPage />
+                    </EmployeeWebPermissionRoute>
+                  }
+                />
+                <Route
+                  path="events"
+                  element={
+                    <EmployeeWebPermissionRoute routePath="/owner/events">
+                      <EventsPage />
+                    </EmployeeWebPermissionRoute>
+                  }
+                />
+                <Route
+                  path="payroll"
+                  element={
+                    <EmployeeWebPermissionRoute routePath="/owner/payroll">
+                      <PayrollPage />
+                    </EmployeeWebPermissionRoute>
+                  }
+                />
+                <Route
+                  path="payroll-settings"
+                  element={
+                    <EmployeeWebPermissionRoute routePath="/owner/payroll-settings">
+                      <PayrollSettingsPage />
+                    </EmployeeWebPermissionRoute>
+                  }
+                />
+                <Route
+                  path="activity"
+                  element={
+                    <EmployeeWebPermissionRoute routePath="/owner/activity">
+                      <ActivityPage />
+                    </EmployeeWebPermissionRoute>
+                  }
+                />
+                <Route
+                  path="analytics"
+                  element={
+                    <EmployeeWebPermissionRoute routePath="/owner/analytics">
+                      <OwnerAnalyticsPage />
+                    </EmployeeWebPermissionRoute>
+                  }
+                />
+                <Route
+                  path="briefing-pool"
+                  element={
+                    <EmployeeWebPermissionRoute routePath="/owner/briefing-pool">
+                      <BriefingPoolPage />
+                    </EmployeeWebPermissionRoute>
+                  }
+                />
+                <Route
+                  path="hierarchy"
+                  element={
+                    <EmployeeWebPermissionRoute routePath="/owner/hierarchy">
+                      <HierarchyPage />
+                    </EmployeeWebPermissionRoute>
+                  }
+                />
+                <Route
+                  path="reports"
+                  element={
+                    <EmployeeWebPermissionRoute routePath="/owner/reports">
+                      <ReportsPage />
+                    </EmployeeWebPermissionRoute>
+                  }
+                />
+                <Route
+                  path="permissions"
+                  element={
+                    <EmployeeWebPermissionRoute routePath="/owner/permissions">
+                      <PermissionsPage />
+                    </EmployeeWebPermissionRoute>
+                  }
+                />
+                <Route
+                  path="support"
+                  element={
+                    <EmployeeWebPermissionRoute routePath="/owner/support">
+                      <OwnerSupportTicketsPage />
+                    </EmployeeWebPermissionRoute>
+                  }
+                />
+                <Route path="" element={<OwnerDefaultRedirect />} />
               </Routes>
             </AppLayout>
           </ProtectedRoute>

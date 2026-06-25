@@ -1,5 +1,9 @@
 import { api } from './client';
-import type { MutualExclusionZone } from '@/lib/featurePermissionExclusions';
+import type {
+  ManagerBundleFeature,
+  MutualExclusionZone,
+  WebOnlyFeature,
+} from '@/lib/featurePermissionExclusions';
 
 export type CatalogItem = {
   key: string;
@@ -14,8 +18,18 @@ export type CatalogSection = {
   items: CatalogItem[];
 };
 
+export type UnifiedSharedFeature = {
+  id: string;
+  label: string;
+  zoneId: string;
+  webKeys: string[];
+};
+
 export type FeaturePermissionsCatalogResponse = {
   catalog: CatalogSection[];
+  unifiedSharedFeatures: UnifiedSharedFeature[];
+  managerBundleFeatures: ManagerBundleFeature[];
+  webOnlyFeatures: WebOnlyFeature[];
   authAlwaysTrueKeys: string[];
   mutualExclusionZones: MutualExclusionZone[];
 };
@@ -29,6 +43,9 @@ export const featurePermissionsApi = {
     const d = data.data;
     return {
       ...d,
+      unifiedSharedFeatures: d.unifiedSharedFeatures ?? [],
+      managerBundleFeatures: d.managerBundleFeatures ?? [],
+      webOnlyFeatures: d.webOnlyFeatures ?? [],
       mutualExclusionZones: d.mutualExclusionZones ?? [],
     };
   },

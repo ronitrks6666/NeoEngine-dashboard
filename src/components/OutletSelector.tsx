@@ -5,9 +5,11 @@ import { Store, ChevronDown, Plus } from 'lucide-react';
 
 interface OutletSelectorProps {
   className?: string;
+  /** When false, hides "Create outlet" (e.g. web employees). Default true. */
+  allowCreate?: boolean;
 }
 
-export function OutletSelector({ className = '' }: OutletSelectorProps) {
+export function OutletSelector({ className = '', allowCreate = true }: OutletSelectorProps) {
   const { outlets, selectedOutletId, setSelectedOutlet } = useOutletStore();
   const [open, setOpen] = useState(false);
   const ref = useRef<HTMLDivElement>(null);
@@ -24,6 +26,14 @@ export function OutletSelector({ className = '' }: OutletSelectorProps) {
   }, []);
 
   if (outlets.length === 0) return null;
+  if (outlets.length === 1 && !allowCreate) {
+    return (
+      <div className={`flex h-10 min-w-[180px] items-center gap-2 rounded-xl border border-emerald-200 bg-white px-4 text-sm font-medium text-emerald-800 shadow-sm ${className}`}>
+        <Store className="h-4 w-4 text-emerald-600 shrink-0" />
+        <span className="truncate flex-1 text-left">{outlets[0].name}</span>
+      </div>
+    );
+  }
   if (outlets.length === 1) {
     return (
       <div ref={ref} className={`relative ${className}`}>
@@ -53,6 +63,7 @@ export function OutletSelector({ className = '' }: OutletSelectorProps) {
               <Store className="h-3.5 w-3.5 text-emerald-500 shrink-0" />
               {outlets[0].name}
             </button>
+            {allowCreate && (
             <button
               type="button"
               onClick={() => {
@@ -64,6 +75,7 @@ export function OutletSelector({ className = '' }: OutletSelectorProps) {
               <Plus className="h-3.5 w-3.5 shrink-0" />
               Create outlet
             </button>
+            )}
           </div>
         </div>
       </div>
@@ -128,6 +140,7 @@ export function OutletSelector({ className = '' }: OutletSelectorProps) {
               {o.name}
             </button>
           ))}
+          {allowCreate && (
           <button
             type="button"
             onClick={() => {
@@ -139,6 +152,7 @@ export function OutletSelector({ className = '' }: OutletSelectorProps) {
             <Plus className="h-3.5 w-3.5 shrink-0" />
             Create outlet
           </button>
+          )}
         </div>
       </div>
     </div>

@@ -12,6 +12,7 @@ import { Store, Phone, Locate, X, Pencil, Trash2 } from 'lucide-react';
 import { zPhone10 } from '@/lib/phoneValidation';
 import { useDebouncedValue } from '@/hooks/useDebouncedValue';
 import { ListSearchBar } from '@/components/ListSearchBar';
+import { OwnerBrandSettingsCard } from '@/components/OwnerBrandSettingsCard';
 
 /** Lat/lng while typing: optional leading '-', digits, one decimal point. */
 function sanitizeCoordTyping(raw: string): string {
@@ -215,6 +216,8 @@ export function OwnerOutletsPage() {
           </button>
         </div>
       </div>
+
+      <OwnerBrandSettingsCard />
 
       {isLoading ? (
         <LoadingSpinner className="py-16" />

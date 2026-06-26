@@ -1,10 +1,11 @@
-import { useEffect, useState, useRef } from 'react';
+import { useEffect, useState, useRef, type RefObject } from 'react';
 import { createPortal } from 'react-dom';
 import { Link, useNavigate, useLocation } from 'react-router-dom';
 import { useAuth } from '@/hooks/useAuth';
 import { useOutletStore } from '@/stores/outletStore';
 import { OutletSelector } from '@/components/OutletSelector';
 import { ownerApi } from '@/api/owner';
+import { CoBrandMark } from '@/components/CoBrandMark';
 import { useQuery } from '@tanstack/react-query';
 import {
   LayoutDashboard,
@@ -122,6 +123,53 @@ function SidebarFlyoutLayer({ flyout }: { flyout: SidebarFlyout }) {
   );
 }
 
+function HeaderProfileMenu({
+  profileRef,
+  profileOpen,
+  setProfileOpen,
+  userName,
+  userEmail,
+  onLogout,
+}: {
+  profileRef: RefObject<HTMLDivElement | null>;
+  profileOpen: boolean;
+  setProfileOpen: React.Dispatch<React.SetStateAction<boolean>>;
+  userName?: string;
+  userEmail?: string;
+  onLogout: () => void;
+}) {
+  return (
+    <div className="relative shrink-0" ref={profileRef}>
+      <button
+        type="button"
+        onClick={() => setProfileOpen((o) => !o)}
+        className="flex items-center gap-2 p-2 rounded-full hover:bg-emerald-50 transition-colors"
+        aria-label="Profile menu"
+      >
+        <div className="w-9 h-9 rounded-full bg-gradient-to-br from-emerald-500 to-emerald-600 flex items-center justify-center shadow-emerald">
+          <User className="h-5 w-5 text-white" />
+        </div>
+      </button>
+      {profileOpen && (
+        <div className="absolute right-0 top-full mt-2 w-64 bg-white rounded-xl shadow-emerald-lg border border-emerald-100 py-2 animate-fade-in z-50">
+          <div className="px-4 py-3 border-b border-emerald-50">
+            <p className="text-sm font-semibold text-gray-900 truncate">{userName}</p>
+            <p className="text-xs text-emerald-600 truncate">{userEmail}</p>
+          </div>
+          <button
+            type="button"
+            onClick={onLogout}
+            className="w-full flex items-center gap-2 px-4 py-2.5 text-sm text-red-600 hover:bg-red-50 transition-colors"
+          >
+            <LogOut className="h-4 w-4" />
+            Logout
+          </button>
+        </div>
+      )}
+    </div>
+  );
+}
+
 export function AppLayout({ children, role }: AppLayoutProps) {
   const { user, logout, refreshSuperAdminProfile } = useAuth();
   const { can } = useSuperAdminPermissions();
@@ -134,6 +182,12 @@ export function AppLayout({ children, role }: AppLayoutProps) {
   const { data: ownerOutlets } = useQuery({
     queryKey: ['owner-outlets'],
     queryFn: () => ownerApi.getOutlets(),
+    enabled: role === 'OWNER',
+  });
+
+  const { data: ownerBrand } = useQuery({
+    queryKey: ['owner-brand'],
+    queryFn: () => ownerApi.getBrand(),
     enabled: role === 'OWNER',
   });
 
@@ -180,6 +234,8 @@ export function AppLayout({ children, role }: AppLayoutProps) {
   const basePath = role === 'SUPER_ADMIN' ? '/super-admin' : '/owner';
   const sidebarWidth = sidebarCollapsed ? 72 : 256;
   const dashboardPath = `${basePath}/dashboard`;
+
+  const userEmail = user && 'email' in user ? user.email : '';
 
   const showNavFlyout = (el: HTMLElement, label: string) => {
     const r = el.getBoundingClientRect();
@@ -238,7 +294,6 @@ export function AppLayout({ children, role }: AppLayoutProps) {
             }
             aria-label="NeoEngine home"
           >
-            {/* Same size in both states — avoids flicker during drawer width transition */}
             <NeoEngineLogo size={28} className="shrink-0" />
             {!sidebarCollapsed && (
               <span className="truncate text-lg font-bold">NeoEngine</span>
@@ -280,64 +335,65 @@ export function AppLayout({ children, role }: AppLayoutProps) {
         className="flex-1 min-h-screen overflow-auto transition-all duration-300 ease-in-out"
         style={{ marginLeft: sidebarWidth }}
       >
-        <header className="sticky top-0 z-30 min-h-[3.5rem] shrink-0 bg-white/90 backdrop-blur-md border-b border-emerald-100 px-4 sm:px-6 py-2 flex flex-wrap items-center justify-between gap-3 sm:gap-4 shadow-sm">
+        <header className="sticky top-0 z-30 min-h-[3.5rem] shrink-0 bg-white/90 backdrop-blur-md border-b border-emerald-100 px-4 sm:px-6 py-2 grid grid-cols-1 sm:grid-cols-[minmax(0,1fr)_auto_minmax(0,1fr)] items-center gap-3 shadow-sm">
           {role === 'OWNER' && (
-            <div className="flex min-h-0 flex-1 flex-wrap items-center gap-3 sm:gap-4 min-w-0">
-              <span className="shrink-0 text-sm font-medium leading-none text-emerald-800">Outlet:</span>
-              <OutletSelector />
-              <DashboardVoiceButton
-                outletId={selectedOutletId}
-                onResult={(result) => {
-                  const url = result.sectionId ? `${result.route}?highlight=${result.sectionId}` : result.route;
-                  if (result.action === 'create_task' && result.prefilledData) {
-                    navigate(url, { state: { openCreate: true, prefilledTask: result.prefilledData } });
-                  } else if (result.action === 'create_staff' && result.prefilledData) {
-                    navigate(url, { state: { openCreate: true, prefilledStaff: result.prefilledData } });
-                  } else {
-                    navigate(url);
-                  }
-                }}
-                onError={(err) => {
-                  window.alert(err || 'Voice processing failed. Try: "Show staff", "Create a task to...", etc.');
-                }}
-              />
-              <SiteSearchTypeahead
-                role="OWNER"
-                className="w-full basis-full sm:basis-auto sm:ml-auto sm:max-w-xs md:max-w-sm lg:max-w-md"
-              />
-            </div>
+            <>
+              <div className="flex min-h-0 flex-wrap items-center gap-3 sm:gap-4 min-w-0 justify-self-start">
+                <span className="shrink-0 text-sm font-medium leading-none text-emerald-800">Outlet:</span>
+                <OutletSelector />
+                <DashboardVoiceButton
+                  outletId={selectedOutletId}
+                  onResult={(result) => {
+                    const url = result.sectionId ? `${result.route}?highlight=${result.sectionId}` : result.route;
+                    if (result.action === 'create_task' && result.prefilledData) {
+                      navigate(url, { state: { openCreate: true, prefilledTask: result.prefilledData } });
+                    } else if (result.action === 'create_staff' && result.prefilledData) {
+                      navigate(url, { state: { openCreate: true, prefilledStaff: result.prefilledData } });
+                    } else {
+                      navigate(url);
+                    }
+                  }}
+                  onError={(err) => {
+                    window.alert(err || 'Voice processing failed. Try: "Show staff", "Create a task to...", etc.');
+                  }}
+                />
+              </div>
+
+              <div className="flex min-w-0 items-center justify-center justify-self-center order-first sm:order-none w-full sm:w-auto py-1 sm:py-0">
+                <CoBrandMark brand={ownerBrand ?? null} variant="header" logoSize={32} />
+              </div>
+
+              <div className="flex min-w-0 items-center gap-2 sm:gap-3 justify-self-end w-full sm:w-auto">
+                <SiteSearchTypeahead
+                  role="OWNER"
+                  className="min-w-0 flex-1 sm:flex-none w-full sm:max-w-xs md:max-w-sm lg:max-w-md"
+                />
+                <HeaderProfileMenu
+                  profileRef={profileRef}
+                  profileOpen={profileOpen}
+                  setProfileOpen={setProfileOpen}
+                  userName={user?.name}
+                  userEmail={userEmail}
+                  onLogout={handleLogout}
+                />
+              </div>
+            </>
           )}
           {role === 'SUPER_ADMIN' && (
-            <div className="flex min-w-0 flex-1 items-center justify-start px-0 sm:px-2">
-              <SiteSearchTypeahead role="SUPER_ADMIN" className="w-full max-w-md" />
-            </div>
+            <>
+              <div className="col-span-full flex min-w-0 flex-1 items-center justify-start px-0 sm:px-2 sm:col-span-2">
+                <SiteSearchTypeahead role="SUPER_ADMIN" className="w-full max-w-md" />
+              </div>
+              <HeaderProfileMenu
+                profileRef={profileRef}
+                profileOpen={profileOpen}
+                setProfileOpen={setProfileOpen}
+                userName={user?.name}
+                userEmail={userEmail}
+                onLogout={handleLogout}
+              />
+            </>
           )}
-          <div className="relative ml-auto shrink-0" ref={profileRef}>
-            <button
-              onClick={() => setProfileOpen((o) => !o)}
-              className="flex items-center gap-2 p-2 rounded-full hover:bg-emerald-50 transition-colors"
-              aria-label="Profile menu"
-            >
-              <div className="w-9 h-9 rounded-full bg-gradient-to-br from-emerald-500 to-emerald-600 flex items-center justify-center shadow-emerald">
-                <User className="h-5 w-5 text-white" />
-              </div>
-            </button>
-            {profileOpen && (
-              <div className="absolute right-0 top-full mt-2 w-64 bg-white rounded-xl shadow-emerald-lg border border-emerald-100 py-2 animate-fade-in">
-                <div className="px-4 py-3 border-b border-emerald-50">
-                  <p className="text-sm font-semibold text-gray-900 truncate">{user?.name}</p>
-                  <p className="text-xs text-emerald-600 truncate">{user && 'email' in user ? user.email : ''}</p>
-                </div>
-                <button
-                  onClick={handleLogout}
-                  className="w-full flex items-center gap-2 px-4 py-2.5 text-sm text-red-600 hover:bg-red-50 transition-colors"
-                >
-                  <LogOut className="h-4 w-4" />
-                  Logout
-                </button>
-              </div>
-            )}
-          </div>
         </header>
         {children}
       </main>

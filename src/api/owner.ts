@@ -28,6 +28,11 @@ export interface PostShiftEnforcement {
   disputeWindowHours?: number;
 }
 
+export type BrandProfile = {
+  displayName: string | null;
+  logoUrl: string | null;
+};
+
 export interface Outlet {
   _id: string;
   name: string;
@@ -109,5 +114,31 @@ export const ownerApi = {
   replyTicket: async (id: string, content: string) => {
     const { data } = await api.post(`/owner/support-tickets/${id}/reply`, { content });
     return data.data;
+  },
+
+  getBrand: async () => {
+    const { data } = await api.get<{ success: boolean; data: { brand: BrandProfile | null } }>(
+      '/owner/brand'
+    );
+    return data.data.brand;
+  },
+
+  updateBrand: async (payload: { brandDisplayName?: string | null; brandLogoUrl?: string | null }) => {
+    const { data } = await api.put<{ success: boolean; data: { brand: BrandProfile | null } }>(
+      '/owner/brand',
+      payload
+    );
+    return data.data.brand;
+  },
+
+  uploadBrandLogo: async (file: File) => {
+    const formData = new FormData();
+    formData.append('image', file);
+    const { data } = await api.post<{ success: boolean; url: string }>(
+      '/upload/brand-logo',
+      formData,
+      { headers: { 'Content-Type': 'multipart/form-data' } }
+    );
+    return data.url;
   },
 };

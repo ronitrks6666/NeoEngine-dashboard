@@ -43,6 +43,7 @@ import { DashboardVoiceButton } from '@/components/DashboardVoiceButton';
 import { SiteSearchTypeahead } from '@/components/SiteSearchTypeahead';
 import { useHighlightSection } from '@/hooks/useHighlightSection';
 import { useSuperAdminPermissions } from '@/hooks/useSuperAdminPermissions';
+import { filterOwnerNavForEmployee } from '@/lib/webDashboardAccess';
 import { SUPER_ADMIN_PERMISSIONS as P } from '@/constants/superAdminPermissions';
 import type { SuperAdminPermission } from '@/constants/superAdminPermissions';
 import type { LucideIcon } from 'lucide-react';
@@ -171,9 +172,16 @@ function HeaderProfileMenu({
 }
 
 export function AppLayout({ children, role }: AppLayoutProps) {
-  const { user, logout, refreshSuperAdminProfile } = useAuth();
+  const {
+    user,
+    role: authRole,
+    featurePermissions,
+    logout,
+    refreshSuperAdminProfile,
+    refreshEmployeeSession,
+  } = useAuth();
   const { can } = useSuperAdminPermissions();
-  const { selectedOutletId, setOutlets, clear } = useOutletStore();
+  const { selectedOutletId, setOutlets, setEmployeeOutlet, clear } = useOutletStore();
   const [sidebarCollapsed, setSidebarCollapsed] = useState(false);
   const [profileOpen, setProfileOpen] = useState(false);
   const [sidebarFlyout, setSidebarFlyout] = useState<SidebarFlyout>(null);
@@ -182,7 +190,7 @@ export function AppLayout({ children, role }: AppLayoutProps) {
   const { data: ownerOutlets } = useQuery({
     queryKey: ['owner-outlets'],
     queryFn: () => ownerApi.getOutlets(),
-    enabled: role === 'OWNER',
+    enabled: authRole === 'OWNER',
   });
 
   const { data: ownerBrand } = useQuery({
@@ -192,19 +200,26 @@ export function AppLayout({ children, role }: AppLayoutProps) {
   });
 
   useEffect(() => {
-    if (role === 'OWNER' && ownerOutlets) {
+    if (authRole === 'OWNER' && ownerOutlets) {
       setOutlets(ownerOutlets.map((o) => ({ _id: o._id, name: o.name })));
     }
+    if (authRole === 'EMPLOYEE' && user && 'outletId' in user && user.outletId) {
+      setEmployeeOutlet(
+        user.outletId,
+        ('outletName' in user && user.outletName) || 'My outlet'
+      );
+    }
     if (role === 'SUPER_ADMIN') clear();
-  }, [role, ownerOutlets, setOutlets, clear]);
+  }, [authRole, role, ownerOutlets, user, setOutlets, setEmployeeOutlet, clear]);
   const navigate = useNavigate();
   const location = useLocation();
   useHighlightSection();
 
   const handleLogout = () => {
     setProfileOpen(false);
+    const wasSuperAdmin = role === 'SUPER_ADMIN';
     logout();
-    navigate('/login');
+    navigate(wasSuperAdmin ? '/super-admin/login' : '/login');
   };
 
   useEffect(() => {
@@ -225,15 +240,22 @@ export function AppLayout({ children, role }: AppLayoutProps) {
     if (role === 'SUPER_ADMIN') {
       void refreshSuperAdminProfile();
     }
-  }, [role, refreshSuperAdminProfile]);
+    if (authRole === 'EMPLOYEE') {
+      void refreshEmployeeSession();
+    }
+  }, [role, authRole, refreshSuperAdminProfile, refreshEmployeeSession]);
 
+  const isMerchantPortal = authRole === 'OWNER' || authRole === 'EMPLOYEE';
   const navItems =
     role === 'SUPER_ADMIN'
       ? superAdminNav.filter((item) => !item.permission || can(item.permission))
-      : ownerNav;
+      : filterOwnerNavForEmployee(ownerNav, featurePermissions ?? null, authRole);
   const basePath = role === 'SUPER_ADMIN' ? '/super-admin' : '/owner';
   const sidebarWidth = sidebarCollapsed ? 72 : 256;
-  const dashboardPath = `${basePath}/dashboard`;
+  const dashboardPath =
+    authRole === 'EMPLOYEE'
+      ? navItems[0]?.to ?? '/owner/dashboard'
+      : `${basePath}/dashboard`;
 
   const userEmail = user && 'email' in user ? user.email : '';
 
@@ -336,32 +358,36 @@ export function AppLayout({ children, role }: AppLayoutProps) {
         style={{ marginLeft: sidebarWidth }}
       >
         <header className="sticky top-0 z-30 min-h-[3.5rem] shrink-0 bg-white/90 backdrop-blur-md border-b border-emerald-100 px-4 sm:px-6 py-2 grid grid-cols-1 sm:grid-cols-[minmax(0,1fr)_auto_minmax(0,1fr)] items-center gap-3 shadow-sm">
-          {role === 'OWNER' && (
+          {isMerchantPortal && (
             <>
               <div className="flex min-h-0 flex-wrap items-center gap-3 sm:gap-4 min-w-0 justify-self-start">
                 <span className="shrink-0 text-sm font-medium leading-none text-emerald-800">Outlet:</span>
-                <OutletSelector />
-                <DashboardVoiceButton
-                  outletId={selectedOutletId}
-                  onResult={(result) => {
-                    const url = result.sectionId ? `${result.route}?highlight=${result.sectionId}` : result.route;
-                    if (result.action === 'create_task' && result.prefilledData) {
-                      navigate(url, { state: { openCreate: true, prefilledTask: result.prefilledData } });
-                    } else if (result.action === 'create_staff' && result.prefilledData) {
-                      navigate(url, { state: { openCreate: true, prefilledStaff: result.prefilledData } });
-                    } else {
-                      navigate(url);
-                    }
-                  }}
-                  onError={(err) => {
-                    window.alert(err || 'Voice processing failed. Try: "Show staff", "Create a task to...", etc.');
-                  }}
-                />
+                <OutletSelector allowCreate={authRole === 'OWNER'} />
+                {authRole === 'OWNER' && (
+                  <DashboardVoiceButton
+                    outletId={selectedOutletId}
+                    onResult={(result) => {
+                      const url = result.sectionId ? `${result.route}?highlight=${result.sectionId}` : result.route;
+                      if (result.action === 'create_task' && result.prefilledData) {
+                        navigate(url, { state: { openCreate: true, prefilledTask: result.prefilledData } });
+                      } else if (result.action === 'create_staff' && result.prefilledData) {
+                        navigate(url, { state: { openCreate: true, prefilledStaff: result.prefilledData } });
+                      } else {
+                        navigate(url);
+                      }
+                    }}
+                    onError={(err) => {
+                      window.alert(err || 'Voice processing failed. Try: "Show staff", "Create a task to...", etc.');
+                    }}
+                  />
+                )}
               </div>
 
-              <div className="flex min-w-0 items-center justify-center justify-self-center order-first sm:order-none w-full sm:w-auto py-1 sm:py-0">
-                <CoBrandMark brand={ownerBrand ?? null} variant="header" logoSize={32} />
-              </div>
+              {authRole === 'OWNER' && (
+                <div className="flex min-w-0 items-center justify-center justify-self-center order-first sm:order-none w-full sm:w-auto py-1 sm:py-0">
+                  <CoBrandMark brand={ownerBrand ?? null} variant="header" logoSize={32} />
+                </div>
+              )}
 
               <div className="flex min-w-0 items-center gap-2 sm:gap-3 justify-self-end w-full sm:w-auto">
                 <SiteSearchTypeahead

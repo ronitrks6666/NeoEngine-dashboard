@@ -44,7 +44,9 @@ api.interceptors.response.use(
         localStorage.removeItem('neoengine_user');
         localStorage.removeItem('neoengine_role');
       }
-      window.location.href = '/login';
+      window.location.href = window.location.pathname.startsWith('/super-admin')
+        ? '/super-admin/login'
+        : '/login';
     }
     return Promise.reject(error);
   }

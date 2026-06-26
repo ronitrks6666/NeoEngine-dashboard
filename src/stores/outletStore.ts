@@ -11,6 +11,7 @@ interface OutletStore {
   outlets: Outlet[];
   setOutlets: (outlets: Outlet[]) => void;
   setSelectedOutlet: (id: string | null) => void;
+  setEmployeeOutlet: (outletId: string, outletName: string) => void;
   clear: () => void;
 }
 
@@ -26,6 +27,11 @@ export const useOutletStore = create<OutletStore>()(
           : outlets[0]?._id ?? null,
       })),
       setSelectedOutlet: (id) => set({ selectedOutletId: id }),
+      setEmployeeOutlet: (outletId, outletName) =>
+        set({
+          outlets: [{ _id: outletId, name: outletName }],
+          selectedOutletId: outletId,
+        }),
       clear: () => set({ selectedOutletId: null, outlets: [] }),
     }),
     { name: 'neoengine-outlet' }

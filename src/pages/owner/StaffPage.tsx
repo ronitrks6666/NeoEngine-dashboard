@@ -197,7 +197,7 @@ export function StaffPage() {
   const { data: parentRolesData } = useQuery({
     queryKey: ['parent-roles'],
     queryFn: () => employeeApi.getParentRoles(),
-    enabled: !!editing || !!showCreate,
+    enabled: !!selectedOutletId,
   });
 
   const { data: documentsData } = useQuery({
@@ -217,13 +217,12 @@ export function StaffPage() {
     mutationFn: (d: CreateForm) => {
       const rt = d.reportsToTarget?.trim();
       const parentId = d.parentRoleId?.trim();
-      const activeId = d.activeRoleId?.trim();
       return employeeApi.create({
         name: d.name,
         phone: d.phone,
         tempPassword: d.tempPassword,
         outletId: selectedOutletId!,
-        ...(activeId ? { activeRoleId: activeId } : parentId ? { parentRoleId: parentId } : {}),
+        ...(parentId ? { parentRoleId: parentId } : {}),
         ...(rt?.startsWith(REPORTS_TO_OWNER_PREFIX)
           ? { reportsToOwnerId: rt.slice(REPORTS_TO_OWNER_PREFIX.length) }
           : rt
@@ -301,17 +300,31 @@ export function StaffPage() {
   const createParentRoleMutation = useMutation({
     mutationFn: (name: string) => employeeApi.createParentRole(name, selectedOutletId ?? undefined),
     onSuccess: async (res) => {
-      await Promise.all([
-        queryClient.invalidateQueries({ queryKey: ['parent-roles'] }),
-        queryClient.invalidateQueries({ queryKey: ['hierarchy'] })
-      ]);
-      setShowCreateMasterRole(false);
-      setNewMasterRoleName('');
-      const newId = (res as { data?: { parentRole?: { _id?: string } } })?.data?.parentRole?._id;
+      const created = (res as { data?: { parentRole?: { _id?: string; name?: string } } })?.data?.parentRole;
+      const newId = created?._id ? String(created._id) : '';
+      const newName = created?.name ?? '';
+
       if (newId) {
+        queryClient.setQueryData(['parent-roles'], (prev: { data?: { parentRoles?: { _id: string; name: string }[] } } | undefined) => {
+          const list = prev?.data?.parentRoles ?? [];
+          if (list.some((r) => String(r._id) === newId)) return prev;
+          return {
+            ...prev,
+            success: true,
+            data: { parentRoles: [...list, { _id: newId, name: newName }].sort((a, b) => a.name.localeCompare(b.name)) },
+          };
+        });
         form.setValue('parentRoleId', newId, { shouldValidate: true });
         editForm.setValue('parentRoleId', newId, { shouldValidate: true });
       }
+
+      await Promise.all([
+        queryClient.invalidateQueries({ queryKey: ['parent-roles'] }),
+        queryClient.invalidateQueries({ queryKey: ['roles-overview', selectedOutletId] }),
+        queryClient.invalidateQueries({ queryKey: ['hierarchy'] }),
+      ]);
+      setShowCreateMasterRole(false);
+      setNewMasterRoleName('');
     },
   });
 
@@ -357,7 +370,7 @@ export function StaffPage() {
   const parentRoleSelectOptions: SearchableSelectOption[] = useMemo(
     () =>
       (parentRoles as { _id: string; name: string }[]).map((r) => ({
-        value: r._id,
+        value: String(r._id),
         label: r.name,
       })),
     [parentRoles]

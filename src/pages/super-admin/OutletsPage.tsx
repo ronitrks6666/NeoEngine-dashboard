@@ -26,6 +26,7 @@ import type { Owner as AuthOwner } from '@/types/auth';
 export function OutletsPage() {
   const [search, setSearch] = useState('');
   const [showCreate, setShowCreate] = useState(false);
+  const [editingOutlet, setEditingOutlet] = useState<Outlet | null>(null);
   const [impersonatingId, setImpersonatingId] = useState<string | null>(null);
   const [impersonateToken, setImpersonateToken] = useState<string | null>(null);
   const [impersonateOwnerObj, setImpersonateOwnerObj] = useState<AuthOwner | null>(null);
@@ -53,6 +54,20 @@ export function OutletsPage() {
     },
   });
 
+  const updateMutation = useMutation({
+    mutationFn: ({
+      id,
+      payload,
+    }: {
+      id: string;
+      payload: { name: string; address: string; phone: string; ownerId: string; ownerIds: string[] };
+    }) => adminApi.updateOutlet(id, payload),
+    onSuccess: () => {
+      queryClient.invalidateQueries({ queryKey: ['admin-outlets'] });
+      setEditingOutlet(null);
+    },
+  });
+
   const form = useForm<CreateForm>({
     resolver: zodResolver(createSchema),
     defaultValues: { name: '', address: '', phone: '', ownerId: '' },
@@ -67,6 +82,14 @@ export function OutletsPage() {
     const owner = o.ownerId;
     if (typeof owner === 'object' && owner?.name) return owner.name;
     return owner as string;
+  };
+
+  const getOwnerNames = (o: Outlet) => {
+    const list = o.ownerIds || [];
+    if (!list.length) return getOwnerName(o);
+    return list
+      .map((entry) => (typeof entry === 'object' && entry?.name ? entry.name : String(entry)))
+      .join(', ');
   };
 
   const getOwnerId = (o: Outlet) => {
@@ -138,8 +161,14 @@ export function OutletsPage() {
                   <td className="px-4 py-2">{o.name}</td>
                   <td className="px-4 py-2">{o.address || '-'}</td>
                   <td className="px-4 py-2">{o.phone || '-'}</td>
-                  <td className="px-4 py-2">{getOwnerName(o)}</td>
+                  <td className="px-4 py-2">{getOwnerNames(o)}</td>
                   <td className="px-4 py-2 text-right">
+                    <button
+                      onClick={() => setEditingOutlet(o)}
+                      className="mr-3 text-gray-700 hover:text-gray-900 font-medium text-sm"
+                    >
+                      Edit
+                    </button>
                     <button
                       onClick={() => handleImpersonate(getOwnerId(o))}
                       disabled={impersonatingId === getOwnerId(o)}
@@ -213,6 +242,93 @@ export function OutletsPage() {
                   {createMutation.isPending ? 'Creating...' : 'Create'}
                 </button>
                 <button type="button" onClick={() => setShowCreate(false)} className="px-4 py-2 border rounded">
+                  Cancel
+                </button>
+              </div>
+            </form>
+          </div>
+        </div>
+      )}
+
+      {editingOutlet && (
+        <div className="fixed inset-0 bg-black/50 flex items-center justify-center z-50">
+          <div className="bg-white rounded-lg p-6 w-full max-w-lg relative">
+            <button type="button" onClick={() => setEditingOutlet(null)} className="absolute top-4 right-4 p-2 rounded-lg text-gray-400 hover:text-gray-600 hover:bg-gray-100 transition-colors" aria-label="Close"><X className="h-5 w-5" /></button>
+            <h2 className="text-lg font-semibold mb-4 pr-8">Edit Outlet</h2>
+            <form
+              onSubmit={(e) => {
+                e.preventDefault();
+                const fd = new FormData(e.currentTarget);
+                const selected = owners
+                  .map((o) => o._id)
+                  .filter((id) => fd.get(`owner_${id}`) === 'on');
+                const primary = String(fd.get('ownerId') || selected[0] || '');
+                updateMutation.mutate({
+                  id: editingOutlet._id,
+                  payload: {
+                    name: String(fd.get('name') || '').trim(),
+                    address: String(fd.get('address') || '').trim(),
+                    phone: String(fd.get('phone') || '').replace(/\D/g, '').slice(-10),
+                    ownerId: primary,
+                    ownerIds: selected.length ? selected : [primary],
+                  },
+                });
+              }}
+              className="space-y-4"
+            >
+              <div>
+                <label className="block text-sm font-medium text-gray-700 mb-1">Name</label>
+                <input name="name" defaultValue={editingOutlet.name} className="w-full px-3 py-2 border rounded" />
+              </div>
+              <div>
+                <label className="block text-sm font-medium text-gray-700 mb-1">Address</label>
+                <input name="address" defaultValue={editingOutlet.address || ''} className="w-full px-3 py-2 border rounded" />
+              </div>
+              <div>
+                <label className="block text-sm font-medium text-gray-700 mb-1">Phone</label>
+                <input name="phone" defaultValue={editingOutlet.phone || ''} maxLength={10} className="w-full px-3 py-2 border rounded" />
+              </div>
+              <div>
+                <label className="block text-sm font-medium text-gray-700 mb-1">Primary Owner</label>
+                <select
+                  name="ownerId"
+                  defaultValue={getOwnerId(editingOutlet)}
+                  className="w-full px-3 py-2 border rounded"
+                >
+                  {owners.map((o) => (
+                    <option key={o._id} value={o._id}>
+                      {o.name}
+                    </option>
+                  ))}
+                </select>
+              </div>
+              <div>
+                <label className="block text-sm font-medium text-gray-700 mb-2">Owners with Access (multiple)</label>
+                <div className="max-h-40 overflow-auto border rounded p-2 space-y-1">
+                  {owners.map((o) => {
+                    const existing = (editingOutlet.ownerIds || []).map((x) =>
+                      typeof x === 'object' ? x._id : x
+                    );
+                    const checked = existing.length
+                      ? existing.includes(o._id)
+                      : getOwnerId(editingOutlet) === o._id;
+                    return (
+                      <label key={o._id} className="flex items-center gap-2 text-sm">
+                        <input type="checkbox" name={`owner_${o._id}`} defaultChecked={checked} />
+                        <span>{o.name}</span>
+                      </label>
+                    );
+                  })}
+                </div>
+              </div>
+              {updateMutation.isError && (
+                <p className="text-red-600 text-sm">{getApiErrorMessage(updateMutation.error)}</p>
+              )}
+              <div className="flex gap-2">
+                <button type="submit" disabled={updateMutation.isPending} className="px-4 py-2 bg-primary text-white rounded">
+                  {updateMutation.isPending ? 'Saving...' : 'Save'}
+                </button>
+                <button type="button" onClick={() => setEditingOutlet(null)} className="px-4 py-2 border rounded">
                   Cancel
                 </button>
               </div>

@@ -15,6 +15,7 @@ export interface Outlet {
   address?: string;
   phone?: string;
   ownerId: string | { _id: string; name: string; email?: string; phone?: string };
+  ownerIds?: Array<string | { _id: string; name: string; email?: string; phone?: string }>;
 }
 
 export interface AdminAnalytics {
@@ -55,8 +56,21 @@ export const adminApi = {
     return data;
   },
 
-  createOutlet: async (payload: { name: string; address: string; phone: string; ownerId: string; geofence?: object }) => {
+  createOutlet: async (payload: { name: string; address: string; phone: string; ownerId: string; ownerIds?: string[]; geofence?: object }) => {
     const { data } = await api.post('/admin/create-outlet', payload);
+    return data;
+  },
+
+  updateOwner: async (id: string, payload: { name?: string; phone?: string; isActive?: boolean }) => {
+    const { data } = await api.put(`/admin/owners/${id}`, payload);
+    return data;
+  },
+
+  updateOutlet: async (
+    id: string,
+    payload: { name?: string; address?: string; phone?: string; ownerId?: string; ownerIds?: string[]; isActive?: boolean }
+  ) => {
+    const { data } = await api.put(`/admin/outlets/${id}`, payload);
     return data;
   },
 

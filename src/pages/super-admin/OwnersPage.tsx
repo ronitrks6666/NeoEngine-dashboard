@@ -25,6 +25,7 @@ type CreateForm = z.infer<typeof createSchema>;
 export function OwnersPage() {
   const [search, setSearch] = useState('');
   const [showCreate, setShowCreate] = useState(false);
+  const [editingOwner, setEditingOwner] = useState<Owner | null>(null);
   const [impersonatingId, setImpersonatingId] = useState<string | null>(null);
   const [impersonateToken, setImpersonateToken] = useState<string | null>(null);
   const [impersonateOwnerObj, setImpersonateOwnerObj] = useState<AuthOwner | null>(null);
@@ -44,6 +45,15 @@ export function OwnersPage() {
       queryClient.invalidateQueries({ queryKey: ['admin-owners'] });
       setShowCreate(false);
       form.reset();
+    },
+  });
+
+  const updateMutation = useMutation({
+    mutationFn: ({ id, payload }: { id: string; payload: { name: string; phone: string } }) =>
+      adminApi.updateOwner(id, payload),
+    onSuccess: () => {
+      queryClient.invalidateQueries({ queryKey: ['admin-owners'] });
+      setEditingOwner(null);
     },
   });
 
@@ -123,6 +133,12 @@ export function OwnersPage() {
                   </td>
                   <td className="px-4 py-2 text-right">
                     <button
+                      onClick={() => setEditingOwner(o)}
+                      className="mr-3 text-gray-700 hover:text-gray-900 font-medium text-sm"
+                    >
+                      Edit
+                    </button>
+                    <button
                       onClick={() => handleImpersonate(o._id)}
                       disabled={impersonatingId === o._id || o.isActive === false}
                       className="text-primary hover:text-primary-dark font-medium text-sm disabled:opacity-50"
@@ -187,6 +203,49 @@ export function OwnersPage() {
                   {createMutation.isPending ? 'Creating...' : 'Create'}
                 </button>
                 <button type="button" onClick={() => setShowCreate(false)} className="px-4 py-2 border rounded">
+                  Cancel
+                </button>
+              </div>
+            </form>
+          </div>
+        </div>
+      )}
+
+      {editingOwner && (
+        <div className="fixed inset-0 bg-black/50 flex items-center justify-center z-50">
+          <div className="bg-white rounded-lg p-6 w-full max-w-md relative">
+            <button type="button" onClick={() => setEditingOwner(null)} className="absolute top-4 right-4 p-2 rounded-lg text-gray-400 hover:text-gray-600 hover:bg-gray-100 transition-colors" aria-label="Close"><X className="h-5 w-5" /></button>
+            <h2 className="text-lg font-semibold mb-4 pr-8">Edit Owner</h2>
+            <form
+              onSubmit={(e) => {
+                e.preventDefault();
+                const formData = new FormData(e.currentTarget);
+                updateMutation.mutate({
+                  id: editingOwner._id,
+                  payload: {
+                    name: String(formData.get('name') || '').trim(),
+                    phone: String(formData.get('phone') || '').replace(/\D/g, '').slice(-10),
+                  },
+                });
+              }}
+              className="space-y-4"
+            >
+              <div>
+                <label className="block text-sm font-medium text-gray-700 mb-1">Name</label>
+                <input name="name" defaultValue={editingOwner.name} className="w-full px-3 py-2 border rounded" />
+              </div>
+              <div>
+                <label className="block text-sm font-medium text-gray-700 mb-1">Phone</label>
+                <input name="phone" defaultValue={editingOwner.phone} maxLength={10} className="w-full px-3 py-2 border rounded" />
+              </div>
+              {updateMutation.isError && (
+                <p className="text-red-600 text-sm">{getApiErrorMessage(updateMutation.error)}</p>
+              )}
+              <div className="flex gap-2">
+                <button type="submit" disabled={updateMutation.isPending} className="px-4 py-2 bg-primary text-white rounded">
+                  {updateMutation.isPending ? 'Saving...' : 'Save'}
+                </button>
+                <button type="button" onClick={() => setEditingOwner(null)} className="px-4 py-2 border rounded">
                   Cancel
                 </button>
               </div>

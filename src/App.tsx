@@ -40,6 +40,8 @@ import { PayrollSettingsPage } from '@/pages/owner/PayrollSettingsPage';
 import { LeaveRulesPage } from '@/pages/owner/LeaveRulesPage';
 import { SopPage } from '@/pages/owner/SopPage';
 import { DepartmentsPage } from '@/pages/owner/DepartmentsPage';
+import { DutyRosterPage } from '@/pages/owner/DutyRosterPage';
+import { RulesRegulationsPage } from '@/pages/owner/RulesRegulationsPage';
 import { useAuth } from '@/hooks/useAuth';
 import { getDefaultEmployeeDashboardPath } from '@/lib/webDashboardAccess';
 import { NeoEngineApkDownloadPage } from '@/pages/NeoEngineApkDownloadPage';
@@ -318,6 +320,22 @@ function App() {
                   element={
                     <EmployeeWebPermissionRoute routePath="/owner/reports">
                       <ReportsPage />
+                    </EmployeeWebPermissionRoute>
+                  }
+                />
+                <Route
+                  path="duty-roster"
+                  element={
+                    <EmployeeWebPermissionRoute routePath="/owner/duty-roster">
+                      <DutyRosterPage />
+                    </EmployeeWebPermissionRoute>
+                  }
+                />
+                <Route
+                  path="rules-regulations"
+                  element={
+                    <EmployeeWebPermissionRoute routePath="/owner/rules-regulations">
+                      <RulesRegulationsPage />
                     </EmployeeWebPermissionRoute>
                   }
                 />

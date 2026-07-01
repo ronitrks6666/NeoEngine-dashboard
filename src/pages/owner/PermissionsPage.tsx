@@ -30,10 +30,10 @@ import {
 const BUNDLE_UI: Record<string, { title?: string; hint?: string }> = {
   people_management: {
     title: 'Staff, roles & attendance',
-    hint: 'Turn on to allow creating staff and roles on the app and web (Staff, Roles, Hierarchy, Attendance).',
+    hint: 'Turn on to allow creating staff and roles on the app and web (Staff, Roles, Hierarchy, Attendance, Duty Roster).',
   },
   outlets: {
-    hint: 'Manage outlets on the app and web Outlets page.',
+    hint: 'Manage outlets on the app and web Outlets page, plus Rules & Regulations.',
   },
   issues: {
     hint: 'Issue tracker and Support on web.',

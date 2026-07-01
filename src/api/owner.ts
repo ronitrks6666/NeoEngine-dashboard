@@ -131,7 +131,7 @@ export const ownerApi = {
     return data.data.brand;
   },
 
-  uploadBrandLogo: async (file: File) => {
+  updateBrandLogo: async (file: File) => {
     const formData = new FormData();
     formData.append('image', file);
     const { data } = await api.post<{ success: boolean; url: string }>(
@@ -140,5 +140,22 @@ export const ownerApi = {
       { headers: { 'Content-Type': 'multipart/form-data' } }
     );
     return data.url;
+  },
+
+  getOutletRules: async (outletId: string) => {
+    const { data } = await api.get<{
+      success: boolean;
+      data: { outletName: string; rulesAndRegulations: string; rulesVersion: number };
+    }>(`/owner/outlets/${outletId}/rules`);
+    return data.data;
+  },
+
+  updateOutletRules: async (outletId: string, rulesAndRegulations: string) => {
+    const { data } = await api.put<{
+      success: boolean;
+      message: string;
+      data: { rulesVersion: number };
+    }>(`/owner/outlets/${outletId}/rules`, { rulesAndRegulations });
+    return data;
   },
 };

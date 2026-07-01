@@ -1,0 +1,1 @@
+export { HeroMobileMockup } from './HeroMobileMockup';

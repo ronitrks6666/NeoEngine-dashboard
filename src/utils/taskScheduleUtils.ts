@@ -89,14 +89,85 @@ export function getNextRunTimes(
   return slots;
 }
 
+/** Progressive display while user types digits (e.g. 715 → 07:15). */
+export function formatTypedTimeDisplay(raw: string): string {
+  const digits = raw.replace(/[^\d]/g, '').slice(0, 4);
+  if (!digits) return '';
+  if (digits.length <= 2) return digits.padStart(2, '0');
+  if (digits.length === 3) {
+    const h = digits[0];
+    const mm = digits.slice(1).padEnd(2, '0');
+    return `${h.padStart(2, '0')}:${mm}`;
+  }
+  return `${digits.slice(0, 2)}:${digits.slice(2, 4)}`;
+}
+
+function toNormalizedHHmm(hours: number, minutes: number): string | null {
+  if (!Number.isFinite(hours) || !Number.isFinite(minutes)) return null;
+  if (hours < 0 || minutes < 0) return null;
+  return formatHHmm(hours * 60 + minutes);
+}
+
+/**
+ * Parse compact digit entry into 24h HH:mm.
+ * Examples: 7 → 07:00, 715 → 07:15, 0715 → 07:15, 1930 → 19:30
+ */
+export function parseFlexibleTimeDigits(raw: string): string | null {
+  const text = String(raw ?? '').trim();
+  if (!text) return null;
+
+  // Colon input: keep hour/minute intent and normalize overflow (80:70 -> 09:10).
+  if (text.includes(':')) {
+    const parts = text.split(':');
+    const left = (parts[0] ?? '').replace(/[^\d]/g, '');
+    const right = (parts[1] ?? '').replace(/[^\d]/g, '');
+    if (!left && !right) return null;
+    const h = left ? parseInt(left, 10) : 0;
+    const m = right ? parseInt(right, 10) : 0;
+    return toNormalizedHHmm(h, m);
+  }
+
+  const digits = text.replace(/[^\d]/g, '');
+  if (!digits) return null;
+
+  let h: number;
+  let m: number;
+  if (digits.length <= 2) {
+    h = parseInt(digits, 10);
+    m = 0;
+  } else if (digits.length === 3) {
+    h = parseInt(digits[0], 10);
+    m = parseInt(digits.slice(1), 10);
+  } else {
+    h = parseInt(digits.slice(0, 2), 10);
+    m = parseInt(digits.slice(2, 4), 10);
+  }
+
+  if (Number.isNaN(h) || Number.isNaN(m)) return null;
+  return toNormalizedHHmm(h, m);
+}
+
 export function buildScheduleSummary(params: {
+  multipleTimesPerDay?: boolean;
   intervalMinutes?: number;
   startTime?: string;
   repeatEndTime?: string;
+  timeLimitMinutes?: number;
 }): string {
+  const at = formatTime12(params.startTime);
+  const limit =
+    params.timeLimitMinutes && params.timeLimitMinutes > 0
+      ? ` Complete within ${params.timeLimitMinutes} minutes.`
+      : '';
+
+  if (!params.multipleTimesPerDay) {
+    if (at === '—') return `Set a start time for this task.${limit}`;
+    return `Task runs once at ${at}.${limit}`;
+  }
+
   const from = formatTime12(params.startTime);
   const until = formatTime12(params.repeatEndTime);
   const mins = Number(params.intervalMinutes) || 60;
   const interval = formatIntervalLabel(mins);
-  return `Task will repeat every ${interval} between ${from} and ${until}.`;
+  return `Task repeats every ${interval} between ${from} and ${until}.${limit}`;
 }

@@ -46,6 +46,11 @@ export interface Employee {
   // Status
   userStatus?: 'active' | 'on_hold';
   userStatusReason?: string;
+  metadata?: {
+    multiOutletAccess?: boolean;
+    multiOutletOutletIds?: string[];
+  };
+  outletId?: string | { _id?: string; name?: string };
 }
 
 export const employeeApi = {
@@ -102,6 +107,7 @@ export const employeeApi = {
     minHoursPerDay?: number | null;
     punchInTime?: string | null;
     upiId?: string | null;
+    weeklyOffDays?: string[];
     reportsToEmployeeId?: string | null;
     reportsToOwnerId?: string | null;
     // Personal
@@ -133,6 +139,9 @@ export const employeeApi = {
     // Status
     userStatus?: 'active' | 'on_hold';
     userStatusReason?: string | null;
+    multiOutletAccess?: boolean;
+    multiOutletOutletIds?: string[];
+    multiOutletPermissionMode?: 'keep' | 'reset';
   }>) => {
     const { data } = await api.put(`/employee/staff/${employeeId}`, payload);
     return data;
@@ -208,4 +217,48 @@ export const employeeApi = {
     const { data } = await api.get(`/employee/free-roles/${outletId}${q}`);
     return data;
   },
+
+  getDutyRoster: async (params: { outletId: string; search?: string }) => {
+    const q = new URLSearchParams({ outletId: params.outletId });
+    if (params.search?.trim()) q.set('search', params.search.trim());
+    const { data } = await api.get(`/employee/duty-roster?${q.toString()}`);
+    return data;
+  },
+
+  getStaffNotes: async (employeeId: string) => {
+    const { data } = await api.get<{
+      success?: boolean;
+      data?: { notes: StaffNote[] };
+    }>(`/employee/staff/${employeeId}/notes`);
+    return (data?.data?.notes ?? []) as StaffNote[];
+  },
+
+  addStaffNote: async (employeeId: string, text: string) => {
+    const { data } = await api.post(`/employee/staff/${employeeId}/notes`, { text });
+    return data;
+  },
+};
+
+export type StaffNote = {
+  id: string;
+  text: string;
+  kind?: 'general' | 'hold' | 'resume' | 'deactivate' | 'transfer';
+  createdAt?: string;
+  createdByName?: string;
+};
+
+export type DutyRosterRow = {
+  id: string;
+  name: string;
+  roleName: string;
+  activeRoleId: string | null;
+  parentRoleId: string | null;
+  shiftType: string;
+  punchInTime: string | null;
+  minHoursPerDay: number | null;
+  weeklyOffDays: string[];
+  effectivePunchInTime: string;
+  effectiveMinHoursPerDay: number;
+  punchInSource: 'employee' | 'role' | 'outlet';
+  hoursSource: 'employee' | 'role' | 'outlet';
 };

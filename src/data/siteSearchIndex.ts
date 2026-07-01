@@ -62,6 +62,20 @@ export const SITE_SEARCH_INDEX: SiteSearchItem[] = [
     roles: OWNER,
   },
   {
+    path: '/owner/duty-roster',
+    title: 'Duty Roster',
+    subtitle: 'Shift times, weekly off, role slots per staff',
+    keywords: ['roster', 'schedule', 'weekly off', 'punch in time', 'hours', 'shift'],
+    roles: OWNER,
+  },
+  {
+    path: '/owner/rules-regulations',
+    title: 'Rules & Regulations',
+    subtitle: 'Outlet policies for staff in the app',
+    keywords: ['rules', 'regulations', 'policy', 'handbook', 'compliance'],
+    roles: OWNER,
+  },
+  {
     path: '/owner/briefing-pool',
     title: 'Briefing Pool',
     subtitle: 'Escalated and incomplete tasks by staff',

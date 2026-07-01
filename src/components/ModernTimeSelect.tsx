@@ -1,5 +1,5 @@
 import { useEffect, useState } from 'react';
-import { parseHHmm, formatHHmm } from '@/utils/taskScheduleUtils';
+import { parseHHmm, formatHHmm, parseFlexibleTimeDigits } from '@/utils/taskScheduleUtils';
 
 type Period = 'AM' | 'PM';
 
@@ -34,9 +34,10 @@ function composeTime24(timeText: string, period: Period): string | null {
 }
 
 function normalizeTimeInput(raw: string): string {
-  const digits = raw.replace(/[^\d]/g, '');
+  const digits = raw.replace(/[^\d]/g, '').slice(0, 4);
+  if (!digits) return raw.replace(/[^\d:]/g, '');
   if (digits.length <= 2) return digits;
-  if (digits.length === 3) return `${digits.slice(0, 1)}:${digits.slice(1)}`;
+  if (digits.length === 3) return `${digits[0]}:${digits.slice(1)}`;
   return `${digits.slice(0, 2)}:${digits.slice(2, 4)}`;
 }
 
@@ -74,6 +75,15 @@ export function ModernTimeSelect({
 
   const handleTimeBlur = () => {
     if (!timeText.trim()) return;
+    const fromDigits = parseFlexibleTimeDigits(timeText);
+    if (fromDigits) {
+      const composed = composeTime24(splitTime24(fromDigits).timeText, splitTime24(fromDigits).period) ?? fromDigits;
+      const { timeText: t } = splitTime24(composed);
+      setTimeText(t);
+      setPeriod(splitTime24(composed).period);
+      onChange(composed);
+      return;
+    }
     const composed = composeTime24(timeText, period);
     if (composed) {
       const { timeText: t } = splitTime24(composed);

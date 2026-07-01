@@ -8,6 +8,7 @@ import { useOutletStore } from '@/stores/outletStore';
 import { useAuth } from '@/hooks/useAuth';
 import type { Owner } from '@/types/auth';
 import { employeeApi } from '@/api/employee';
+import { ownerApi } from '@/api/owner';
 import { overtimeApi } from '@/api/overtime';
 import { getApiErrorMessage } from '@/api/auth';
 import { LoadingSpinner } from '@/components/LoadingSpinner';
@@ -16,7 +17,9 @@ import { SearchableSelect, type SearchableSelectOption } from '@/components/Sear
 import { TimePickerField } from '@/components/TimePickerField';
 import { zPhone10 } from '@/lib/phoneValidation';
 import { useDebouncedValue } from '@/hooks/useDebouncedValue';
-import { UserPlus, Pencil, Trash2, FileText, ExternalLink, Plus, Shield, Briefcase, X, Loader2, Info } from 'lucide-react';
+import { UserPlus, Pencil, Trash2, FileText, ExternalLink, Plus, Shield, Briefcase, X, Loader2, Info, Building2 } from 'lucide-react';
+import { StaffNotesPanel } from '@/components/StaffNotesPanel';
+import { StaffMultiOutletSection } from '@/components/StaffMultiOutletSection';
 
 function employeeRoleSubtitle(
   activeRoleId?: { name?: string; parentRoleId?: { name?: string } } | string | null
@@ -106,6 +109,11 @@ type StaffCardRow = {
   _id: string;
   name: string;
   phone: string;
+  outletId?: string | { _id?: string; name?: string };
+  metadata?: {
+    multiOutletAccess?: boolean;
+    multiOutletOutletIds?: string[];
+  };
   activeRoleId?: { name?: string; parentRoleId?: { name?: string } } | { name: string } | string;
   shiftType?: string;
   isActive?: boolean;
@@ -160,8 +168,21 @@ export function StaffPage() {
     // Status
     userStatus?: string;
     userStatusReason?: string;
+    metadata?: {
+      multiOutletAccess?: boolean;
+      multiOutletOutletIds?: string[];
+    };
+    outletId?: string | { _id?: string; name?: string };
   } | null>(null);
-  const [editActiveTab, setEditActiveTab] = useState<'basic' | 'personal' | 'financial' | 'medical'>('basic');
+  const [multiOutletEnabled, setMultiOutletEnabled] = useState(false);
+  const [multiOutletIds, setMultiOutletIds] = useState<string[]>([]);
+  const [multiOutletPermMode, setMultiOutletPermMode] = useState<'keep' | 'reset'>('keep');
+  const [multiOutletSnapshot, setMultiOutletSnapshot] = useState<{
+    enabled: boolean;
+    ids: string[];
+  }>({ enabled: false, ids: [] });
+  const [editMultiOutletError, setEditMultiOutletError] = useState<string | null>(null);
+  const [editActiveTab, setEditActiveTab] = useState<'basic' | 'personal' | 'financial' | 'medical' | 'notes'>('basic');
   const [confirmRemove, setConfirmRemove] = useState<{ _id: string; name: string } | null>(null);
   const [reassignToId, setReassignToId] = useState<string>('');
   const [documentsFor, setDocumentsFor] = useState<{ _id: string; name: string } | null>(null);
@@ -199,6 +220,28 @@ export function StaffPage() {
     queryFn: () => employeeApi.getParentRoles(),
     enabled: !!selectedOutletId,
   });
+
+  const { data: ownerOutlets = [] } = useQuery({
+    queryKey: ['owner-outlets-all'],
+    queryFn: () => ownerApi.getOutlets(),
+    enabled: !!editing,
+  });
+
+  const editingPrimaryOutletId = useMemo(() => {
+    if (!editing) return selectedOutletId ?? '';
+    const raw = editing.outletId;
+    if (raw && typeof raw === 'object' && raw._id) return String(raw._id);
+    if (typeof raw === 'string' && raw) return raw;
+    return selectedOutletId ?? '';
+  }, [editing, selectedOutletId]);
+
+  const multiOutletChanged = useMemo(() => {
+    const sortKey = (ids: string[]) => [...ids].map(String).sort().join(',');
+    return (
+      multiOutletEnabled !== multiOutletSnapshot.enabled ||
+      sortKey(multiOutletIds) !== sortKey(multiOutletSnapshot.ids)
+    );
+  }, [multiOutletEnabled, multiOutletIds, multiOutletSnapshot]);
 
   const { data: documentsData } = useQuery({
     queryKey: ['employee-documents', documentsFor?._id],
@@ -491,6 +534,23 @@ export function StaffPage() {
       : reportsToEmp
         ? String(reportsToEmp)
         : '';
+    const primaryOutletId =
+      (e.outletId as { _id?: string })?._id ??
+      (typeof e.outletId === 'string' ? e.outletId : selectedOutletId ?? '');
+    const meta = e.metadata ?? {};
+    const multiEnabled =
+      meta.multiOutletAccess === true && (meta.multiOutletOutletIds?.length ?? 0) > 1;
+    const multiIds = multiEnabled
+      ? (meta.multiOutletOutletIds ?? []).map(String)
+      : [String(primaryOutletId)];
+    setMultiOutletEnabled(multiEnabled);
+    setMultiOutletIds(multiIds.length > 0 ? multiIds : [String(primaryOutletId)]);
+    setMultiOutletPermMode('keep');
+    setEditMultiOutletError(null);
+    setMultiOutletSnapshot({
+      enabled: multiEnabled,
+      ids: multiIds.length > 0 ? multiIds : [String(primaryOutletId)],
+    });
     editForm.reset({
       name: e.name,
       // Always normalise to last 10 digits — backend may store with country code prefix
@@ -675,6 +735,13 @@ export function StaffPage() {
                   <span className="px-2.5 py-0.5 rounded-lg text-xs font-medium bg-gray-100 text-gray-600">
                     {e.shiftType ?? 'Day'}
                   </span>
+                  {e.metadata?.multiOutletAccess &&
+                    (e.metadata.multiOutletOutletIds?.length ?? 0) > 1 && (
+                      <span className="px-2.5 py-0.5 rounded-lg text-xs font-medium bg-sky-100 text-sky-800 flex items-center gap-1">
+                        <Building2 className="h-3 w-3" />
+                        Multi-outlet
+                      </span>
+                    )}
                 </div>
                 {e.isActive === false && (
                   <div className="mt-3 pt-3 border-t border-amber-100 flex items-center gap-1.5 text-amber-700">
@@ -915,6 +982,11 @@ export function StaffPage() {
             </div>
             <button type="button" onClick={() => { setEditing(null); setShowCreateMasterRole(false); setShowCreateRole(false); }} className="absolute top-4 right-4 p-2 rounded-lg text-gray-400 hover:text-gray-600 hover:bg-gray-100 transition-colors z-10" aria-label="Close"><X className="h-5 w-5" /></button>
             <div className="p-6">
+              {editMultiOutletError && (
+                <p className="mb-4 p-3 rounded-xl bg-amber-50 text-amber-800 text-sm border border-amber-100">
+                  {editMultiOutletError}
+                </p>
+              )}
               {updateMutation.isError && (
                 <p className="mb-4 p-3 rounded-xl bg-red-50 text-red-600 text-sm border border-red-100">{getApiErrorMessage(updateMutation.error)}</p>
               )}
@@ -930,7 +1002,14 @@ export function StaffPage() {
               )}
               <form
                 onSubmit={editForm.handleSubmit(
-                  (d) =>
+                  (d) => {
+                    if (multiOutletChanged && multiOutletEnabled && new Set(multiOutletIds).size < 2) {
+                      setEditMultiOutletError(
+                        'Select at least two outlets for multi-outlet access (primary + one more).'
+                      );
+                      return;
+                    }
+                    setEditMultiOutletError(null);
                     updateMutation.mutate({
                       id: editing._id,
                       data: (() => {
@@ -944,9 +1023,17 @@ export function StaffPage() {
                             ? { reportsToEmployeeId: rt, reportsToOwnerId: null }
                             : {};
                         const { activeRoleId: _omitActiveRole, ...profile } = d;
+                        const multiPayload = multiOutletChanged
+                          ? {
+                              multiOutletAccess: multiOutletEnabled,
+                              multiOutletOutletIds: multiOutletEnabled ? multiOutletIds : undefined,
+                              multiOutletPermissionMode: multiOutletPermMode,
+                            }
+                          : {};
                         return {
                           ...profile,
                           ...reportsPayload,
+                          ...multiPayload,
                           parentRoleId: d.parentRoleId?.trim() ? d.parentRoleId.trim() : null,
                           salary: d.salary ?? undefined,
                           minHoursPerDay: d.minHoursPerDay ?? undefined,
@@ -954,7 +1041,8 @@ export function StaffPage() {
                           upiId: d.upiId?.trim() || undefined,
                         };
                       })(),
-                    }),
+                    });
+                  },
                   (validationErrors) => {
                     // Log validation errors so they're visible in the console during debugging
                     console.warn('[EditForm] Validation failed, fix these fields before submit:', validationErrors);
@@ -995,6 +1083,19 @@ export function StaffPage() {
                     </div>
                   </div>
                 </section>
+
+                <StaffMultiOutletSection
+                  enabled={multiOutletEnabled}
+                  onEnabledChange={setMultiOutletEnabled}
+                  selectedOutletIds={multiOutletIds}
+                  onSelectedOutletIdsChange={setMultiOutletIds}
+                  primaryOutletId={editingPrimaryOutletId}
+                  outlets={ownerOutlets}
+                  permissionMode={multiOutletPermMode}
+                  onPermissionModeChange={setMultiOutletPermMode}
+                  showPermissionChoice={multiOutletChanged}
+                  disabled={updateMutation.isPending}
+                />
 
                 <section>
                   <h3 className="text-sm font-semibold text-gray-700 mb-3 flex items-center gap-2">
@@ -1073,7 +1174,7 @@ export function StaffPage() {
                 {/* Tab Navigation for extra sections */}
                 <div className="border-t border-gray-100 pt-4">
                   <div className="flex gap-1 p-1 bg-gray-100 rounded-xl mb-5">
-                    {(['basic', 'personal', 'financial', 'medical'] as const).map((tab) => (
+                    {(['basic', 'personal', 'financial', 'medical', 'notes'] as const).map((tab) => (
                       <button
                         key={tab}
                         type="button"
@@ -1272,6 +1373,10 @@ export function StaffPage() {
                         <textarea {...editForm.register('policeVerificationNotes')} rows={2} className="w-full px-4 py-2.5 rounded-xl border border-gray-200 focus:ring-2 focus:ring-emerald-500/20 focus:border-emerald-500 text-sm" placeholder="Reference number, date, etc." />
                       </div>
                     </div>
+                  )}
+
+                  {editActiveTab === 'notes' && editing && (
+                    <StaffNotesPanel employeeId={editing._id} />
                   )}
                 </div>
                 {(overtimeData?.data?.requests ?? []).length > 0 && (

@@ -12,6 +12,7 @@ import {
   WEB_DASHBOARD_ACCESS_DENIED_MESSAGE,
 } from '@/lib/webDashboardAccess';
 import { useOutletStore } from '@/stores/outletStore';
+import { syncEmployeeOutletStore } from '@/lib/employeeOutlets';
 
 function getInitialState(): AuthState {
   if (typeof window !== 'undefined') {
@@ -86,13 +87,10 @@ function sessionFromMerchantResponse(res: Awaited<ReturnType<typeof authApi.merc
       roleLabel: res.role,
     };
     persistAuth(token, employee, 'EMPLOYEE', res.featurePermissions ?? null);
-    if (employee.outletId) {
-      useOutletStore
-        .getState()
-        .setEmployeeOutlet(employee.outletId, employee.outletName || 'My outlet');
-    } else {
-      useOutletStore.getState().clear();
-    }
+    void syncEmployeeOutletStore({
+      outletId: employee.outletId,
+      outletName: employee.outletName,
+    });
     return {
       user: employee,
       role: 'EMPLOYEE' as const,
@@ -223,11 +221,10 @@ export const useAuth = create<AuthStore>()((set) => ({
         roleLabel: me.role,
       };
       persistAuth(state.token, employee, 'EMPLOYEE', me.featurePermissions ?? null);
-      if (employee.outletId) {
-        useOutletStore
-          .getState()
-          .setEmployeeOutlet(employee.outletId, employee.outletName || 'My outlet');
-      }
+      await syncEmployeeOutletStore({
+        outletId: employee.outletId,
+        outletName: employee.outletName,
+      });
       set({
         user: employee,
         featurePermissions: me.featurePermissions ?? null,
@@ -271,11 +268,10 @@ export const useAuth = create<AuthStore>()((set) => ({
     if (stored) {
       if (stored.role === 'EMPLOYEE') {
         const emp = stored.user as EmployeeUser;
-        if (emp.outletId) {
-          useOutletStore
-            .getState()
-            .setEmployeeOutlet(emp.outletId, emp.outletName || 'My outlet');
-        }
+        void syncEmployeeOutletStore({
+          outletId: emp.outletId,
+          outletName: emp.outletName,
+        });
       }
       set({
         user: stored.user as SuperAdmin | Owner | EmployeeUser,

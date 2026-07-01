@@ -4,14 +4,17 @@ import { useQuery, useMutation, useQueryClient } from '@tanstack/react-query';
 import { useForm, useFieldArray } from 'react-hook-form';
 import { zodResolver } from '@hookform/resolvers/zod';
 import { z } from 'zod';
-import { startOfDay } from 'date-fns';
+import { startOfDay, format } from 'date-fns';
 import { useOutletStore } from '@/stores/outletStore';
+import { useAuth } from '@/hooks/useAuth';
 import { taskApi } from '@/api/task';
 import { employeeApi } from '@/api/employee';
 import { getApiErrorMessage } from '@/api/auth';
 import { LoadingSpinner } from '@/components/LoadingSpinner';
 import { SearchableSelect } from '@/components/SearchableSelect';
 import { TaskScheduleCard } from '@/components/TaskScheduleCard';
+import { MyTasksTodayPanel } from '@/components/tasks/MyTasksTodayPanel';
+import { TasksViewSwitch, type TasksViewMode } from '@/components/tasks/TasksViewSwitch';
 import { ListSearchBar } from '@/components/ListSearchBar';
 import { useDebouncedValue } from '@/hooks/useDebouncedValue';
 import { VoiceInputButton } from '@/components/VoiceInputButton';
@@ -64,8 +67,46 @@ type TaskForm = z.infer<typeof taskSchema>;
 
 export function TasksPage() {
   const { selectedOutletId, outlets } = useOutletStore();
+  const { role: authRole, featurePermissions } = useAuth();
   const location = useLocation();
   const navigate = useNavigate();
+  const todayYmd = format(new Date(), 'yyyy-MM-dd');
+
+  const canViewMyTasks =
+    authRole === 'OWNER' ||
+    !!featurePermissions?.webTasks ||
+    !!featurePermissions?.managerMyTasks ||
+    !!featurePermissions?.managerTasksHub;
+
+  const canManageTemplates =
+    authRole === 'OWNER' ||
+    !!featurePermissions?.webTasks ||
+    !!featurePermissions?.managerTaskTemplates ||
+    !!featurePermissions?.managerTaskCreate ||
+    !!featurePermissions?.managerTaskTemplateCreate;
+
+  const [viewMode, setViewMode] = useState<TasksViewMode>(() => {
+    if (typeof window === 'undefined') return canViewMyTasks ? 'my-tasks' : 'all-tasks';
+    const stored = sessionStorage.getItem('tasks-view-mode');
+    if (stored === 'my-tasks' || stored === 'all-tasks') return stored;
+    return 'my-tasks';
+  });
+
+  useEffect(() => {
+    if (!canViewMyTasks) {
+      setViewMode('all-tasks');
+      return;
+    }
+    if (!canManageTemplates) {
+      setViewMode('my-tasks');
+    }
+  }, [canViewMyTasks, canManageTemplates]);
+
+  useEffect(() => {
+    if (canViewMyTasks) {
+      sessionStorage.setItem('tasks-view-mode', viewMode);
+    }
+  }, [viewMode, canViewMyTasks]);
   const [showCreate, setShowCreate] = useState(false);
   const [editing, setEditing] = useState<{
     _id: string;
@@ -94,8 +135,17 @@ export function TasksPage() {
         limit: 100,
         search: debouncedTemplateSearch.trim() || undefined,
       }),
-    enabled: !!selectedOutletId,
+    enabled: !!selectedOutletId && viewMode === 'all-tasks',
   });
+
+  const { data: myTasksPreview } = useQuery({
+    queryKey: ['manager-tasks', selectedOutletId, todayYmd],
+    queryFn: () => taskApi.getManagerTasks(selectedOutletId!, todayYmd),
+    enabled: !!selectedOutletId && canViewMyTasks,
+  });
+
+  const pendingMyTasksCount =
+    myTasksPreview?.tasks.filter((t) => !t.isCompleted).length ?? 0;
 
   const { data: rolesData } = useQuery({
     queryKey: ['parent-roles'],
@@ -187,10 +237,10 @@ export function TasksPage() {
     taskType: 'daily',
     specificDate: '',
     specificDays: [],
-    multipleTimesPerDay: true,
+    multipleTimesPerDay: false,
     intervalMinutes: 60,
     repeatEndTime: '20:00',
-    startTime: '06:00',
+    startTime: '09:00',
     timeLimitMinutes: undefined,
     assignToType: 'role',
     assignToEmployeeId: '',
@@ -351,74 +401,101 @@ export function TasksPage() {
 
   return (
     <div className="p-6 max-w-6xl mx-auto animate-fade-in">
-      <div className="flex flex-col gap-4 mb-8">
+      <div className="flex flex-col gap-5 mb-8">
         <div className="flex flex-col sm:flex-row sm:items-center sm:justify-between gap-4">
           <div>
-            <h1 className="text-2xl font-bold text-gray-900">Task templates</h1>
-            <p className="text-gray-500 mt-0.5">Define tasks for your staff</p>
+            <h1 className="text-2xl font-bold text-gray-900">
+              {viewMode === 'my-tasks' && canViewMyTasks ? 'My tasks today' : 'Task templates'}
+            </h1>
+            <p className="text-gray-500 mt-0.5">
+              {viewMode === 'my-tasks' && canViewMyTasks
+                ? "Today's owner-role checklist — complete tasks as you go"
+                : 'Define and manage recurring tasks for your staff'}
+            </p>
           </div>
-          <button
-            onClick={() => {
-              form.reset({ ...defaultFormValues });
-              setVoiceError(null);
-              setShowCreate(true);
-            }}
-            className="px-5 py-2.5 bg-gradient-to-r from-emerald-600 to-emerald-700 text-white rounded-xl font-semibold hover:from-emerald-700 hover:to-emerald-800 transition-all shadow-emerald flex items-center gap-2 w-fit shrink-0"
-          >
-            <ListTodo className="h-5 w-5" /> Create task
-          </button>
-        </div>
-        <ListSearchBar
-          value={templateSearch}
-          onChange={setTemplateSearch}
-          placeholder="Search templates by title or description"
-          className="max-w-xl"
-          id="tasks-search"
-          aria-label="Search task templates"
-        />
-      </div>
-
-      {isLoading ? (
-        <LoadingSpinner className="py-16" />
-      ) : (
-        <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-3 gap-4 animate-in-stagger">
-          {templates.map((t: { _id: string; title?: string; description?: string; parentRoleId?: { name: string }; shiftType?: string }) => (
-            <div key={t._id} className="group rounded-2xl border border-emerald-100 p-5 card-hover bg-white overflow-hidden shadow-sm">
-              <div className="flex items-start justify-between mb-3">
-                <div className="w-12 h-12 rounded-xl bg-emerald-100 flex items-center justify-center">
-                  <CheckSquare className="h-6 w-6 text-emerald-600" />
-                </div>
-                <div className="flex gap-1 opacity-0 group-hover:opacity-100 transition-opacity">
-                  <button onClick={() => openEdit(t)} className="p-2 rounded-lg hover:bg-emerald-50 text-gray-500 hover:text-emerald-600 transition-colors" title="Edit"><Pencil className="h-4 w-4" /></button>
-                  <button onClick={() => setConfirmDelete({ _id: t._id, title: t.title })} className="p-2 rounded-lg hover:bg-red-50 text-gray-500 hover:text-red-600 transition-colors" title="Delete"><Trash2 className="h-4 w-4" /></button>
-                </div>
-              </div>
-              <p className="font-semibold text-gray-900 truncate">{t.title ?? 'Untitled'}</p>
-              <p className="text-sm text-gray-500 mt-0.5 line-clamp-2">{t.description || 'No description'}</p>
-              <div className="flex gap-2 mt-3">
-                <span className="px-2.5 py-0.5 rounded-lg text-xs font-medium bg-emerald-100 text-emerald-700">{t.parentRoleId?.name ?? '-'}</span>
-                <span className="px-2.5 py-0.5 rounded-lg text-xs font-medium bg-emerald-50 text-emerald-600">{t.shiftType ?? 'Both'}</span>
-              </div>
-            </div>
-          ))}
-        </div>
-      )}
-
-      {templates.length === 0 && !isLoading && (
-        <div className="text-center py-16 animate-fade-in">
-          <div className="w-16 h-16 rounded-2xl bg-emerald-100 flex items-center justify-center mx-auto mb-4">
-            <CheckSquare className="h-8 w-8 text-emerald-500" />
-          </div>
-          <p className="text-gray-500">
-            {debouncedTemplateSearch.trim() ? 'No templates match your search.' : 'No task templates yet'}
-          </p>
-          {!debouncedTemplateSearch.trim() && (
-            <button onClick={() => setShowCreate(true)} className="mt-4 text-emerald-600 hover:text-emerald-700 font-medium">
-              Create your first task
+          {canManageTemplates && viewMode === 'all-tasks' && (
+            <button
+              onClick={() => {
+                form.reset({ ...defaultFormValues });
+                setVoiceError(null);
+                setShowCreate(true);
+              }}
+              className="px-5 py-2.5 bg-gradient-to-r from-emerald-600 to-emerald-700 text-white rounded-xl font-semibold hover:from-emerald-700 hover:to-emerald-800 transition-all shadow-emerald flex items-center gap-2 w-fit shrink-0"
+            >
+              <ListTodo className="h-5 w-5" /> Create task
             </button>
           )}
         </div>
-      )}
+
+        {canViewMyTasks && canManageTemplates && (
+          <TasksViewSwitch
+            value={viewMode}
+            onChange={setViewMode}
+            myTasksCount={pendingMyTasksCount}
+          />
+        )}
+      </div>
+
+      <div key={viewMode} className="tasks-view-panel">
+        {viewMode === 'my-tasks' && canViewMyTasks && selectedOutletId ? (
+          <MyTasksTodayPanel outletId={selectedOutletId} todayYmd={todayYmd} />
+        ) : (
+          <>
+            <ListSearchBar
+              value={templateSearch}
+              onChange={setTemplateSearch}
+              placeholder="Search templates by title or description"
+              className="max-w-xl mb-6"
+              id="tasks-search"
+              aria-label="Search task templates"
+            />
+
+            {isLoading ? (
+              <LoadingSpinner className="py-16" />
+            ) : (
+              <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-3 gap-4 animate-in-stagger">
+                {templates.map((t: { _id: string; title?: string; description?: string; parentRoleId?: { name: string }; shiftType?: string }) => (
+                  <div key={t._id} className="group rounded-2xl border border-emerald-100 p-5 card-hover bg-white overflow-hidden shadow-sm">
+                    <div className="flex items-start justify-between mb-3">
+                      <div className="w-12 h-12 rounded-xl bg-emerald-100 flex items-center justify-center">
+                        <CheckSquare className="h-6 w-6 text-emerald-600" />
+                      </div>
+                      {canManageTemplates && (
+                        <div className="flex gap-1 opacity-0 group-hover:opacity-100 transition-opacity">
+                          <button onClick={() => openEdit(t)} className="p-2 rounded-lg hover:bg-emerald-50 text-gray-500 hover:text-emerald-600 transition-colors" title="Edit"><Pencil className="h-4 w-4" /></button>
+                          <button onClick={() => setConfirmDelete({ _id: t._id, title: t.title })} className="p-2 rounded-lg hover:bg-red-50 text-gray-500 hover:text-red-600 transition-colors" title="Delete"><Trash2 className="h-4 w-4" /></button>
+                        </div>
+                      )}
+                    </div>
+                    <p className="font-semibold text-gray-900 truncate">{t.title ?? 'Untitled'}</p>
+                    <p className="text-sm text-gray-500 mt-0.5 line-clamp-2">{t.description || 'No description'}</p>
+                    <div className="flex gap-2 mt-3">
+                      <span className="px-2.5 py-0.5 rounded-lg text-xs font-medium bg-emerald-100 text-emerald-700">{t.parentRoleId?.name ?? '-'}</span>
+                      <span className="px-2.5 py-0.5 rounded-lg text-xs font-medium bg-emerald-50 text-emerald-600">{t.shiftType ?? 'Both'}</span>
+                    </div>
+                  </div>
+                ))}
+              </div>
+            )}
+
+            {templates.length === 0 && !isLoading && (
+              <div className="text-center py-16 animate-fade-in">
+                <div className="w-16 h-16 rounded-2xl bg-emerald-100 flex items-center justify-center mx-auto mb-4">
+                  <CheckSquare className="h-8 w-8 text-emerald-500" />
+                </div>
+                <p className="text-gray-500">
+                  {debouncedTemplateSearch.trim() ? 'No templates match your search.' : 'No task templates yet'}
+                </p>
+                {canManageTemplates && !debouncedTemplateSearch.trim() && (
+                  <button onClick={() => setShowCreate(true)} className="mt-4 text-emerald-600 hover:text-emerald-700 font-medium">
+                    Create your first task
+                  </button>
+                )}
+              </div>
+            )}
+          </>
+        )}
+      </div>
 
       {/* Create modal */}
       {showCreate && (

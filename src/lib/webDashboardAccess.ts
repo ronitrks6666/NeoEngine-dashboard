@@ -34,6 +34,8 @@ export const OWNER_ROUTE_WEB_PERMISSIONS: Record<string, string | string[]> = {
   '/owner/departments': 'webDepartments',
   '/owner/outlets': 'webOutlets',
   '/owner/support': 'webSupport',
+  '/owner/duty-roster': 'webDutyRoster',
+  '/owner/rules-regulations': 'webRulesRegulations',
 };
 
 export function hasOwnerRouteAccess(
@@ -70,6 +72,7 @@ export function getDefaultEmployeeDashboardPath(
     { perm: 'webSops', path: '/owner/sops' },
     { perm: 'webBriefingPool', path: '/owner/briefing-pool' },
     { perm: 'webStaff', path: '/owner/staff' },
+    { perm: 'webDutyRoster', path: '/owner/duty-roster' },
     { perm: 'webAttendance', path: '/owner/attendance' },
     { perm: 'webLeave', path: '/owner/leave' },
     { perm: 'webPayroll', path: '/owner/payroll' },

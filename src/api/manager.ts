@@ -44,6 +44,25 @@ export const managerApi = {
     return data;
   },
 
+  getBriefingPoolNotes: async (outletId: string) => {
+    const { data } = await api.get<{
+      success?: boolean;
+      data?: { notes?: string; outletName?: string };
+      notes?: string;
+      outletName?: string;
+    }>(`/manager/briefing-pool/notes`, { params: { outletId } });
+    const body = data?.data ?? data;
+    return {
+      notes: body?.notes ?? '',
+      outletName: body?.outletName ?? '',
+    };
+  },
+
+  updateBriefingPoolNotes: async (outletId: string, notes: string) => {
+    const { data } = await api.put(`/manager/briefing-pool/notes`, { outletId, notes });
+    return data;
+  },
+
   getDashboardTasks: async (outletId: string, params?: { dateRange?: 'today' | 'week'; startDate?: string; endDate?: string }) => {
     const q = new URLSearchParams({ outletId });
     if (params?.dateRange) q.set('dateRange', params.dateRange);

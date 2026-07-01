@@ -7,6 +7,43 @@ export interface ChecklistItem {
   referenceMediaKind?: 'image' | 'gif' | 'video';
 }
 
+export interface ManagerTaskItem {
+  id: string;
+  taskTemplateId?: string;
+  title: string;
+  description?: string;
+  imageUrl?: string | null;
+  taskMediaKind?: 'image' | 'gif' | 'video' | null;
+  isCompleted: boolean;
+  completedAt?: string | null;
+  forDate?: string;
+  startTime?: string | null;
+  timeLimitMinutes?: number | null;
+  dueAt?: string | null;
+  escalationLevel?: number;
+  escalationEnabled?: boolean;
+  assignedTo?: { name?: string } | null;
+  photoPath?: string | null;
+  completionMedia?: Array<{ url: string; kind?: string }>;
+  checklistItems?: ManagerTaskChecklistItem[];
+}
+
+export interface ManagerTaskChecklistItem {
+  id: string;
+  text: string;
+  order?: number;
+  isCompleted: boolean;
+  completedAt?: string | null;
+  referenceMedia?: Array<{ url: string; kind?: string }>;
+  staffMedia?: Array<{ url: string; kind?: string }>;
+}
+
+export interface ManagerTasksResponse {
+  tasks: ManagerTaskItem[];
+  viewOnly: boolean;
+  date: string;
+}
+
 export interface TaskTemplatePayload {
   title: string;
   description?: string;
@@ -49,8 +86,53 @@ export const taskApi = {
     return data;
   },
 
-  completeOnBehalf: async (taskId: string) => {
-    const { data } = await api.post(`/task/complete-owner/${taskId}`);
+  getManagerTasks: async (outletId: string, date?: string) => {
+    const q = new URLSearchParams();
+    q.set('outletId', outletId);
+    if (date) q.set('date', date);
+    const { data } = await api.get<{ success: boolean; data: ManagerTasksResponse }>(
+      `/task/manager-tasks?${q.toString()}`
+    );
+    return data.data;
+  },
+
+  uploadTaskCompletionPhoto: async (file: File): Promise<{ url: string }> => {
+    const formData = new FormData();
+    formData.append('image', file);
+    const { data } = await api.post<{ success: boolean; url: string }>(
+      '/upload/task-completion-photo',
+      formData,
+      { headers: { 'Content-Type': 'multipart/form-data' } }
+    );
+    return { url: data.url };
+  },
+
+  toggleChecklistItem: async (taskId: string, itemId: string, isCompleted: boolean) => {
+    const { data } = await api.post<{
+      success: boolean;
+      data: { checklistItems: ManagerTaskChecklistItem[] };
+    }>(`/task/checklist-item/${taskId}/${itemId}`, { isCompleted });
+    return data.data;
+  },
+
+  addChecklistItemMedia: async (
+    taskId: string,
+    itemId: string,
+    url: string,
+    kind: 'image' | 'video' = 'image'
+  ) => {
+    const { data } = await api.post<{
+      success: boolean;
+      data: { checklistItems: ManagerTaskChecklistItem[] };
+    }>(`/task/checklist-item-media/${taskId}/${itemId}`, { url, kind });
+    return data.data;
+  },
+
+  completeOnBehalf: async (
+    taskId: string,
+    options?: { photoUrl?: string; notes?: string }
+  ) => {
+    const { data } = await api.post(`/task/complete-owner/${taskId}`, options ?? {});
     return data;
   },
 

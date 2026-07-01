@@ -43,6 +43,11 @@ export default {
       boxShadow: {
         'emerald': '0 4px 14px 0 rgba(5, 150, 105, 0.15)',
         'emerald-lg': '0 10px 40px -10px rgba(5, 150, 105, 0.2)',
+        'landing-card': '0 1px 2px rgba(15,23,42,0.04), 0 2px 8px rgba(15,23,42,0.04)',
+        'landing-dashboard': '0 8px 20px rgba(15,23,42,0.03), 0 18px 48px rgba(0,0,0,0.06)',
+        'landing-phone': '0 20px 40px rgba(15,23,42,0.14), 0 40px 80px rgba(15,23,42,0.1)',
+        'landing-btn': '0 4px 14px rgba(15,143,104,0.18)',
+        'landing-btn-hover': '0 8px 24px rgba(15,143,104,0.28)',
       },
     },
   },

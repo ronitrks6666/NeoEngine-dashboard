@@ -36,6 +36,8 @@ import {
   CreditCard,
   Gift,
   Building2,
+  CalendarClock,
+  ScrollText,
 } from 'lucide-react';
 
 import { NeoEngineLogo } from '@/components/NeoEngineLogo';
@@ -77,6 +79,7 @@ const ownerNav: { to: string; label: string; icon: LucideIcon }[] = [
   { to: '/owner/analytics', label: 'Analytics', icon: BarChart3 },
   { to: '/owner/reports', label: 'Reports', icon: FileText },
   { to: '/owner/attendance', label: 'Attendance', icon: CalendarCheck },
+  { to: '/owner/duty-roster', label: 'Duty Roster', icon: CalendarClock },
   { to: '/owner/leave', label: 'Leave', icon: CalendarDays },
   { to: '/owner/leave-rules', label: 'Leave Rules', icon: BookOpen },
   { to: '/owner/payroll-settings', label: 'Pay Settings', icon: Settings },
@@ -87,6 +90,7 @@ const ownerNav: { to: string; label: string; icon: LucideIcon }[] = [
   { to: '/owner/roles', label: 'Roles', icon: UserCog },
   { to: '/owner/departments', label: 'Departments', icon: Building2 },
   { to: '/owner/outlets', label: 'Outlets', icon: Store },
+  { to: '/owner/rules-regulations', label: 'Rules & Regs', icon: ScrollText },
   { to: '/owner/support', label: 'Support', icon: Headset },
 ];
 
@@ -181,16 +185,16 @@ export function AppLayout({ children, role }: AppLayoutProps) {
     refreshEmployeeSession,
   } = useAuth();
   const { can } = useSuperAdminPermissions();
-  const { selectedOutletId, setOutlets, setEmployeeOutlet, clear } = useOutletStore();
+  const { selectedOutletId, setOutlets, clear } = useOutletStore();
   const [sidebarCollapsed, setSidebarCollapsed] = useState(false);
   const [profileOpen, setProfileOpen] = useState(false);
   const [sidebarFlyout, setSidebarFlyout] = useState<SidebarFlyout>(null);
   const profileRef = useRef<HTMLDivElement>(null);
 
-  const { data: ownerOutlets } = useQuery({
-    queryKey: ['owner-outlets'],
+  const { data: merchantOutlets } = useQuery({
+    queryKey: ['owner-outlets', authRole],
     queryFn: () => ownerApi.getOutlets(),
-    enabled: authRole === 'OWNER',
+    enabled: authRole === 'OWNER' || authRole === 'EMPLOYEE',
   });
 
   const { data: ownerBrand } = useQuery({
@@ -200,17 +204,11 @@ export function AppLayout({ children, role }: AppLayoutProps) {
   });
 
   useEffect(() => {
-    if (authRole === 'OWNER' && ownerOutlets) {
-      setOutlets(ownerOutlets.map((o) => ({ _id: o._id, name: o.name })));
-    }
-    if (authRole === 'EMPLOYEE' && user && 'outletId' in user && user.outletId) {
-      setEmployeeOutlet(
-        user.outletId,
-        ('outletName' in user && user.outletName) || 'My outlet'
-      );
+    if ((authRole === 'OWNER' || authRole === 'EMPLOYEE') && merchantOutlets) {
+      setOutlets(merchantOutlets.map((o) => ({ _id: o._id, name: o.name })));
     }
     if (role === 'SUPER_ADMIN') clear();
-  }, [authRole, role, ownerOutlets, user, setOutlets, setEmployeeOutlet, clear]);
+  }, [authRole, role, merchantOutlets, setOutlets, clear]);
   const navigate = useNavigate();
   const location = useLocation();
   useHighlightSection();

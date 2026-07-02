@@ -142,6 +142,7 @@ export const employeeApi = {
     multiOutletAccess?: boolean;
     multiOutletOutletIds?: string[];
     multiOutletPermissionMode?: 'keep' | 'reset';
+    newPassword?: string;
   }>) => {
     const { data } = await api.put(`/employee/staff/${employeeId}`, payload);
     return data;

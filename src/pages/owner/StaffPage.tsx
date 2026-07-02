@@ -100,6 +100,26 @@ const editSchema = z.object({
   // Status
   userStatus: z.enum(['active', 'on_hold']).optional(),
   userStatusReason: z.string().optional(),
+  newPassword: z.string().optional(),
+  confirmPassword: z.string().optional(),
+}).superRefine((data, ctx) => {
+  const pwd = data.newPassword?.trim() ?? '';
+  const confirm = data.confirmPassword?.trim() ?? '';
+  if (!pwd && !confirm) return;
+  if (pwd.length < 6) {
+    ctx.addIssue({
+      code: z.ZodIssueCode.custom,
+      message: 'Password must be at least 6 characters',
+      path: ['newPassword'],
+    });
+  }
+  if (pwd !== confirm) {
+    ctx.addIssue({
+      code: z.ZodIssueCode.custom,
+      message: 'Passwords do not match',
+      path: ['confirmPassword'],
+    });
+  }
 });
 
 type CreateForm = z.infer<typeof createSchema>;
@@ -183,6 +203,7 @@ export function StaffPage() {
   }>({ enabled: false, ids: [] });
   const [editMultiOutletError, setEditMultiOutletError] = useState<string | null>(null);
   const [editActiveTab, setEditActiveTab] = useState<'basic' | 'personal' | 'financial' | 'medical' | 'notes'>('basic');
+  const [showEditPassword, setShowEditPassword] = useState(false);
   const [confirmRemove, setConfirmRemove] = useState<{ _id: string; name: string } | null>(null);
   const [reassignToId, setReassignToId] = useState<string>('');
   const [documentsFor, setDocumentsFor] = useState<{ _id: string; name: string } | null>(null);
@@ -506,6 +527,7 @@ export function StaffPage() {
     if (!e) return;
     setEditing(e);
     setEditActiveTab('basic');
+    setShowEditPassword(false);
     setShowCreateMasterRole(false);
     setShowCreateRole(false);
     setNewMasterRoleName('');
@@ -586,6 +608,8 @@ export function StaffPage() {
       policeVerificationNotes: e.policeVerificationNotes ?? '',
       userStatus: (typeof e.userStatus === 'string' ? e.userStatus : (e.userStatus as any)?.status) ?? 'active',
       userStatusReason: (typeof e.userStatus === 'string' ? '' : (e.userStatus as any)?.reason) ?? e.userStatusReason ?? '',
+      newPassword: '',
+      confirmPassword: '',
     });
   };
 
@@ -1022,7 +1046,7 @@ export function StaffPage() {
                           : rt
                             ? { reportsToEmployeeId: rt, reportsToOwnerId: null }
                             : {};
-                        const { activeRoleId: _omitActiveRole, ...profile } = d;
+                        const { activeRoleId: _omitActiveRole, confirmPassword: _omitConfirm, ...profile } = d;
                         const multiPayload = multiOutletChanged
                           ? {
                               multiOutletAccess: multiOutletEnabled,
@@ -1039,6 +1063,9 @@ export function StaffPage() {
                           minHoursPerDay: d.minHoursPerDay ?? undefined,
                           punchInTime: d.punchInTime?.trim() || undefined,
                           upiId: d.upiId?.trim() || undefined,
+                          ...(d.newPassword?.trim()
+                            ? { newPassword: d.newPassword.trim() }
+                            : {}),
                         };
                       })(),
                     });
@@ -1081,6 +1108,60 @@ export function StaffPage() {
                       />
                       {editForm.formState.errors.phone && <p className="text-red-600 text-xs mt-1">{editForm.formState.errors.phone.message}</p>}
                     </div>
+                  </div>
+                  <div className="mt-4 rounded-xl border border-gray-200 bg-gray-50/60 p-4">
+                    <div className="flex items-center justify-between gap-3">
+                      <div>
+                        <p className="text-sm font-medium text-gray-800">Password</p>
+                        <p className="text-xs text-gray-500 mt-0.5">
+                          Set a new login password for this staff member.
+                        </p>
+                      </div>
+                      <button
+                        type="button"
+                        onClick={() => {
+                          setShowEditPassword((v) => !v);
+                          if (showEditPassword) {
+                            editForm.setValue('newPassword', '');
+                            editForm.setValue('confirmPassword', '');
+                            editForm.clearErrors(['newPassword', 'confirmPassword']);
+                          }
+                        }}
+                        className="px-3 py-1.5 rounded-lg border border-emerald-200 bg-white text-emerald-700 text-sm font-medium hover:bg-emerald-50"
+                      >
+                        {showEditPassword ? 'Cancel' : 'Update password'}
+                      </button>
+                    </div>
+                    {showEditPassword ? (
+                      <div className="mt-4 grid grid-cols-1 sm:grid-cols-2 gap-4">
+                        <div>
+                          <label className="block text-sm font-medium text-gray-600 mb-1.5">New password</label>
+                          <input
+                            type="password"
+                            autoComplete="new-password"
+                            {...editForm.register('newPassword')}
+                            className="w-full px-4 py-2.5 rounded-xl border border-emerald-200 bg-white focus:ring-2 focus:ring-emerald-500/20 focus:border-emerald-500 font-mono text-sm"
+                            placeholder="Min 6 characters"
+                          />
+                          {editForm.formState.errors.newPassword && (
+                            <p className="text-red-600 text-xs mt-1">{editForm.formState.errors.newPassword.message}</p>
+                          )}
+                        </div>
+                        <div>
+                          <label className="block text-sm font-medium text-gray-600 mb-1.5">Confirm password</label>
+                          <input
+                            type="password"
+                            autoComplete="new-password"
+                            {...editForm.register('confirmPassword')}
+                            className="w-full px-4 py-2.5 rounded-xl border border-emerald-200 bg-white focus:ring-2 focus:ring-emerald-500/20 focus:border-emerald-500 font-mono text-sm"
+                            placeholder="Re-enter password"
+                          />
+                          {editForm.formState.errors.confirmPassword && (
+                            <p className="text-red-600 text-xs mt-1">{editForm.formState.errors.confirmPassword.message}</p>
+                          )}
+                        </div>
+                      </div>
+                    ) : null}
                   </div>
                 </section>
 

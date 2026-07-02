@@ -296,6 +296,9 @@ export function MyTaskDetailDialog({
                           {item.text}
                         </span>
                       </button>
+                      {item.isCompleted && item.completedByName ? (
+                        <p className="mt-1 pl-8 text-xs text-gray-500">Done by {item.completedByName}</p>
+                      ) : null}
 
                       {refMedia.length > 0 && (
                         <div className="mt-2 flex flex-wrap gap-2 pl-8">

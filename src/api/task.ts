@@ -23,6 +23,8 @@ export interface ManagerTaskItem {
   escalationLevel?: number;
   escalationEnabled?: boolean;
   assignedTo?: { name?: string } | null;
+  isCollaborative?: boolean;
+  assignees?: { id: string; name: string }[];
   photoPath?: string | null;
   completionMedia?: Array<{ url: string; kind?: string }>;
   checklistItems?: ManagerTaskChecklistItem[];
@@ -34,6 +36,7 @@ export interface ManagerTaskChecklistItem {
   order?: number;
   isCompleted: boolean;
   completedAt?: string | null;
+  completedByName?: string | null;
   referenceMedia?: Array<{ url: string; kind?: string }>;
   staffMedia?: Array<{ url: string; kind?: string }>;
 }
@@ -58,6 +61,8 @@ export interface TaskTemplatePayload {
   assignToType?: 'role' | 'staff';
   assignToRoleId?: string;
   assignToEmployeeId?: string;
+  assignToEmployeeIds?: string[];
+  isCollaborative?: boolean;
   startTime?: string;
   timeLimitMinutes?: number;
   intervalMinutes?: number;

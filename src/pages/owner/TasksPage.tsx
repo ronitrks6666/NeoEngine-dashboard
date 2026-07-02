@@ -55,15 +55,53 @@ const taskSchema = z.object({
 }, {
   message: 'Role is required for role-based assignment',
   path: ['parentRoleId'],
-}).refine((data) => {
-  if (data.assignToType === 'staff' && !data.assignToEmployeeId) return false;
-  return true;
-}, {
-  message: 'Staff member is required for staff-based assignment',
-  path: ['assignToEmployeeId'],
 });
 
 type TaskForm = z.infer<typeof taskSchema>;
+
+type TemplateAssignmentSource = {
+  assignToType?: 'role' | 'staff';
+  isCollaborative?: boolean;
+  parentRoleId?: { name?: string } | string | null;
+  assignToEmployeeId?: { name?: string; _id?: string } | string | null;
+  assignToEmployeeIds?: Array<{ name?: string; _id?: string } | string> | null;
+};
+
+function isStaffAssignedTemplate(t: TemplateAssignmentSource): boolean {
+  return (
+    t.assignToType === 'staff' ||
+    Boolean(t.isCollaborative) ||
+    Boolean(t.assignToEmployeeId) ||
+    (Array.isArray(t.assignToEmployeeIds) && t.assignToEmployeeIds.length > 0)
+  );
+}
+
+function formatTemplateAssignment(t: TemplateAssignmentSource): string {
+  if (!isStaffAssignedTemplate(t)) {
+    const roleName =
+      typeof t.parentRoleId === 'object' && t.parentRoleId?.name
+        ? t.parentRoleId.name
+        : '-';
+    return roleName;
+  }
+
+  const names: string[] = [];
+  if (Array.isArray(t.assignToEmployeeIds)) {
+    for (const ref of t.assignToEmployeeIds) {
+      if (typeof ref === 'object' && ref?.name?.trim()) names.push(ref.name.trim());
+    }
+  }
+  if (!names.length && t.assignToEmployeeId) {
+    const ref = t.assignToEmployeeId;
+    if (typeof ref === 'object' && ref?.name?.trim()) names.push(ref.name.trim());
+  }
+
+  if (t.isCollaborative && names.length > 1) {
+    return `Shared · ${names.join(', ')}`;
+  }
+  if (names.length) return names.join(', ');
+  return 'Staff';
+}
 
 export function TasksPage() {
   const { selectedOutletId, outlets } = useOutletStore();
@@ -123,6 +161,10 @@ export function TasksPage() {
   const [uploadingImage, setUploadingImage] = useState(false);
   const [voiceProcessing, setVoiceProcessing] = useState(false);
   const [voiceError, setVoiceError] = useState<string | null>(null);
+  const [createStaffIds, setCreateStaffIds] = useState<string[]>([]);
+  const [createIsShared, setCreateIsShared] = useState(false);
+  const [editStaffIds, setEditStaffIds] = useState<string[]>([]);
+  const [editIsShared, setEditIsShared] = useState(false);
   const [templateSearch, setTemplateSearch] = useState('');
   const debouncedTemplateSearch = useDebouncedValue(templateSearch, 350);
   const fileInputRef = useRef<HTMLInputElement>(null);
@@ -173,20 +215,33 @@ export function TasksPage() {
   });
 
   const createMutation = useMutation({
-    mutationFn: (payload: Parameters<typeof taskApi.createTemplate>[0]) => taskApi.createTemplate(payload),
+    mutationFn: async (input: {
+      payload: Parameters<typeof taskApi.createTemplate>[0];
+      duplicateStaffIds?: string[];
+    }) => {
+      if (input.duplicateStaffIds?.length) {
+        for (const assignToEmployeeId of input.duplicateStaffIds) {
+          await taskApi.createTemplate({ ...input.payload, assignToEmployeeId });
+        }
+        return;
+      }
+      return taskApi.createTemplate(input.payload);
+    },
     onSuccess: async () => {
       if (selectedOutletId) {
         await queryClient.invalidateQueries({ queryKey: ['task-templates', selectedOutletId] });
       }
       setShowCreate(false);
       form.reset(defaultFormValues);
+      setCreateStaffIds([]);
+      setCreateIsShared(false);
       setImageUrl('');
       setImageFile(null);
     },
   });
 
   const updateMutation = useMutation({
-    mutationFn: ({ id, data }: { id: string; data: TaskForm }) => {
+    mutationFn: async ({ id, data }: { id: string; data: TaskForm }) => {
       const assignToType = data.assignToType ?? 'role';
       const payload: any = {
         ...data,
@@ -198,7 +253,7 @@ export function TasksPage() {
         intervalMinutes: data.multipleTimesPerDay && data.intervalMinutes ? Number(data.intervalMinutes) : undefined,
         repeatEndTime: data.multipleTimesPerDay && data.repeatEndTime ? data.repeatEndTime : undefined,
         assignToRoleId: assignToType === 'role' ? data.parentRoleId : undefined,
-        assignToEmployeeId: assignToType === 'staff' ? data.assignToEmployeeId : undefined,
+        assignToEmployeeId: assignToType === 'staff' ? editStaffIds[0] : undefined,
         parentRoleId: assignToType === 'role' ? data.parentRoleId : undefined,
         timeLimitMinutes: data.timeLimitMinutes ? Number(data.timeLimitMinutes) : undefined,
         checklistItems: data.checklistItems?.map((item, idx) => ({
@@ -206,7 +261,35 @@ export function TasksPage() {
           order: idx,
         })),
       };
-      return taskApi.updateTemplate(id, payload);
+      if (assignToType === 'staff' && editIsShared && editStaffIds.length > 1) {
+        payload.assignToEmployeeIds = editStaffIds;
+        payload.isCollaborative = true;
+      } else if (assignToType === 'staff') {
+        payload.isCollaborative = false;
+      }
+      await taskApi.updateTemplate(id, payload);
+      if (assignToType === 'staff' && !editIsShared && editStaffIds.length > 1) {
+        for (const staffId of editStaffIds.slice(1)) {
+          await taskApi.createTemplate({
+            title: data.title,
+            description: data.description || undefined,
+            outletId: selectedOutletId!,
+            shiftType: data.shiftType ?? 'Both',
+            taskType: data.taskType as any,
+            specificDate: data.taskType === 'onetime' && data.specificDate ? data.specificDate : undefined,
+            specificDays: data.taskType === 'specific-days' && data.specificDays?.length ? data.specificDays : undefined,
+            imageUrl: imageUrl || undefined,
+            hourlyFrequency: payload.hourlyFrequency,
+            intervalMinutes: payload.intervalMinutes,
+            repeatEndTime: payload.repeatEndTime,
+            assignToType: 'staff',
+            assignToEmployeeId: staffId,
+            startTime: data.startTime || undefined,
+            timeLimitMinutes: data.timeLimitMinutes ? Number(data.timeLimitMinutes) : undefined,
+            checklistItems: payload.checklistItems,
+          });
+        }
+      }
     },
     onSuccess: async () => {
       if (selectedOutletId) {
@@ -214,6 +297,8 @@ export function TasksPage() {
       }
       setEditing(null);
       editForm.reset();
+      setEditStaffIds([]);
+      setEditIsShared(false);
       setImageUrl('');
       setImageFile(null);
     },
@@ -320,11 +405,22 @@ export function TasksPage() {
     setEditing(t);
     setImageUrl(t.imageUrl || '');
     setImageFile(null);
+    const collaborativeIds = Array.isArray(t.assignToEmployeeIds)
+      ? t.assignToEmployeeIds.map((id: { _id?: string } | string) => resolveEmployeeId(id))
+      : [];
+    const staffIds =
+      collaborativeIds.length > 0
+        ? collaborativeIds
+        : t.assignToEmployeeId
+          ? [resolveEmployeeId(t.assignToEmployeeId)]
+          : [];
+    setEditStaffIds(staffIds);
+    setEditIsShared(Boolean(t.isCollaborative && staffIds.length > 1));
     
     editForm.reset({
       title: t.title ?? '',
       description: t.description ?? '',
-      assignToType: t.assignToType ?? 'role',
+      assignToType: isStaffAssignedTemplate(t) ? 'staff' : 'role',
       parentRoleId: (t.parentRoleId as { _id?: string })?._id ?? t.parentRoleId ?? '',
       assignToEmployeeId: resolveEmployeeId(t.assignToEmployeeId),
       shiftType: (t.shiftType as 'Day' | 'Night' | 'Both') ?? 'Both',
@@ -360,7 +456,7 @@ export function TasksPage() {
     const outletId = selectedOutletId || outlets[0]?._id;
     if (!outletId) return;
     const assignToType = d.assignToType ?? 'role';
-    const payload = {
+    const basePayload = {
       title: d.title,
       description: d.description || undefined,
       outletId,
@@ -377,7 +473,6 @@ export function TasksPage() {
       repeatEndTime: d.multipleTimesPerDay && d.repeatEndTime ? d.repeatEndTime : undefined,
       assignToType,
       assignToRoleId: assignToType === 'role' ? d.parentRoleId : undefined,
-      assignToEmployeeId: assignToType === 'staff' ? d.assignToEmployeeId : undefined,
       parentRoleId: assignToType === 'role' ? d.parentRoleId : undefined,
       startTime: d.startTime || undefined,
       timeLimitMinutes: d.timeLimitMinutes ? Number(d.timeLimitMinutes) : undefined,
@@ -386,7 +481,41 @@ export function TasksPage() {
         order: idx,
       })),
     };
-    createMutation.mutate(payload);
+
+    if (assignToType === 'staff') {
+      if (createStaffIds.length === 0) {
+        form.setError('assignToEmployeeId', {
+          type: 'manual',
+          message: 'Select at least one staff member',
+        });
+        return;
+      }
+      form.clearErrors('assignToEmployeeId');
+      if (createIsShared && createStaffIds.length > 1) {
+        createMutation.mutate({
+          payload: {
+            ...basePayload,
+            assignToEmployeeIds: createStaffIds,
+            assignToEmployeeId: createStaffIds[0],
+            isCollaborative: true,
+          },
+        });
+        return;
+      }
+      if (createStaffIds.length > 1) {
+        createMutation.mutate({
+          payload: basePayload,
+          duplicateStaffIds: createStaffIds,
+        });
+        return;
+      }
+      createMutation.mutate({
+        payload: { ...basePayload, assignToEmployeeId: createStaffIds[0] },
+      });
+      return;
+    }
+
+    createMutation.mutate({ payload: basePayload });
   });
 
   if (!selectedOutletId && outlets.length === 0) {
@@ -417,6 +546,8 @@ export function TasksPage() {
             <button
               onClick={() => {
                 form.reset({ ...defaultFormValues });
+                setCreateStaffIds([]);
+                setCreateIsShared(false);
                 setVoiceError(null);
                 setShowCreate(true);
               }}
@@ -454,7 +585,7 @@ export function TasksPage() {
               <LoadingSpinner className="py-16" />
             ) : (
               <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-3 gap-4 animate-in-stagger">
-                {templates.map((t: { _id: string; title?: string; description?: string; parentRoleId?: { name: string }; shiftType?: string }) => (
+                {templates.map((t: { _id: string; title?: string; description?: string; parentRoleId?: { name: string }; shiftType?: string; assignToType?: 'role' | 'staff'; isCollaborative?: boolean; assignToEmployeeId?: { name?: string } | string; assignToEmployeeIds?: Array<{ name?: string } | string> }) => (
                   <div key={t._id} className="group rounded-2xl border border-emerald-100 p-5 card-hover bg-white overflow-hidden shadow-sm">
                     <div className="flex items-start justify-between mb-3">
                       <div className="w-12 h-12 rounded-xl bg-emerald-100 flex items-center justify-center">
@@ -469,8 +600,10 @@ export function TasksPage() {
                     </div>
                     <p className="font-semibold text-gray-900 truncate">{t.title ?? 'Untitled'}</p>
                     <p className="text-sm text-gray-500 mt-0.5 line-clamp-2">{t.description || 'No description'}</p>
-                    <div className="flex gap-2 mt-3">
-                      <span className="px-2.5 py-0.5 rounded-lg text-xs font-medium bg-emerald-100 text-emerald-700">{t.parentRoleId?.name ?? '-'}</span>
+                    <div className="flex gap-2 mt-3 flex-wrap">
+                      <span className="px-2.5 py-0.5 rounded-lg text-xs font-medium bg-emerald-100 text-emerald-700">
+                        {formatTemplateAssignment(t)}
+                      </span>
                       <span className="px-2.5 py-0.5 rounded-lg text-xs font-medium bg-emerald-50 text-emerald-600">{t.shiftType ?? 'Both'}</span>
                     </div>
                   </div>
@@ -648,16 +781,58 @@ export function TasksPage() {
                   )}
                   {form.watch('assignToType') === 'staff' && (
                     <div>
-                      <label className="block text-sm font-medium text-gray-700 mb-1.5">Staff member</label>
-                      <SearchableSelect
-                        value={form.watch('assignToEmployeeId') || ''}
-                        onChange={(v) => form.setValue('assignToEmployeeId', v, { shouldValidate: true })}
-                        options={assigneeEmployeeOptions}
-                        placeholder="Select staff"
-                        searchPlaceholder="Search staff…"
-                        noOptionsText="No staff loaded"
-                        emptyText="No matches"
-                      />
+                      <label className="block text-sm font-medium text-gray-700 mb-1.5">Staff members</label>
+                      <div className="max-h-48 overflow-y-auto rounded-lg border border-gray-200 divide-y divide-gray-100">
+                        {(employees as { _id: string; name: string }[]).map((emp) => {
+                          const checked = createStaffIds.includes(emp._id);
+                          return (
+                            <label
+                              key={emp._id}
+                              className="flex items-center gap-3 px-3 py-2 text-sm hover:bg-gray-50 cursor-pointer"
+                            >
+                              <input
+                                type="checkbox"
+                                checked={checked}
+                                onChange={() => {
+                                  setCreateStaffIds((prev) => {
+                                    const next = checked
+                                      ? prev.filter((id) => id !== emp._id)
+                                      : [...prev, emp._id];
+                                    form.setValue('assignToEmployeeId', next[0] || '', {
+                                      shouldValidate: true,
+                                    });
+                                    if (next.length > 0) form.clearErrors('assignToEmployeeId');
+                                    return next;
+                                  });
+                                }}
+                              />
+                              <span>{emp.name}</span>
+                            </label>
+                          );
+                        })}
+                      </div>
+                      {createStaffIds.length > 1 ? (
+                        <label className="mt-3 flex items-start gap-2 text-sm text-gray-700">
+                          <input
+                            type="checkbox"
+                            checked={createIsShared}
+                            onChange={(e) => setCreateIsShared(e.target.checked)}
+                            className="mt-0.5"
+                          />
+                          <span>
+                            <span className="font-medium">Shared task</span>
+                            <span className="block text-gray-500 text-xs mt-0.5">
+                              One checklist for all selected staff. Uncheck to create separate copies.
+                            </span>
+                          </span>
+                        </label>
+                      ) : null}
+                      {form.formState.errors.assignToEmployeeId &&
+                        form.watch('assignToType') === 'staff' && (
+                          <p className="text-red-600 text-sm mt-1">
+                            {form.formState.errors.assignToEmployeeId.message}
+                          </p>
+                        )}
                     </div>
                   )}
                 </section>
@@ -859,7 +1034,20 @@ export function TasksPage() {
                   </ul>
                 </div>
               )}
-              <form onSubmit={editForm.handleSubmit((d) => updateMutation.mutate({ id: editing._id, data: d }))} className="space-y-5">
+              <form
+                onSubmit={editForm.handleSubmit((d) => {
+                  if (d.assignToType === 'staff' && editStaffIds.length === 0) {
+                    editForm.setError('assignToEmployeeId', {
+                      type: 'manual',
+                      message: 'Select at least one staff member',
+                    });
+                    return;
+                  }
+                  editForm.clearErrors('assignToEmployeeId');
+                  updateMutation.mutate({ id: editing._id, data: d });
+                })}
+                className="space-y-5"
+              >
                 {/* Basic info */}
                 <section className="space-y-4">
                   <h3 className="text-sm font-semibold text-gray-900">Details</h3>
@@ -925,16 +1113,58 @@ export function TasksPage() {
                   )}
                   {editForm.watch('assignToType') === 'staff' && (
                     <div>
-                      <label className="block text-sm font-medium text-gray-700 mb-1.5">Staff member</label>
-                      <SearchableSelect
-                        value={editForm.watch('assignToEmployeeId') || ''}
-                        onChange={(v) => editForm.setValue('assignToEmployeeId', v, { shouldValidate: true })}
-                        options={assigneeEmployeeOptions}
-                        placeholder="Select staff"
-                        searchPlaceholder="Search staff…"
-                        noOptionsText="No staff loaded"
-                        emptyText="No matches"
-                      />
+                      <label className="block text-sm font-medium text-gray-700 mb-1.5">Staff members</label>
+                      <div className="max-h-48 overflow-y-auto rounded-lg border border-gray-200 divide-y divide-gray-100">
+                        {(employees as { _id: string; name: string }[]).map((emp) => {
+                          const checked = editStaffIds.includes(emp._id);
+                          return (
+                            <label
+                              key={emp._id}
+                              className="flex items-center gap-3 px-3 py-2 text-sm hover:bg-gray-50 cursor-pointer"
+                            >
+                              <input
+                                type="checkbox"
+                                checked={checked}
+                                onChange={() => {
+                                  setEditStaffIds((prev) => {
+                                    const next = checked
+                                      ? prev.filter((id) => id !== emp._id)
+                                      : [...prev, emp._id];
+                                    editForm.setValue('assignToEmployeeId', next[0] || '', {
+                                      shouldValidate: true,
+                                    });
+                                    if (next.length > 0) editForm.clearErrors('assignToEmployeeId');
+                                    return next;
+                                  });
+                                }}
+                              />
+                              <span>{emp.name}</span>
+                            </label>
+                          );
+                        })}
+                      </div>
+                      {editStaffIds.length > 1 ? (
+                        <label className="mt-3 flex items-start gap-2 text-sm text-gray-700">
+                          <input
+                            type="checkbox"
+                            checked={editIsShared}
+                            onChange={(e) => setEditIsShared(e.target.checked)}
+                            className="mt-0.5"
+                          />
+                          <span>
+                            <span className="font-medium">Shared task</span>
+                            <span className="block text-gray-500 text-xs mt-0.5">
+                              One checklist for all selected staff. Uncheck to create separate copies.
+                            </span>
+                          </span>
+                        </label>
+                      ) : null}
+                      {editForm.formState.errors.assignToEmployeeId &&
+                        editForm.watch('assignToType') === 'staff' && (
+                          <p className="text-red-600 text-sm mt-1">
+                            {editForm.formState.errors.assignToEmployeeId.message}
+                          </p>
+                        )}
                     </div>
                   )}
                 </section>

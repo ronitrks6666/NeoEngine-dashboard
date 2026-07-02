@@ -35,6 +35,9 @@ const BUNDLE_UI: Record<string, { title?: string; hint?: string }> = {
   outlets: {
     hint: 'Manage outlets on the app and web Outlets page, plus Rules & Regulations.',
   },
+  vendors: {
+    hint: 'Vendor directory with emergency contacts — app and web.',
+  },
   issues: {
     hint: 'Issue tracker and Support on web.',
   },

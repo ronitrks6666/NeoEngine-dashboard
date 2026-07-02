@@ -40,6 +40,7 @@ import { PayrollSettingsPage } from '@/pages/owner/PayrollSettingsPage';
 import { LeaveRulesPage } from '@/pages/owner/LeaveRulesPage';
 import { SopPage } from '@/pages/owner/SopPage';
 import { DepartmentsPage } from '@/pages/owner/DepartmentsPage';
+import { VendorsPage } from '@/pages/owner/VendorsPage';
 import { DutyRosterPage } from '@/pages/owner/DutyRosterPage';
 import { RulesRegulationsPage } from '@/pages/owner/RulesRegulationsPage';
 import { useAuth } from '@/hooks/useAuth';
@@ -200,6 +201,14 @@ function App() {
                   element={
                     <EmployeeWebPermissionRoute routePath="/owner/departments">
                       <DepartmentsPage />
+                    </EmployeeWebPermissionRoute>
+                  }
+                />
+                <Route
+                  path="vendors"
+                  element={
+                    <EmployeeWebPermissionRoute routePath="/owner/vendors">
+                      <VendorsPage />
                     </EmployeeWebPermissionRoute>
                   }
                 />

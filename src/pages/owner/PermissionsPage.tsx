@@ -41,6 +41,9 @@ const BUNDLE_UI: Record<string, { title?: string; hint?: string }> = {
   issues: {
     hint: 'Issue tracker and Support on web.',
   },
+  operations_ai: {
+    hint: 'Operations AI chatbot access on mobile and web.',
+  },
 };
 
 const ZONE_UI: Record<string, { title: string; hint: string }> = {

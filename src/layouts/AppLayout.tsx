@@ -39,6 +39,7 @@ import {
   CalendarClock,
   ScrollText,
   Phone,
+  Bot,
 } from 'lucide-react';
 
 import { NeoEngineLogo } from '@/components/NeoEngineLogo';
@@ -93,6 +94,7 @@ const ownerNav: { to: string; label: string; icon: LucideIcon }[] = [
   { to: '/owner/vendors', label: 'Vendors', icon: Phone },
   { to: '/owner/outlets', label: 'Outlets', icon: Store },
   { to: '/owner/rules-regulations', label: 'Rules & Regs', icon: ScrollText },
+  { to: '/owner/operations-ai', label: 'Operations AI', icon: Bot },
   { to: '/owner/support', label: 'Support', icon: Headset },
 ];
 

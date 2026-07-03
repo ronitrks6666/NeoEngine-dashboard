@@ -126,7 +126,23 @@ export function SopPage() {
   const groups: SopGroup[] = groupsData?.data?.groups ?? [];
   const templates = templatesData?.data?.templates ?? [];
   const parentRoles = rolesData?.data?.parentRoles ?? [];
-  const employees = (employeesData as { data?: { employees?: { _id: string; name: string }[] } })?.data?.employees ?? [];
+  type EmployeeRow = {
+    _id: string;
+    name: string;
+    activeRoleId?: { parentRoleId?: { _id?: string } | string };
+  };
+  const employees =
+    (employeesData as { data?: { employees?: EmployeeRow[] } })?.data?.employees ?? [];
+
+  const resolveParentRoleIdFromStaff = (staffId?: string): string => {
+    const id = staffId ?? staffIds[0];
+    if (!id) return '';
+    const emp = employees.find((e) => e._id === id);
+    const pr = emp?.activeRoleId?.parentRoleId;
+    if (!pr) return '';
+    if (typeof pr === 'string') return pr;
+    return pr._id ? String(pr._id) : '';
+  };
   const acknowledgments = ackData?.data?.acknowledgments ?? [];
 
   const templateOptions = useMemo(
@@ -180,7 +196,8 @@ export function SopPage() {
   };
 
   const buildPayload = () => {
-    const parentRoleId = roleIds[0] ?? '';
+    const parentRoleId =
+      assignToType === 'role' ? roleIds[0] ?? '' : resolveParentRoleIdFromStaff();
     const payload: Record<string, unknown> = {
       name: name.trim(),
       outletId: selectedOutletId!,
@@ -204,7 +221,9 @@ export function SopPage() {
       if (modal === 'edit' && editing) {
         return taskApi.updateTemplateGroup(editing._id, buildPayload());
       }
-      const targets = assignToType === 'role' && roleIds.length > 1 ? roleIds : [roleIds[0]];
+      const resolvedRoleId =
+        assignToType === 'role' ? roleIds[0] : resolveParentRoleIdFromStaff();
+      const targets = assignToType === 'role' && roleIds.length > 1 ? roleIds : [resolvedRoleId];
       let last;
       for (let i = 0; i < targets.length; i++) {
         const rid = targets[i];
@@ -256,9 +275,8 @@ export function SopPage() {
 
   const canSave =
     name.trim() &&
-    roleIds.length > 0 &&
     taskIds.length > 0 &&
-    (assignToType === 'role' || staffIds.length > 0) &&
+    (assignToType === 'role' ? roleIds.length > 0 : staffIds.length > 0 && !!resolveParentRoleIdFromStaff()) &&
     (occurrenceType !== 'onetime' || specificDate) &&
     (occurrenceType !== 'every-n-days' || (parseInt(intervalDays, 10) >= 1 && parseInt(intervalDays, 10) <= 90));
 
@@ -534,17 +552,9 @@ export function SopPage() {
                     )}
                   </div>
                 ) : (
-                  <div className="space-y-3">
+                  <div className="space-y-2">
+                    <p className="text-xs text-gray-500">Only the selected staff receive this SOP. Their master role is applied automatically.</p>
                     <MultiSearchableSelect values={staffIds} onChange={setStaffIds} options={staffOptions} placeholder="Select staff…" />
-                    <div>
-                      <label className="block text-xs font-medium text-gray-500 mb-1">Master role (required for bundle)</label>
-                      <SearchableSelect
-                        value={roleIds[0] ?? ''}
-                        onChange={(v) => setRoleIds(v ? [v] : [])}
-                        options={roleOptions}
-                        placeholder="Select master role…"
-                      />
-                    </div>
                   </div>
                 )}
               </div>

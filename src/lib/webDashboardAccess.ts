@@ -7,7 +7,10 @@ export function hasWebDashboardAccess(
 ): boolean {
   if (!permissions) return false;
   return Object.entries(permissions).some(
-    ([key, val]) => !!val && (key.startsWith('manager') || key.startsWith('web'))
+    ([key, val]) =>
+      !!val &&
+      (key.startsWith('manager') || key.startsWith('web')) &&
+      key !== 'managerOperationsAI'
   );
 }
 
@@ -37,6 +40,7 @@ export const OWNER_ROUTE_WEB_PERMISSIONS: Record<string, string | string[]> = {
   '/owner/support': 'webSupport',
   '/owner/duty-roster': 'webDutyRoster',
   '/owner/rules-regulations': 'webRulesRegulations',
+  '/owner/operations-ai': 'webOperationsAI',
 };
 
 export function hasOwnerRouteAccess(
@@ -81,6 +85,7 @@ export function getDefaultEmployeeDashboardPath(
     { perm: 'webIssues', path: '/owner/issues' },
     { perm: 'webAnalytics', path: '/owner/analytics' },
     { perm: 'webActivity', path: '/owner/activity' },
+    { perm: 'webOperationsAI', path: '/owner/operations-ai' },
   ];
   for (const r of routes) {
     if (permissions?.[r.perm]) return r.path;

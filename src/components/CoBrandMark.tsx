@@ -24,11 +24,10 @@ export function CoBrandMark({ brand, className = '', logoSize = 28, variant = 's
   const isHeader = variant === 'header';
 
   return (
-    <div className={`flex items-center min-w-0 ${isHeader ? 'gap-3' : 'gap-2'} ${className}`}>
+    <div className={`flex items-center min-w-0 ${isHeader ? 'gap-2' : 'gap-2'} ${className}`}>
       {isHeader ? (
-        <span className="flex shrink-0 items-baseline gap-0">
-          <span className="text-xl font-extrabold tracking-tight text-slate-900">neo</span>
-          <span className="text-xl font-extrabold tracking-tight text-emerald-700">Engine</span>
+        <span className="shrink-0 whitespace-nowrap text-base font-extrabold tracking-tight text-emerald-800 sm:text-lg">
+          neoEngine
         </span>
       ) : (
         <>
@@ -40,7 +39,7 @@ export function CoBrandMark({ brand, className = '', logoSize = 28, variant = 's
         <>
           <span
             className={
-              isHeader ? 'text-lg font-bold text-slate-400' : 'font-bold text-emerald-200/90'
+              isHeader ? 'shrink-0 text-base font-bold text-slate-400 sm:text-lg' : 'font-bold text-emerald-200/90'
             }
           >
             |
@@ -56,7 +55,7 @@ export function CoBrandMark({ brand, className = '', logoSize = 28, variant = 's
           {partnerName ? (
             <span
               className={`truncate font-extrabold tracking-tight ${
-                isHeader ? 'text-lg text-slate-900' : 'text-base text-white'
+                isHeader ? 'max-w-[10rem] text-base text-slate-900 sm:max-w-xs sm:text-lg' : 'text-base text-white'
               }`}
             >
               {partnerName}

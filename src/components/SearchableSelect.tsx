@@ -1,5 +1,7 @@
 import { useState, useMemo, useRef, useEffect } from 'react';
+import { createPortal } from 'react-dom';
 import { ChevronDown, Search, X } from 'lucide-react';
+import { useAnchoredDropdown } from '@/hooks/useAnchoredDropdown';
 
 export type SearchableSelectOption = {
   value: string;
@@ -48,6 +50,9 @@ export function SearchableSelect({
   const [open, setOpen] = useState(false);
   const [q, setQ] = useState('');
   const rootRef = useRef<HTMLDivElement>(null);
+  const panelRef = useRef<HTMLDivElement>(null);
+  const triggerRef = useRef<HTMLButtonElement>(null);
+  const panelStyle = useAnchoredDropdown(open, triggerRef);
 
   const filtered = useMemo(() => {
     const s = q.trim().toLowerCase();
@@ -63,15 +68,16 @@ export function SearchableSelect({
   const selected = options.find((o) => o.value === value);
 
   useEffect(() => {
+    if (!open) return;
     function onDoc(e: MouseEvent) {
-      if (!rootRef.current?.contains(e.target as Node)) {
-        setOpen(false);
-        setQ('');
-      }
+      const target = e.target as Node;
+      if (rootRef.current?.contains(target) || panelRef.current?.contains(target)) return;
+      setOpen(false);
+      setQ('');
     }
     document.addEventListener('mousedown', onDoc);
     return () => document.removeEventListener('mousedown', onDoc);
-  }, []);
+  }, [open]);
 
   useEffect(() => {
     if (!open) setQ('');
@@ -81,6 +87,7 @@ export function SearchableSelect({
     <div ref={rootRef} className={`relative ${className}`}>
       <div className="flex gap-1">
         <button
+          ref={triggerRef}
           id={id}
           type="button"
           disabled={disabled}
@@ -113,57 +120,63 @@ export function SearchableSelect({
         )}
       </div>
 
-      {open && (
-        <div
-          className="absolute left-0 right-0 top-full z-[60] mt-1.5 overflow-hidden rounded-xl border border-emerald-100 bg-white shadow-lg shadow-emerald-950/10 ring-1 ring-black/5"
-          role="listbox"
-        >
-          {showSearch ? (
-            <div className="border-b border-emerald-50 p-2">
-              <div className="relative">
-                <Search className="pointer-events-none absolute left-2.5 top-1/2 h-4 w-4 -translate-y-1/2 text-emerald-500/60" />
-                <input
-                  type="search"
-                  value={q}
-                  onChange={(e) => setQ(e.target.value)}
-                  placeholder={searchPlaceholder}
-                  className="w-full rounded-lg border border-emerald-100 bg-emerald-50/30 py-2 pl-9 pr-3 text-sm text-gray-900 placeholder:text-gray-400 focus:border-emerald-400 focus:outline-none focus:ring-1 focus:ring-emerald-400/30"
-                  autoFocus
-                  onClick={(e) => e.stopPropagation()}
-                />
+      {open &&
+        typeof document !== 'undefined' &&
+        createPortal(
+          <div
+            ref={panelRef}
+            style={panelStyle}
+            className="overflow-hidden rounded-xl border border-emerald-100 bg-white shadow-lg shadow-emerald-950/10 ring-1 ring-black/5"
+            role="listbox"
+            onMouseDown={(e) => e.stopPropagation()}
+          >
+            {showSearch ? (
+              <div className="border-b border-emerald-50 p-2">
+                <div className="relative">
+                  <Search className="pointer-events-none absolute left-2.5 top-1/2 h-4 w-4 -translate-y-1/2 text-emerald-500/60" />
+                  <input
+                    type="search"
+                    value={q}
+                    onChange={(e) => setQ(e.target.value)}
+                    placeholder={searchPlaceholder}
+                    className="w-full rounded-lg border border-emerald-100 bg-emerald-50/30 py-2 pl-9 pr-3 text-sm text-gray-900 placeholder:text-gray-400 focus:border-emerald-400 focus:outline-none focus:ring-1 focus:ring-emerald-400/30"
+                    autoFocus
+                    onClick={(e) => e.stopPropagation()}
+                  />
+                </div>
               </div>
-            </div>
-          ) : null}
-          <ul className="max-h-52 overflow-y-auto py-1">
-            {options.length === 0 ? (
-              <li className="px-3 py-3 text-center text-sm text-gray-500">{noOptionsText}</li>
-            ) : filtered.length === 0 ? (
-              <li className="px-3 py-3 text-center text-sm text-gray-500">{emptyText}</li>
-            ) : (
-              filtered.map((o) => (
-                <li key={o.value}>
-                  <button
-                    type="button"
-                    role="option"
-                    aria-selected={value === o.value}
-                    onClick={() => {
-                      onChange(o.value);
-                      setOpen(false);
-                      setQ('');
-                    }}
-                    className={`flex w-full flex-col items-start gap-0.5 px-3 py-2.5 text-left text-sm transition-colors hover:bg-emerald-50 ${
-                      value === o.value ? 'bg-emerald-50/80' : ''
-                    }`}
-                  >
-                    <span className="font-medium text-gray-900">{o.label}</span>
-                    {o.subtitle ? <span className="text-xs text-gray-500">{o.subtitle}</span> : null}
-                  </button>
-                </li>
-              ))
-            )}
-          </ul>
-        </div>
-      )}
+            ) : null}
+            <ul className="max-h-60 overflow-y-auto py-1">
+              {options.length === 0 ? (
+                <li className="px-3 py-3 text-center text-sm text-gray-500">{noOptionsText}</li>
+              ) : filtered.length === 0 ? (
+                <li className="px-3 py-3 text-center text-sm text-gray-500">{emptyText}</li>
+              ) : (
+                filtered.map((o) => (
+                  <li key={o.value}>
+                    <button
+                      type="button"
+                      role="option"
+                      aria-selected={value === o.value}
+                      onClick={() => {
+                        onChange(o.value);
+                        setOpen(false);
+                        setQ('');
+                      }}
+                      className={`flex w-full flex-col items-start gap-0.5 px-3 py-2.5 text-left text-sm transition-colors hover:bg-emerald-50 ${
+                        value === o.value ? 'bg-emerald-50/80' : ''
+                      }`}
+                    >
+                      <span className="font-medium text-gray-900">{o.label}</span>
+                      {o.subtitle ? <span className="text-xs text-gray-500">{o.subtitle}</span> : null}
+                    </button>
+                  </li>
+                ))
+              )}
+            </ul>
+          </div>,
+          document.body
+        )}
     </div>
   );
 }

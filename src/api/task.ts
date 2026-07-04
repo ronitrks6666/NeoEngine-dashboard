@@ -22,6 +22,8 @@ export interface ManagerTaskItem {
   dueAt?: string | null;
   escalationLevel?: number;
   escalationEnabled?: boolean;
+  mandatoryProofOfCompletion?: boolean;
+  completionProofSkipReason?: string | null;
   assignedTo?: { name?: string } | null;
   isCollaborative?: boolean;
   assignees?: { id: string; name: string }[];
@@ -37,6 +39,7 @@ export interface ManagerTaskChecklistItem {
   isCompleted: boolean;
   completedAt?: string | null;
   completedByName?: string | null;
+  proofSkipReason?: string | null;
   referenceMedia?: Array<{ url: string; kind?: string }>;
   staffMedia?: Array<{ url: string; kind?: string }>;
 }
@@ -68,6 +71,7 @@ export interface TaskTemplatePayload {
   intervalMinutes?: number;
   repeatEndTime?: string;
   escalationEnabled?: boolean;
+  mandatoryProofOfCompletion?: boolean;
   checklistItems?: ChecklistItem[];
 }
 
@@ -83,20 +87,25 @@ export const taskApi = {
 
   getTemplates: async (outletId: string, params?: { shiftType?: string; search?: string; page?: number; limit?: number }) => {
     const q = new URLSearchParams();
+    q.set('_t', String(Date.now()));
     if (params?.shiftType) q.set('shiftType', params.shiftType);
     if (params?.search) q.set('search', params.search || '');
     if (params?.page) q.set('page', String(params.page));
     if (params?.limit) q.set('limit', String(params.limit));
-    const { data } = await api.get(`/task/templates/${outletId}?${q.toString()}`);
+    const { data } = await api.get(`/task/templates/${outletId}?${q.toString()}`, {
+      headers: { 'Cache-Control': 'no-cache' },
+    });
     return data;
   },
 
   getManagerTasks: async (outletId: string, date?: string) => {
     const q = new URLSearchParams();
     q.set('outletId', outletId);
+    q.set('_t', String(Date.now()));
     if (date) q.set('date', date);
     const { data } = await api.get<{ success: boolean; data: ManagerTasksResponse }>(
-      `/task/manager-tasks?${q.toString()}`
+      `/task/manager-tasks?${q.toString()}`,
+      { headers: { 'Cache-Control': 'no-cache' } }
     );
     return data.data;
   },
@@ -135,7 +144,12 @@ export const taskApi = {
 
   completeOnBehalf: async (
     taskId: string,
-    options?: { photoUrl?: string; notes?: string }
+    options?: {
+      photoUrl?: string;
+      notes?: string;
+      completionProofSkipReason?: string;
+      checklistProofSkipReasons?: Array<{ itemId: string; reason: string }>;
+    }
   ) => {
     const { data } = await api.post(`/task/complete-owner/${taskId}`, options ?? {});
     return data;
@@ -158,6 +172,36 @@ export const taskApi = {
 
   deleteTemplate: async (templateId: string) => {
     const { data } = await api.delete(`/task/template/${templateId}`);
+    return data;
+  },
+
+  duplicateTemplateToOutlet: async (
+    templateId: string,
+    payload: {
+      targetOutletId: string;
+      assignToType: 'role' | 'staff';
+      parentRoleId?: string;
+      assignToRoleId?: string;
+      assignToEmployeeId?: string;
+      assignToEmployeeIds?: string[];
+      isCollaborative?: boolean;
+    }
+  ) => {
+    const { data } = await api.post(`/task/template/${templateId}/duplicate-to-outlet`, payload);
+    return data;
+  },
+
+  duplicateSopToOutlet: async (
+    groupId: string,
+    payload: {
+      targetOutletId: string;
+      assignToType: 'role' | 'staff';
+      parentRoleId?: string;
+      assignedEmployeeIds?: string[];
+      assignToEmployeeId?: string;
+    }
+  ) => {
+    const { data } = await api.post(`/task/template-group/${groupId}/duplicate-to-outlet`, payload);
     return data;
   },
 

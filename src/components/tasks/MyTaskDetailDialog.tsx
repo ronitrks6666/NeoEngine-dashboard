@@ -57,6 +57,10 @@ export function MyTaskDetailDialog({
   const [checklistBusy, setChecklistBusy] = useState<Record<string, boolean>>({});
   const [checklistMediaBusy, setChecklistMediaBusy] = useState<Record<string, boolean>>({});
   const [error, setError] = useState<string | null>(null);
+  const [proofModalOpen, setProofModalOpen] = useState(false);
+  const [proofModalStep, setProofModalStep] = useState<'task' | 'checklist'>('task');
+  const [taskProofSkipReason, setTaskProofSkipReason] = useState('');
+  const [checklistProofSkipReasons, setChecklistProofSkipReasons] = useState<Record<string, string>>({});
   const proofInputRef = useRef<HTMLInputElement>(null);
   const checklistFileRefs = useRef<Record<string, HTMLInputElement | null>>({});
 
@@ -99,6 +103,118 @@ export function MyTaskDetailDialog({
     resolveMediaUrl(localTask.photoPath) ||
     localTask.completionMedia?.[0]?.url ||
     null;
+
+  const hasTaskProof = Boolean(proofFile || completionProofUrl);
+  const mandatoryProof = Boolean(localTask.mandatoryProofOfCompletion);
+  const missingChecklistProof = sortedChecklist.filter(
+    (item) => !(item.staffMedia && item.staffMedia.length > 0)
+  );
+
+  const finalizeMarkDone = async (options?: {
+    completionProofSkipReason?: string;
+    checklistProofSkipReasons?: Array<{ itemId: string; reason: string }>;
+  }) => {
+    if (!canEdit || completing) return;
+    setCompleting(true);
+    setError(null);
+    try {
+      let photoUrl: string | undefined;
+      if (proofFile) {
+        setUploadingProof(true);
+        const uploaded = await taskApi.uploadTaskCompletionPhoto(proofFile);
+        photoUrl = uploaded.url;
+        setUploadingProof(false);
+      } else if (completionProofUrl && !proofFile) {
+        photoUrl = completionProofUrl;
+      }
+      await taskApi.completeOnBehalf(localTask.id, {
+        ...(photoUrl ? { photoUrl } : {}),
+        ...(options?.completionProofSkipReason
+          ? { completionProofSkipReason: options.completionProofSkipReason }
+          : {}),
+        ...(options?.checklistProofSkipReasons?.length
+          ? { checklistProofSkipReasons: options.checklistProofSkipReasons }
+          : {}),
+      });
+      setProofModalOpen(false);
+      onCompleted();
+    } catch (err) {
+      setError(getApiErrorMessage(err));
+    } finally {
+      setUploadingProof(false);
+      setCompleting(false);
+    }
+  };
+
+  const handleMarkDone = async () => {
+    if (!canEdit || completing) return;
+    if (!mandatoryProof) {
+      await finalizeMarkDone();
+      return;
+    }
+
+    if (!hasTaskProof && taskProofSkipReason.trim().length < 3) {
+      setProofModalStep('task');
+      setProofModalOpen(true);
+      return;
+    }
+
+    if (missingChecklistProof.length > 0) {
+      const reasons = missingChecklistProof
+        .map((item) => ({
+          itemId: item.id,
+          reason: (checklistProofSkipReasons[item.id] || '').trim(),
+        }))
+        .filter((r) => r.reason.length >= 3);
+      if (reasons.length < missingChecklistProof.length) {
+        setProofModalStep('checklist');
+        setProofModalOpen(true);
+        return;
+      }
+      await finalizeMarkDone({
+        ...(!hasTaskProof ? { completionProofSkipReason: taskProofSkipReason.trim() } : {}),
+        checklistProofSkipReasons: reasons,
+      });
+      return;
+    }
+
+    await finalizeMarkDone(
+      !hasTaskProof ? { completionProofSkipReason: taskProofSkipReason.trim() } : undefined
+    );
+  };
+
+  const handleProofModalContinue = async () => {
+    if (proofModalStep === 'task') {
+      if (!hasTaskProof && taskProofSkipReason.trim().length < 3) {
+        setError('Please upload proof or enter a reason (at least 3 characters).');
+        return;
+      }
+      if (missingChecklistProof.length > 0) {
+        setProofModalStep('checklist');
+        setError(null);
+        return;
+      }
+      await finalizeMarkDone(
+        !hasTaskProof ? { completionProofSkipReason: taskProofSkipReason.trim() } : undefined
+      );
+      return;
+    }
+
+    const reasons = missingChecklistProof
+      .map((item) => ({
+        itemId: item.id,
+        reason: (checklistProofSkipReasons[item.id] || '').trim(),
+      }))
+      .filter((r) => r.reason.length >= 3);
+    if (reasons.length < missingChecklistProof.length) {
+      setError('Add a reason for each checklist item missing proof, or upload the photos.');
+      return;
+    }
+    await finalizeMarkDone({
+      ...(!hasTaskProof ? { completionProofSkipReason: taskProofSkipReason.trim() } : {}),
+      checklistProofSkipReasons: reasons,
+    });
+  };
 
   const applyChecklistItems = (items: ManagerTaskChecklistItem[]) => {
     const next = { ...localTask, checklistItems: items };
@@ -145,28 +261,6 @@ export function MyTaskDetailDialog({
   const handleTaskProofPick = (file: File) => {
     setProofFile(file);
     setProofPreview(URL.createObjectURL(file));
-  };
-
-  const handleMarkDone = async () => {
-    if (!canEdit || completing) return;
-    setCompleting(true);
-    setError(null);
-    try {
-      let photoUrl: string | undefined;
-      if (proofFile) {
-        setUploadingProof(true);
-        const uploaded = await taskApi.uploadTaskCompletionPhoto(proofFile);
-        photoUrl = uploaded.url;
-        setUploadingProof(false);
-      }
-      await taskApi.completeOnBehalf(localTask.id, photoUrl ? { photoUrl } : undefined);
-      onCompleted();
-    } catch (err) {
-      setError(getApiErrorMessage(err));
-    } finally {
-      setUploadingProof(false);
-      setCompleting(false);
-    }
   };
 
   const handleUncomplete = async () => {
@@ -393,10 +487,15 @@ export function MyTaskDetailDialog({
           )}
 
           {canEdit && (
-            <section className="rounded-2xl border border-dashed border-emerald-200 bg-emerald-50/30 p-4">
-              <p className="mb-2 text-xs font-bold uppercase tracking-wider text-emerald-700">
-                Task completion photo (optional)
+            <section className={`rounded-2xl border border-dashed p-4 ${mandatoryProof ? 'border-amber-300 bg-amber-50/40' : 'border-emerald-200 bg-emerald-50/30'}`}>
+              <p className={`mb-2 text-xs font-bold uppercase tracking-wider ${mandatoryProof ? 'text-amber-800' : 'text-emerald-700'}`}>
+                {mandatoryProof ? 'Task completion photo (required)' : 'Task completion photo (optional)'}
               </p>
+              {mandatoryProof && !hasTaskProof ? (
+                <p className="mb-2 text-xs text-amber-700">
+                  This task requires proof of completion. Upload a photo or explain why you could not when marking done.
+                </p>
+              ) : null}
               <input
                 ref={proofInputRef}
                 type="file"
@@ -482,6 +581,78 @@ export function MyTaskDetailDialog({
           </div>
         )}
       </div>
+
+      {proofModalOpen ? (
+        <div
+          className="fixed inset-0 z-[60] flex items-center justify-center bg-black/45 p-4"
+          onClick={() => setProofModalOpen(false)}
+          role="presentation"
+        >
+          <div
+            className="w-full max-w-md rounded-2xl bg-white p-5 shadow-xl"
+            onClick={(e) => e.stopPropagation()}
+            role="dialog"
+            aria-modal="true"
+          >
+            {proofModalStep === 'task' ? (
+              <>
+                <h4 className="text-base font-semibold text-gray-900">Mandatory proof required</h4>
+                <p className="mt-2 text-sm text-gray-600">
+                  Upload a completion photo above, or explain why you could not upload proof.
+                </p>
+                <textarea
+                  value={taskProofSkipReason}
+                  onChange={(e) => setTaskProofSkipReason(e.target.value)}
+                  rows={3}
+                  placeholder="Reason you could not upload photo..."
+                  className="mt-3 w-full rounded-xl border border-gray-200 px-3 py-2 text-sm"
+                />
+              </>
+            ) : (
+              <>
+                <h4 className="text-base font-semibold text-gray-900">Checklist proof missing</h4>
+                <p className="mt-2 text-sm text-gray-600">
+                  Looks like you missed proof for some checklist items. Upload photos for each item, or add a reason below.
+                </p>
+                <div className="mt-3 max-h-52 space-y-3 overflow-y-auto">
+                  {missingChecklistProof.map((item) => (
+                    <div key={item.id}>
+                      <p className="text-xs font-medium text-gray-700">{item.text}</p>
+                      <input
+                        value={checklistProofSkipReasons[item.id] || ''}
+                        onChange={(e) =>
+                          setChecklistProofSkipReasons((prev) => ({
+                            ...prev,
+                            [item.id]: e.target.value,
+                          }))
+                        }
+                        placeholder="Reason or upload proof above"
+                        className="mt-1 w-full rounded-lg border border-gray-200 px-3 py-2 text-sm"
+                      />
+                    </div>
+                  ))}
+                </div>
+              </>
+            )}
+            <div className="mt-4 flex gap-2">
+              <button
+                type="button"
+                onClick={() => setProofModalOpen(false)}
+                className="flex-1 rounded-xl border border-gray-200 py-2.5 text-sm font-medium text-gray-700"
+              >
+                Cancel
+              </button>
+              <button
+                type="button"
+                onClick={() => void handleProofModalContinue()}
+                className="flex-1 rounded-xl bg-emerald-600 py-2.5 text-sm font-semibold text-white"
+              >
+                Continue
+              </button>
+            </div>
+          </div>
+        </div>
+      ) : null}
     </div>
   );
 }

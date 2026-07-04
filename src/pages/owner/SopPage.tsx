@@ -1,4 +1,4 @@
-import { useMemo, useState } from 'react';
+import { useEffect, useMemo, useState } from 'react';
 import { useQuery, useMutation, useQueryClient } from '@tanstack/react-query';
 import { useOutletStore } from '@/stores/outletStore';
 import { taskApi } from '@/api/task';
@@ -22,7 +22,12 @@ import {
   Calendar,
   Sun,
   Moon,
+  Copy,
+  CheckSquare,
+  Square,
+  ArrowRightLeft,
 } from 'lucide-react';
+import { DuplicateToOutletModal, type DuplicateToOutletTarget } from '@/components/DuplicateToOutletModal';
 
 type OccurrenceType = 'daily' | 'every-n-days' | 'specific-days' | 'specific-date-of-month' | 'onetime';
 
@@ -33,6 +38,7 @@ type SopGroup = {
   taskIds?: { _id: string; title?: string }[];
   assignToType?: 'role' | 'staff';
   assignedEmployeeIds?: { _id: string; name?: string }[];
+  isCollaborative?: boolean;
   occurrenceType?: OccurrenceType;
   intervalDays?: number;
   specificDays?: number[];
@@ -75,12 +81,19 @@ function scheduleSummary(g: SopGroup): string {
 }
 
 export function SopPage() {
-  const { selectedOutletId } = useOutletStore();
+  const { selectedOutletId, outlets } = useOutletStore();
   const queryClient = useQueryClient();
   const [tab, setTab] = useState<'active' | 'deleted'>('active');
   const [modal, setModal] = useState<'create' | 'edit' | null>(null);
   const [editing, setEditing] = useState<SopGroup | null>(null);
   const [deleteTarget, setDeleteTarget] = useState<SopGroup | null>(null);
+  const [duplicateTarget, setDuplicateTarget] = useState<DuplicateToOutletTarget | null>(null);
+  const [batchTransferTargets, setBatchTransferTargets] = useState<DuplicateToOutletTarget[] | null>(
+    null
+  );
+  const [selectionMode, setSelectionMode] = useState(false);
+  const [selectedGroupIds, setSelectedGroupIds] = useState<Set<string>>(() => new Set());
+  const [batchConfirmDelete, setBatchConfirmDelete] = useState(false);
 
   const [name, setName] = useState('');
   const [roleIds, setRoleIds] = useState<string[]>([]);
@@ -93,6 +106,7 @@ export function SopPage() {
   const [specificDatesOfMonth, setSpecificDatesOfMonth] = useState<number[]>([]);
   const [specificDate, setSpecificDate] = useState('');
   const [shiftType, setShiftType] = useState<'Day' | 'Night' | 'Both'>('Both');
+  const [isSharedSop, setIsSharedSop] = useState(false);
 
   const { data: groupsData, isLoading } = useQuery({
     queryKey: ['sop-groups', selectedOutletId, tab],
@@ -154,6 +168,7 @@ export function SopPage() {
     setSpecificDatesOfMonth([]);
     setSpecificDate('');
     setShiftType('Both');
+    setIsSharedSop(false);
     setEditing(null);
   };
 
@@ -176,6 +191,7 @@ export function SopPage() {
     setSpecificDatesOfMonth(g.specificDatesOfMonth ?? []);
     setSpecificDate(toYmd(g.specificDate));
     setShiftType(g.shiftType ?? 'Both');
+    setIsSharedSop(Boolean(g.isCollaborative));
     setModal('edit');
   };
 
@@ -188,6 +204,8 @@ export function SopPage() {
       taskIds,
       assignToType,
       assignedEmployeeIds: assignToType === 'staff' ? staffIds : [],
+      isCollaborative: isSharedSop,
+      collaboratorRoleIds: assignToType === 'role' ? roleIds : [],
       shiftType,
       occurrenceType,
       intervalDays: occurrenceType === 'every-n-days' ? Math.max(1, parseInt(intervalDays, 10) || 10) : undefined,
@@ -204,6 +222,9 @@ export function SopPage() {
       if (modal === 'edit' && editing) {
         return taskApi.updateTemplateGroup(editing._id, buildPayload());
       }
+      if (isSharedSop) {
+        return taskApi.createTemplateGroup(buildPayload());
+      }
       const targets = assignToType === 'role' && roleIds.length > 1 ? roleIds : [roleIds[0]];
       let last;
       for (let i = 0; i < targets.length; i++) {
@@ -212,6 +233,8 @@ export function SopPage() {
         const payload = {
           ...buildPayload(),
           parentRoleId: rid,
+          collaboratorRoleIds: [rid],
+          isCollaborative: false,
           name: targets.length > 1 ? `${name.trim()} (${roleLabel})` : name.trim(),
         };
         last = await taskApi.createTemplateGroup(payload);
@@ -241,6 +264,65 @@ export function SopPage() {
       setTab('active');
     },
   });
+
+  const batchDeleteMutation = useMutation({
+    mutationFn: async (ids: string[]) => {
+      for (const id of ids) {
+        await taskApi.deleteTemplateGroup(id);
+      }
+    },
+    onSuccess: async () => {
+      await queryClient.invalidateQueries({ queryKey: ['sop-groups', selectedOutletId] });
+      setSelectedGroupIds(new Set());
+      setSelectionMode(false);
+      setBatchConfirmDelete(false);
+      setTab('deleted');
+    },
+  });
+
+  const clearGroupSelection = () => setSelectedGroupIds(new Set());
+
+  const exitSelectionMode = () => {
+    setSelectionMode(false);
+    clearGroupSelection();
+  };
+
+  const toggleGroupSelection = (id: string) => {
+    setSelectedGroupIds((prev) => {
+      const next = new Set(prev);
+      if (next.has(id)) next.delete(id);
+      else next.add(id);
+      return next;
+    });
+  };
+
+  const selectAllGroups = () => {
+    setSelectedGroupIds(new Set(groups.map((g) => g._id)));
+  };
+
+  const openBatchTransfer = () => {
+    const targets = groups
+      .filter((g) => selectedGroupIds.has(g._id))
+      .map((g) => ({
+        kind: 'sop' as const,
+        id: g._id,
+        title: g.name,
+        sourceOutletId: selectedOutletId!,
+      }));
+    setBatchTransferTargets(targets);
+  };
+
+  const selectedCount = selectedGroupIds.size;
+
+  useEffect(() => {
+    exitSelectionMode();
+    setBatchTransferTargets(null);
+    setDuplicateTarget(null);
+  }, [selectedOutletId]);
+
+  useEffect(() => {
+    if (tab === 'deleted') exitSelectionMode();
+  }, [tab]);
 
   const toggleDay = (d: number) => {
     setSpecificDays((prev) => (prev.includes(d) ? prev.filter((x) => x !== d) : [...prev, d].sort((a, b) => a - b)));
@@ -276,13 +358,42 @@ export function SopPage() {
           <p className="text-gray-500 mt-1">Bundled tasks, schedules, and acknowledgment tracking</p>
         </div>
         {tab === 'active' && (
-          <button
-            type="button"
-            onClick={openCreate}
-            className="px-5 py-2.5 bg-emerald-600 text-white rounded-xl font-medium hover:bg-emerald-700 flex items-center gap-2 w-fit shadow-sm"
-          >
-            <Plus className="h-4 w-4" /> Create SOP
-          </button>
+          <div className="flex flex-wrap items-center gap-2 w-fit">
+            {selectionMode ? (
+              <>
+                <button
+                  type="button"
+                  onClick={selectAllGroups}
+                  disabled={groups.length === 0}
+                  className="px-4 py-2.5 rounded-xl border border-gray-200 font-medium text-gray-700 hover:bg-gray-50 disabled:opacity-50"
+                >
+                  Select all
+                </button>
+                <button
+                  type="button"
+                  onClick={exitSelectionMode}
+                  className="px-4 py-2.5 rounded-xl border border-gray-200 font-medium text-gray-700 hover:bg-gray-50"
+                >
+                  Cancel
+                </button>
+              </>
+            ) : (
+              <button
+                type="button"
+                onClick={() => setSelectionMode(true)}
+                className="px-4 py-2.5 rounded-xl border border-emerald-200 font-medium text-emerald-700 hover:bg-emerald-50"
+              >
+                Select
+              </button>
+            )}
+            <button
+              type="button"
+              onClick={openCreate}
+              className="px-5 py-2.5 bg-emerald-600 text-white rounded-xl font-medium hover:bg-emerald-700 flex items-center gap-2 shadow-sm"
+            >
+              <Plus className="h-4 w-4" /> Create SOP
+            </button>
+          </div>
         )}
       </div>
 
@@ -319,13 +430,55 @@ export function SopPage() {
                       String((a.templateGroupId as { _id?: string })?._id ?? a.templateGroupId) === g._id
                   ).length
                 : 0;
+            const isSelected = selectedGroupIds.has(g._id);
             return (
               <div
                 key={g._id}
-                className={`rounded-2xl border bg-white p-5 card-hover ${tab === 'deleted' ? 'border-gray-200 opacity-90' : 'border-gray-200'}`}
+                role={selectionMode && tab === 'active' ? 'button' : undefined}
+                tabIndex={selectionMode && tab === 'active' ? 0 : undefined}
+                onClick={
+                  selectionMode && tab === 'active' ? () => toggleGroupSelection(g._id) : undefined
+                }
+                onKeyDown={
+                  selectionMode && tab === 'active'
+                    ? (e) => {
+                        if (e.key === 'Enter' || e.key === ' ') {
+                          e.preventDefault();
+                          toggleGroupSelection(g._id);
+                        }
+                      }
+                    : undefined
+                }
+                className={`rounded-2xl border bg-white p-5 card-hover transition-colors ${
+                  tab === 'deleted' ? 'border-gray-200 opacity-90' : 'border-gray-200'
+                } ${
+                  selectionMode && tab === 'active'
+                    ? isSelected
+                      ? 'border-emerald-500 ring-2 ring-emerald-200 cursor-pointer'
+                      : 'cursor-pointer hover:border-emerald-300'
+                    : ''
+                }`}
               >
                 <div className="flex items-start justify-between gap-4">
-                  <div className="min-w-0">
+                  <div className="flex items-start gap-3 min-w-0 flex-1">
+                    {selectionMode && tab === 'active' ? (
+                      <button
+                        type="button"
+                        onClick={(e) => {
+                          e.stopPropagation();
+                          toggleGroupSelection(g._id);
+                        }}
+                        className="mt-0.5 shrink-0 text-emerald-600 hover:bg-emerald-50 rounded-lg p-1"
+                        aria-label={isSelected ? 'Deselect SOP' : 'Select SOP'}
+                      >
+                        {isSelected ? (
+                          <CheckSquare className="h-6 w-6" />
+                        ) : (
+                          <Square className="h-6 w-6 text-gray-300" />
+                        )}
+                      </button>
+                    ) : null}
+                    <div className="min-w-0">
                     <h2 className="text-lg font-semibold text-gray-900">{g.name}</h2>
                     <p className="text-sm text-gray-500 mt-0.5">
                       {g.parentRoleId?.name ?? '—'} · {g.taskIds?.length ?? 0} tasks · {scheduleSummary(g)} ·{' '}
@@ -339,10 +492,26 @@ export function SopPage() {
                     {tab === 'deleted' && g.deletedAt && (
                       <p className="text-xs text-gray-400 mt-1">Deleted {new Date(g.deletedAt).toLocaleDateString()}</p>
                     )}
+                    </div>
                   </div>
                   <div className="flex gap-2 shrink-0">
-                    {tab === 'active' ? (
+                    {tab === 'active' && !selectionMode ? (
                       <>
+                        <button
+                          type="button"
+                          onClick={() =>
+                            setDuplicateTarget({
+                              kind: 'sop',
+                              id: g._id,
+                              title: g.name,
+                              sourceOutletId: selectedOutletId!,
+                            })
+                          }
+                          className="p-2 rounded-lg hover:bg-blue-50 text-blue-600"
+                          title="Duplicate to outlet"
+                        >
+                          <Copy className="h-4 w-4" />
+                        </button>
                         <button type="button" onClick={() => openEditGroup(g)} className="p-2 rounded-lg hover:bg-emerald-50 text-emerald-700">
                           <Pencil className="h-4 w-4" />
                         </button>
@@ -549,6 +718,30 @@ export function SopPage() {
                 )}
               </div>
 
+              {(assignToType === 'role' && roleIds.length > 0) ||
+              (assignToType === 'staff' && staffIds.length > 1) ? (
+                <label className="flex cursor-pointer items-start gap-2 rounded-xl border border-emerald-100 bg-emerald-50/50 p-4 text-sm text-gray-700">
+                  <input
+                    type="checkbox"
+                    checked={isSharedSop}
+                    onChange={(e) => setIsSharedSop(e.target.checked)}
+                    className="mt-0.5 rounded border-gray-300 text-emerald-600 focus:ring-emerald-500"
+                  />
+                  <span>
+                    <span className="font-medium">Shared SOP</span>
+                    <span className="mt-0.5 block text-xs text-gray-500">
+                      One collaborative bundle — team members can complete different tasks in it. Anyone&apos;s
+                      progress counts for everyone.
+                    </span>
+                    {assignToType === 'role' && roleIds.length > 1 && !isSharedSop ? (
+                      <span className="mt-1 block text-xs text-amber-700">
+                        Uncheck to create a separate SOP copy per role instead.
+                      </span>
+                    ) : null}
+                  </span>
+                </label>
+              ) : null}
+
               {saveMutation.isError && <p className="text-red-600 text-sm">{getApiErrorMessage(saveMutation.error)}</p>}
               <button
                 type="button"
@@ -599,6 +792,87 @@ export function SopPage() {
           </div>
         </div>
       )}
+
+      {batchConfirmDelete && selectedCount > 0 && (
+        <div className="fixed inset-0 bg-black/40 backdrop-blur-sm flex items-center justify-center z-50 animate-fade-in">
+          <div className="bg-white rounded-2xl shadow-xl w-full max-w-sm mx-4 p-6 animate-slide-up relative">
+            <button
+              type="button"
+              onClick={() => setBatchConfirmDelete(false)}
+              className="absolute top-4 right-4 p-2 rounded-lg text-gray-400 hover:text-gray-600 hover:bg-gray-100"
+              aria-label="Close"
+            >
+              <X className="h-5 w-5" />
+            </button>
+            <p className="text-gray-900 font-medium pr-8">
+              Delete {selectedCount} SOP{selectedCount === 1 ? '' : 's'}?
+            </p>
+            <p className="text-sm text-gray-500 mt-1">They will move to Deleted. You can restore them later.</p>
+            {batchDeleteMutation.isError && (
+              <p className="mt-3 text-sm text-red-600">{getApiErrorMessage(batchDeleteMutation.error)}</p>
+            )}
+            <div className="flex gap-3 mt-6">
+              <button
+                onClick={() => batchDeleteMutation.mutate([...selectedGroupIds])}
+                disabled={batchDeleteMutation.isPending}
+                className="flex-1 px-4 py-2.5 bg-red-600 text-white rounded-xl font-medium hover:bg-red-700 disabled:opacity-50"
+              >
+                {batchDeleteMutation.isPending ? 'Deleting…' : 'Delete all'}
+              </button>
+              <button
+                onClick={() => setBatchConfirmDelete(false)}
+                className="px-4 py-2.5 border border-gray-200 rounded-xl font-medium hover:bg-gray-50"
+              >
+                Cancel
+              </button>
+            </div>
+          </div>
+        </div>
+      )}
+
+      {selectionMode && tab === 'active' && selectedCount > 0 && (
+        <div className="fixed bottom-6 left-1/2 z-40 flex -translate-x-1/2 flex-wrap items-center justify-center gap-2 rounded-2xl border border-gray-800/10 bg-gray-900 px-4 py-3 text-white shadow-2xl sm:gap-3 sm:px-6">
+          <span className="text-sm font-medium sm:pr-2">{selectedCount} selected</span>
+          <button
+            type="button"
+            onClick={openBatchTransfer}
+            disabled={outlets.length < 2}
+            title={outlets.length < 2 ? 'Add another outlet to transfer SOPs' : undefined}
+            className="flex items-center gap-1.5 rounded-xl bg-emerald-600 px-4 py-2 text-sm font-semibold hover:bg-emerald-500 disabled:opacity-50"
+          >
+            <ArrowRightLeft className="h-4 w-4" />
+            Transfer
+          </button>
+          <button
+            type="button"
+            onClick={() => setBatchConfirmDelete(true)}
+            className="flex items-center gap-1.5 rounded-xl bg-red-600 px-4 py-2 text-sm font-semibold hover:bg-red-500"
+          >
+            <Trash2 className="h-4 w-4" />
+            Delete
+          </button>
+          <button
+            type="button"
+            onClick={clearGroupSelection}
+            className="rounded-xl px-3 py-2 text-sm font-medium text-gray-300 hover:bg-white/10"
+          >
+            Clear
+          </button>
+        </div>
+      )}
+
+      <DuplicateToOutletModal
+        target={duplicateTarget}
+        targets={batchTransferTargets}
+        onClose={() => {
+          setDuplicateTarget(null);
+          setBatchTransferTargets(null);
+        }}
+        onSuccess={() => {
+          exitSelectionMode();
+          void queryClient.invalidateQueries({ queryKey: ['sop-groups'] });
+        }}
+      />
     </div>
   );
 }

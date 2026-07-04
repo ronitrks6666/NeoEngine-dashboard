@@ -39,14 +39,16 @@ import {
   CalendarClock,
   ScrollText,
   Phone,
+  SlidersHorizontal,
 } from 'lucide-react';
 
 import { NeoEngineLogo } from '@/components/NeoEngineLogo';
-import { DashboardVoiceButton } from '@/components/DashboardVoiceButton';
 import { SiteSearchTypeahead } from '@/components/SiteSearchTypeahead';
 import { useHighlightSection } from '@/hooks/useHighlightSection';
 import { useSuperAdminPermissions } from '@/hooks/useSuperAdminPermissions';
 import { filterOwnerNavForEmployee } from '@/lib/webDashboardAccess';
+import { applyOwnerNavPreferences, type OwnerNavItem } from '@/lib/featureMenu';
+import { canAccessWebFeatureMenu } from '@/lib/featureMenuAccess';
 import { SUPER_ADMIN_PERMISSIONS as P } from '@/constants/superAdminPermissions';
 import type { SuperAdminPermission } from '@/constants/superAdminPermissions';
 import type { LucideIcon } from 'lucide-react';
@@ -68,32 +70,39 @@ const superAdminNav: { to: string; label: string; icon: LucideIcon; permission?:
   { to: '/super-admin/analytics', label: 'Analytics', icon: BarChart3, permission: P.ANALYTICS_VIEW },
 ];
 
-const ownerNav: { to: string; label: string; icon: LucideIcon }[] = [
-  { to: '/owner/dashboard', label: 'Dashboard', icon: LayoutDashboard },
-  { to: '/owner/tasks', label: 'Tasks', icon: CheckSquare },
-  { to: '/owner/sops', label: 'SOPs', icon: BookOpen },
-  { to: '/owner/issues', label: 'Issues', icon: AlertTriangle },
-  { to: '/owner/staff', label: 'Staff', icon: Users },
-  { to: '/owner/payroll', label: 'Payroll', icon: Wallet },
-  { to: '/owner/events', label: 'Events', icon: CalendarPlus },
-  { to: '/owner/briefing-pool', label: 'Briefing Pool', icon: MessageSquare },
-  { to: '/owner/analytics', label: 'Analytics', icon: BarChart3 },
-  { to: '/owner/reports', label: 'Reports', icon: FileText },
-  { to: '/owner/attendance', label: 'Attendance', icon: CalendarCheck },
-  { to: '/owner/duty-roster', label: 'Duty Roster', icon: CalendarClock },
-  { to: '/owner/leave', label: 'Leave', icon: CalendarDays },
-  { to: '/owner/leave-rules', label: 'Leave Rules', icon: BookOpen },
-  { to: '/owner/payroll-settings', label: 'Pay Settings', icon: Settings },
-  { to: '/owner/overtime', label: 'Overtime', icon: Clock },
-  { to: '/owner/hierarchy', label: 'Hierarchy', icon: GitBranch },
-  { to: '/owner/permissions', label: 'Permissions', icon: Shield },
-  { to: '/owner/activity', label: 'Activity', icon: Activity },
-  { to: '/owner/roles', label: 'Roles', icon: UserCog },
-  { to: '/owner/departments', label: 'Departments', icon: Building2 },
-  { to: '/owner/vendors', label: 'Vendors', icon: Phone },
-  { to: '/owner/outlets', label: 'Outlets', icon: Store },
-  { to: '/owner/rules-regulations', label: 'Rules & Regs', icon: ScrollText },
-  { to: '/owner/support', label: 'Support', icon: Headset },
+const ownerNav: OwnerNavItem[] = [
+  { key: 'dashboard', to: '/owner/dashboard', label: 'Dashboard', icon: LayoutDashboard },
+  { key: 'tasks', to: '/owner/tasks', label: 'Tasks', icon: CheckSquare },
+  { key: 'sops', to: '/owner/sops', label: 'SOPs', icon: BookOpen },
+  { key: 'issues', to: '/owner/issues', label: 'Issues', icon: AlertTriangle },
+  { key: 'staff', to: '/owner/staff', label: 'Staff', icon: Users },
+  { key: 'payroll', to: '/owner/payroll', label: 'Payroll', icon: Wallet },
+  { key: 'events', to: '/owner/events', label: 'Events', icon: CalendarPlus },
+  { key: 'briefing-pool', to: '/owner/briefing-pool', label: 'Briefing Pool', icon: MessageSquare },
+  { key: 'analytics', to: '/owner/analytics', label: 'Analytics', icon: BarChart3 },
+  { key: 'reports', to: '/owner/reports', label: 'Reports', icon: FileText },
+  { key: 'attendance', to: '/owner/attendance', label: 'Attendance', icon: CalendarCheck },
+  { key: 'duty-roster', to: '/owner/duty-roster', label: 'Duty Roster', icon: CalendarClock },
+  { key: 'leave', to: '/owner/leave', label: 'Leave', icon: CalendarDays },
+  { key: 'leave-rules', to: '/owner/leave-rules', label: 'Leave Rules', icon: BookOpen },
+  { key: 'payroll-settings', to: '/owner/payroll-settings', label: 'Pay Settings', icon: Settings },
+  { key: 'overtime', to: '/owner/overtime', label: 'Overtime', icon: Clock },
+  { key: 'hierarchy', to: '/owner/hierarchy', label: 'Hierarchy', icon: GitBranch },
+  { key: 'permissions', to: '/owner/permissions', label: 'Permissions', icon: Shield },
+  { key: 'activity', to: '/owner/activity', label: 'Activity', icon: Activity },
+  { key: 'roles', to: '/owner/roles', label: 'Roles', icon: UserCog },
+  { key: 'departments', to: '/owner/departments', label: 'Departments', icon: Building2 },
+  { key: 'vendors', to: '/owner/vendors', label: 'Vendors', icon: Phone },
+  { key: 'outlets', to: '/owner/outlets', label: 'Outlets', icon: Store },
+  {
+    key: 'features',
+    to: '/owner/features',
+    label: 'Features',
+    icon: SlidersHorizontal,
+    locked: true,
+  },
+  { key: 'rules-regulations', to: '/owner/rules-regulations', label: 'Rules & Regs', icon: ScrollText },
+  { key: 'support', to: '/owner/support', label: 'Support', icon: Headset },
 ];
 
 type SidebarFlyout =
@@ -187,7 +196,7 @@ export function AppLayout({ children, role }: AppLayoutProps) {
     refreshEmployeeSession,
   } = useAuth();
   const { can } = useSuperAdminPermissions();
-  const { selectedOutletId, setOutlets, clear } = useOutletStore();
+  const { setOutlets, clear } = useOutletStore();
   const [sidebarCollapsed, setSidebarCollapsed] = useState(false);
   const [profileOpen, setProfileOpen] = useState(false);
   const [sidebarFlyout, setSidebarFlyout] = useState<SidebarFlyout>(null);
@@ -203,6 +212,12 @@ export function AppLayout({ children, role }: AppLayoutProps) {
     queryKey: ['owner-brand'],
     queryFn: () => ownerApi.getBrand(),
     enabled: role === 'OWNER',
+  });
+
+  const { data: featureMenu } = useQuery({
+    queryKey: ['owner-feature-menu'],
+    queryFn: () => ownerApi.getFeatureMenu(),
+    enabled: canAccessWebFeatureMenu(authRole, featurePermissions),
   });
 
   useEffect(() => {
@@ -246,10 +261,15 @@ export function AppLayout({ children, role }: AppLayoutProps) {
   }, [role, authRole, refreshSuperAdminProfile, refreshEmployeeSession]);
 
   const isMerchantPortal = authRole === 'OWNER' || authRole === 'EMPLOYEE';
+  const ownerNavFiltered = filterOwnerNavForEmployee(ownerNav, featurePermissions ?? null, authRole);
+  const ownerNavWithPrefs =
+    canAccessWebFeatureMenu(authRole, featurePermissions) && featureMenu?.webNav?.items
+      ? applyOwnerNavPreferences(ownerNavFiltered, featureMenu.webNav.items)
+      : ownerNavFiltered;
   const navItems =
     role === 'SUPER_ADMIN'
       ? superAdminNav.filter((item) => !item.permission || can(item.permission))
-      : filterOwnerNavForEmployee(ownerNav, featurePermissions ?? null, authRole);
+      : ownerNavWithPrefs;
   const basePath = role === 'SUPER_ADMIN' ? '/super-admin' : '/owner';
   const sidebarWidth = sidebarCollapsed ? 72 : 256;
   const dashboardPath =
@@ -357,42 +377,21 @@ export function AppLayout({ children, role }: AppLayoutProps) {
         className="flex-1 min-h-screen overflow-auto transition-all duration-300 ease-in-out"
         style={{ marginLeft: sidebarWidth }}
       >
-        <header className="sticky top-0 z-30 min-h-[3.5rem] shrink-0 bg-white/90 backdrop-blur-md border-b border-emerald-100 px-4 sm:px-6 py-2 grid grid-cols-1 sm:grid-cols-[minmax(0,1fr)_auto_minmax(0,1fr)] items-center gap-3 shadow-sm">
+        <header className="sticky top-0 z-30 relative flex h-14 shrink-0 items-center gap-3 border-b border-emerald-100 bg-white/90 px-4 shadow-sm backdrop-blur-md sm:px-6">
           {isMerchantPortal && (
             <>
-              <div className="flex min-h-0 flex-wrap items-center gap-3 sm:gap-4 min-w-0 justify-self-start">
-                <span className="shrink-0 text-sm font-medium leading-none text-emerald-800">Outlet:</span>
-                <OutletSelector allowCreate={authRole === 'OWNER'} />
-                {authRole === 'OWNER' && (
-                  <DashboardVoiceButton
-                    outletId={selectedOutletId}
-                    onResult={(result) => {
-                      const url = result.sectionId ? `${result.route}?highlight=${result.sectionId}` : result.route;
-                      if (result.action === 'create_task' && result.prefilledData) {
-                        navigate(url, { state: { openCreate: true, prefilledTask: result.prefilledData } });
-                      } else if (result.action === 'create_staff' && result.prefilledData) {
-                        navigate(url, { state: { openCreate: true, prefilledStaff: result.prefilledData } });
-                      } else {
-                        navigate(url);
-                      }
-                    }}
-                    onError={(err) => {
-                      window.alert(err || 'Voice processing failed. Try: "Show staff", "Create a task to...", etc.');
-                    }}
-                  />
-                )}
+              <div className="flex min-w-0 flex-1 items-center justify-start">
+                <OutletSelector allowCreate={authRole === 'OWNER'} className="max-w-[min(100%,14rem)]" />
               </div>
 
-              {authRole === 'OWNER' && (
-                <div className="flex min-w-0 items-center justify-center justify-self-center order-first sm:order-none w-full sm:w-auto py-1 sm:py-0">
-                  <CoBrandMark brand={ownerBrand ?? null} variant="header" logoSize={32} />
-                </div>
-              )}
+              <div className="pointer-events-none absolute left-1/2 top-1/2 hidden -translate-x-1/2 -translate-y-1/2 sm:block">
+                <CoBrandMark brand={ownerBrand ?? null} variant="header" logoSize={28} />
+              </div>
 
-              <div className="flex min-w-0 items-center gap-2 sm:gap-3 justify-self-end w-full sm:w-auto">
+              <div className="flex min-w-0 flex-1 items-center justify-end gap-2 sm:gap-3">
                 <SiteSearchTypeahead
                   role="OWNER"
-                  className="min-w-0 flex-1 sm:flex-none w-full sm:max-w-xs md:max-w-sm lg:max-w-md"
+                  className="w-full max-w-[11rem] sm:max-w-xs md:max-w-sm"
                 />
                 <HeaderProfileMenu
                   profileRef={profileRef}
@@ -407,7 +406,7 @@ export function AppLayout({ children, role }: AppLayoutProps) {
           )}
           {role === 'SUPER_ADMIN' && (
             <>
-              <div className="col-span-full flex min-w-0 flex-1 items-center justify-start px-0 sm:px-2 sm:col-span-2">
+              <div className="flex min-w-0 flex-1 items-center justify-start">
                 <SiteSearchTypeahead role="SUPER_ADMIN" className="w-full max-w-md" />
               </div>
               <HeaderProfileMenu

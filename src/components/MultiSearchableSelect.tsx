@@ -1,6 +1,8 @@
 import { useState, useMemo, useRef, useEffect } from 'react';
+import { createPortal } from 'react-dom';
 import { ChevronDown, Search, X } from 'lucide-react';
 import type { SearchableSelectOption } from './SearchableSelect';
+import { useAnchoredDropdown } from '@/hooks/useAnchoredDropdown';
 
 type MultiSearchableSelectProps = {
   values: string[];
@@ -28,6 +30,9 @@ export function MultiSearchableSelect({
   const [open, setOpen] = useState(false);
   const [q, setQ] = useState('');
   const rootRef = useRef<HTMLDivElement>(null);
+  const panelRef = useRef<HTMLDivElement>(null);
+  const triggerRef = useRef<HTMLButtonElement>(null);
+  const panelStyle = useAnchoredDropdown(open, triggerRef);
 
   const filtered = useMemo(() => {
     const s = q.trim().toLowerCase();
@@ -48,15 +53,16 @@ export function MultiSearchableSelect({
   );
 
   useEffect(() => {
+    if (!open) return;
     function onDoc(e: MouseEvent) {
-      if (!rootRef.current?.contains(e.target as Node)) {
-        setOpen(false);
-        setQ('');
-      }
+      const target = e.target as Node;
+      if (rootRef.current?.contains(target) || panelRef.current?.contains(target)) return;
+      setOpen(false);
+      setQ('');
     }
     document.addEventListener('mousedown', onDoc);
     return () => document.removeEventListener('mousedown', onDoc);
-  }, []);
+  }, [open]);
 
   const toggle = (id: string) => {
     if (values.includes(id)) onChange(values.filter((v) => v !== id));
@@ -66,6 +72,7 @@ export function MultiSearchableSelect({
   return (
     <div ref={rootRef} className={`relative ${className}`}>
       <button
+        ref={triggerRef}
         type="button"
         disabled={disabled}
         onClick={() => !disabled && setOpen((o) => !o)}
@@ -94,55 +101,63 @@ export function MultiSearchableSelect({
           })}
         </div>
       )}
-      {open && (
-        <div className="absolute left-0 right-0 top-full z-[60] mt-1.5 overflow-hidden rounded-xl border border-emerald-100 bg-white shadow-lg">
-          <div className="border-b border-emerald-50 p-2">
-            <div className="relative">
-              <Search className="pointer-events-none absolute left-2.5 top-1/2 h-4 w-4 -translate-y-1/2 text-emerald-500/60" />
-              <input
-                type="search"
-                value={q}
-                onChange={(e) => setQ(e.target.value)}
-                placeholder={searchPlaceholder}
-                className="w-full rounded-lg border border-emerald-100 bg-emerald-50/30 py-2 pl-9 pr-3 text-sm"
-                autoFocus
-              />
+      {open &&
+        typeof document !== 'undefined' &&
+        createPortal(
+          <div
+            ref={panelRef}
+            style={panelStyle}
+            className="overflow-hidden rounded-xl border border-emerald-100 bg-white shadow-lg"
+            onMouseDown={(e) => e.stopPropagation()}
+          >
+            <div className="border-b border-emerald-50 p-2">
+              <div className="relative">
+                <Search className="pointer-events-none absolute left-2.5 top-1/2 h-4 w-4 -translate-y-1/2 text-emerald-500/60" />
+                <input
+                  type="search"
+                  value={q}
+                  onChange={(e) => setQ(e.target.value)}
+                  placeholder={searchPlaceholder}
+                  className="w-full rounded-lg border border-emerald-100 bg-emerald-50/30 py-2 pl-9 pr-3 text-sm"
+                  autoFocus
+                />
+              </div>
             </div>
-          </div>
-          <ul className="max-h-52 overflow-y-auto py-1">
-            {options.length === 0 ? (
-              <li className="px-3 py-3 text-center text-sm text-gray-500">{noOptionsText}</li>
-            ) : filtered.length === 0 ? (
-              <li className="px-3 py-3 text-center text-sm text-gray-500">{emptyText}</li>
-            ) : (
-              filtered.map((o) => {
-                const checked = values.includes(o.value);
-                return (
-                  <li key={o.value}>
-                    <button
-                      type="button"
-                      onClick={() => toggle(o.value)}
-                      className={`flex w-full items-center gap-2 px-3 py-2.5 text-left text-sm hover:bg-emerald-50 ${checked ? 'bg-emerald-50/80' : ''}`}
-                    >
-                      <span
-                        className={`flex h-4 w-4 shrink-0 items-center justify-center rounded border ${
-                          checked ? 'border-emerald-600 bg-emerald-600 text-white' : 'border-gray-300'
-                        }`}
+            <ul className="max-h-60 overflow-y-auto py-1">
+              {options.length === 0 ? (
+                <li className="px-3 py-3 text-center text-sm text-gray-500">{noOptionsText}</li>
+              ) : filtered.length === 0 ? (
+                <li className="px-3 py-3 text-center text-sm text-gray-500">{emptyText}</li>
+              ) : (
+                filtered.map((o) => {
+                  const checked = values.includes(o.value);
+                  return (
+                    <li key={o.value}>
+                      <button
+                        type="button"
+                        onClick={() => toggle(o.value)}
+                        className={`flex w-full items-center gap-2 px-3 py-2.5 text-left text-sm hover:bg-emerald-50 ${checked ? 'bg-emerald-50/80' : ''}`}
                       >
-                        {checked ? '✓' : ''}
-                      </span>
-                      <span>
-                        <span className="font-medium text-gray-900">{o.label}</span>
-                        {o.subtitle ? <span className="block text-xs text-gray-500">{o.subtitle}</span> : null}
-                      </span>
-                    </button>
-                  </li>
-                );
-              })
-            )}
-          </ul>
-        </div>
-      )}
+                        <span
+                          className={`flex h-4 w-4 shrink-0 items-center justify-center rounded border ${
+                            checked ? 'border-emerald-600 bg-emerald-600 text-white' : 'border-gray-300'
+                          }`}
+                        >
+                          {checked ? '✓' : ''}
+                        </span>
+                        <span>
+                          <span className="font-medium text-gray-900">{o.label}</span>
+                          {o.subtitle ? <span className="block text-xs text-gray-500">{o.subtitle}</span> : null}
+                        </span>
+                      </button>
+                    </li>
+                  );
+                })
+              )}
+            </ul>
+          </div>,
+          document.body
+        )}
     </div>
   );
 }

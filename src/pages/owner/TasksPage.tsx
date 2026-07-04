@@ -12,12 +12,21 @@ import { employeeApi } from '@/api/employee';
 import { getApiErrorMessage } from '@/api/auth';
 import { LoadingSpinner } from '@/components/LoadingSpinner';
 import { SearchableSelect } from '@/components/SearchableSelect';
+import { MultiSearchableSelect } from '@/components/MultiSearchableSelect';
 import { TaskScheduleCard } from '@/components/TaskScheduleCard';
 import { MyTasksTodayPanel } from '@/components/tasks/MyTasksTodayPanel';
 import { TasksViewSwitch, type TasksViewMode } from '@/components/tasks/TasksViewSwitch';
 import { ListSearchBar } from '@/components/ListSearchBar';
 import { useDebouncedValue } from '@/hooks/useDebouncedValue';
 import { VoiceInputButton } from '@/components/VoiceInputButton';
+import {
+  patchManagerTasksAfterTemplateUpdate,
+  patchTaskTemplatesAfterUpdate,
+  refetchAllTaskQueries,
+  removeTemplateFromManagerTasksCache,
+  removeTemplateFromTemplatesCache,
+} from '@/lib/taskQuerySync';
+import { DuplicateToOutletModal, type DuplicateToOutletTarget } from '@/components/DuplicateToOutletModal';
 import {
   CheckSquare,
   Users,
@@ -28,6 +37,9 @@ import {
   Trash2,
   X,
   Plus,
+  Copy,
+  Square,
+  ArrowRightLeft,
 } from 'lucide-react';
 
 const taskSchema = z.object({
@@ -45,16 +57,11 @@ const taskSchema = z.object({
   repeatEndTime: z.string().optional(),
   startTime: z.string().optional(),
   timeLimitMinutes: z.coerce.number().optional(),
+  mandatoryProofOfCompletion: z.boolean().default(false),
   checklistItems: z.array(z.object({
     text: z.string().min(1, 'Item text required'),
     referenceMediaUrl: z.string().optional(),
   })).optional(),
-}).refine((data) => {
-  if (data.assignToType === 'role' && !data.parentRoleId) return false;
-  return true;
-}, {
-  message: 'Role is required for role-based assignment',
-  path: ['parentRoleId'],
 });
 
 type TaskForm = z.infer<typeof taskSchema>;
@@ -154,6 +161,13 @@ export function TasksPage() {
     shiftType?: string;
   } | null>(null);
   const [confirmDelete, setConfirmDelete] = useState<{ _id: string; title?: string } | null>(null);
+  const [duplicateTarget, setDuplicateTarget] = useState<DuplicateToOutletTarget | null>(null);
+  const [batchTransferTargets, setBatchTransferTargets] = useState<DuplicateToOutletTarget[] | null>(
+    null
+  );
+  const [selectionMode, setSelectionMode] = useState(false);
+  const [selectedTemplateIds, setSelectedTemplateIds] = useState<Set<string>>(() => new Set());
+  const [batchConfirmDelete, setBatchConfirmDelete] = useState(false);
   const [showCreateRole, setShowCreateRole] = useState(false);
   const [newRoleName, setNewRoleName] = useState('');
   const [imageUrl, setImageUrl] = useState('');
@@ -162,8 +176,10 @@ export function TasksPage() {
   const [voiceProcessing, setVoiceProcessing] = useState(false);
   const [voiceError, setVoiceError] = useState<string | null>(null);
   const [createStaffIds, setCreateStaffIds] = useState<string[]>([]);
+  const [createRoleIds, setCreateRoleIds] = useState<string[]>([]);
   const [createIsShared, setCreateIsShared] = useState(false);
   const [editStaffIds, setEditStaffIds] = useState<string[]>([]);
+  const [editRoleIds, setEditRoleIds] = useState<string[]>([]);
   const [editIsShared, setEditIsShared] = useState(false);
   const [templateSearch, setTemplateSearch] = useState('');
   const debouncedTemplateSearch = useDebouncedValue(templateSearch, 350);
@@ -178,6 +194,7 @@ export function TasksPage() {
         search: debouncedTemplateSearch.trim() || undefined,
       }),
     enabled: !!selectedOutletId && viewMode === 'all-tasks',
+    staleTime: 0,
   });
 
   const { data: myTasksPreview } = useQuery({
@@ -207,33 +224,51 @@ export function TasksPage() {
       if (newRole) {
         queryClient.invalidateQueries({ queryKey: ['parent-roles'] });
         queryClient.invalidateQueries({ queryKey: ['hierarchy'] });
-        form.setValue('parentRoleId', String(newRole._id));
+        const id = String(newRole._id);
+        setCreateRoleIds((prev) => (prev.includes(id) ? prev : [...prev, id]));
+        form.setValue('parentRoleId', id);
         setShowCreateRole(false);
         setNewRoleName('');
       }
     },
   });
 
+  const refreshTaskQueries = async () => {
+    if (!selectedOutletId) return;
+    await refetchAllTaskQueries(queryClient, selectedOutletId, todayYmd);
+  };
+
   const createMutation = useMutation({
     mutationFn: async (input: {
       payload: Parameters<typeof taskApi.createTemplate>[0];
       duplicateStaffIds?: string[];
+      duplicateRoleIds?: string[];
     }) => {
       if (input.duplicateStaffIds?.length) {
         for (const assignToEmployeeId of input.duplicateStaffIds) {
-          await taskApi.createTemplate({ ...input.payload, assignToEmployeeId });
+          await taskApi.createTemplate({ ...input.payload, assignToEmployeeId, assignToType: 'staff' });
+        }
+        return;
+      }
+      if (input.duplicateRoleIds?.length) {
+        for (const parentRoleId of input.duplicateRoleIds) {
+          await taskApi.createTemplate({
+            ...input.payload,
+            parentRoleId,
+            assignToRoleId: parentRoleId,
+            assignToType: 'role',
+          });
         }
         return;
       }
       return taskApi.createTemplate(input.payload);
     },
     onSuccess: async () => {
-      if (selectedOutletId) {
-        await queryClient.invalidateQueries({ queryKey: ['task-templates', selectedOutletId] });
-      }
+      await refreshTaskQueries();
       setShowCreate(false);
       form.reset(defaultFormValues);
       setCreateStaffIds([]);
+      setCreateRoleIds([]);
       setCreateIsShared(false);
       setImageUrl('');
       setImageFile(null);
@@ -252,10 +287,11 @@ export function TasksPage() {
             : 1,
         intervalMinutes: data.multipleTimesPerDay && data.intervalMinutes ? Number(data.intervalMinutes) : undefined,
         repeatEndTime: data.multipleTimesPerDay && data.repeatEndTime ? data.repeatEndTime : undefined,
-        assignToRoleId: assignToType === 'role' ? data.parentRoleId : undefined,
+        assignToRoleId: assignToType === 'role' ? (editRoleIds[0] || data.parentRoleId) : undefined,
         assignToEmployeeId: assignToType === 'staff' ? editStaffIds[0] : undefined,
-        parentRoleId: assignToType === 'role' ? data.parentRoleId : undefined,
+        parentRoleId: assignToType === 'role' ? (editRoleIds[0] || data.parentRoleId) : undefined,
         timeLimitMinutes: data.timeLimitMinutes ? Number(data.timeLimitMinutes) : undefined,
+        mandatoryProofOfCompletion: Boolean(data.mandatoryProofOfCompletion),
         checklistItems: data.checklistItems?.map((item, idx) => ({
           ...item,
           order: idx,
@@ -265,6 +301,11 @@ export function TasksPage() {
         payload.assignToEmployeeIds = editStaffIds;
         payload.isCollaborative = true;
       } else if (assignToType === 'staff') {
+        payload.isCollaborative = false;
+      } else if (assignToType === 'role' && editIsShared) {
+        payload.isCollaborative = true;
+        payload.collaboratorRoleIds = editRoleIds;
+      } else if (assignToType === 'role') {
         payload.isCollaborative = false;
       }
       await taskApi.updateTemplate(id, payload);
@@ -290,29 +331,105 @@ export function TasksPage() {
           });
         }
       }
-    },
-    onSuccess: async () => {
-      if (selectedOutletId) {
-        await queryClient.invalidateQueries({ queryKey: ['task-templates', selectedOutletId] });
+      if (assignToType === 'role' && editRoleIds.length > 1 && !editIsShared) {
+        for (const parentRoleId of editRoleIds.slice(1)) {
+          await taskApi.createTemplate({
+            title: data.title,
+            description: data.description || undefined,
+            outletId: selectedOutletId!,
+            shiftType: data.shiftType ?? 'Both',
+            taskType: data.taskType as any,
+            specificDate: data.taskType === 'onetime' && data.specificDate ? data.specificDate : undefined,
+            specificDays: data.taskType === 'specific-days' && data.specificDays?.length ? data.specificDays : undefined,
+            imageUrl: imageUrl || undefined,
+            hourlyFrequency: payload.hourlyFrequency,
+            intervalMinutes: payload.intervalMinutes,
+            repeatEndTime: payload.repeatEndTime,
+            assignToType: 'role',
+            parentRoleId,
+            assignToRoleId: parentRoleId,
+            startTime: data.startTime || undefined,
+            timeLimitMinutes: data.timeLimitMinutes ? Number(data.timeLimitMinutes) : undefined,
+            checklistItems: payload.checklistItems,
+          });
+        }
       }
+    },
+    onSuccess: async (_data, variables) => {
+      const updates = {
+        title: variables.data.title,
+        description: variables.data.description ?? '',
+        shiftType: variables.data.shiftType,
+      };
+      patchTaskTemplatesAfterUpdate(queryClient, variables.id, updates);
+      patchManagerTasksAfterTemplateUpdate(queryClient, variables.id, {
+        title: updates.title,
+        description: updates.description,
+        startTime: variables.data.startTime || null,
+        timeLimitMinutes: variables.data.timeLimitMinutes
+          ? Number(variables.data.timeLimitMinutes)
+          : null,
+      });
       setEditing(null);
       editForm.reset();
       setEditStaffIds([]);
+      setEditRoleIds([]);
       setEditIsShared(false);
       setImageUrl('');
       setImageFile(null);
+      void refreshTaskQueries();
     },
   });
 
   const deleteMutation = useMutation({
     mutationFn: (id: string) => taskApi.deleteTemplate(id),
-    onSuccess: async () => {
-      if (selectedOutletId) {
-        await queryClient.invalidateQueries({ queryKey: ['task-templates', selectedOutletId] });
-      }
+    onSuccess: async (_data, id) => {
+      removeTemplateFromTemplatesCache(queryClient, id);
+      removeTemplateFromManagerTasksCache(queryClient, id);
       setConfirmDelete(null);
+      void refreshTaskQueries();
     },
   });
+
+  const batchDeleteMutation = useMutation({
+    mutationFn: async (ids: string[]) => {
+      for (const id of ids) {
+        await taskApi.deleteTemplate(id);
+      }
+    },
+    onSuccess: async (_data, ids) => {
+      for (const id of ids) {
+        removeTemplateFromTemplatesCache(queryClient, id);
+        removeTemplateFromManagerTasksCache(queryClient, id);
+      }
+      setSelectedTemplateIds(new Set());
+      setSelectionMode(false);
+      setBatchConfirmDelete(false);
+      void refreshTaskQueries();
+    },
+  });
+
+  const clearTemplateSelection = () => setSelectedTemplateIds(new Set());
+
+  const exitSelectionMode = () => {
+    setSelectionMode(false);
+    clearTemplateSelection();
+  };
+
+  const toggleTemplateSelection = (id: string) => {
+    setSelectedTemplateIds((prev) => {
+      const next = new Set(prev);
+      if (next.has(id)) next.delete(id);
+      else next.add(id);
+      return next;
+    });
+  };
+
+  useEffect(() => {
+    exitSelectionMode();
+    setBatchTransferTargets(null);
+    setDuplicateTarget(null);
+  }, [selectedOutletId]);
 
   const defaultFormValues: TaskForm = {
     title: '',
@@ -327,6 +444,7 @@ export function TasksPage() {
     repeatEndTime: '20:00',
     startTime: '09:00',
     timeLimitMinutes: undefined,
+    mandatoryProofOfCompletion: false,
     assignToType: 'role',
     assignToEmployeeId: '',
     checklistItems: [],
@@ -355,7 +473,33 @@ export function TasksPage() {
   const [checklistImageLoading, setChecklistImageLoading] = useState<Record<number, boolean>>({});
 
   const templates = data?.data?.templates ?? [];
+
+  const selectAllTemplates = () => {
+    setSelectedTemplateIds(new Set(templates.map((t: { _id: string }) => t._id)));
+  };
+
+  const openBatchTransfer = () => {
+    const targets = templates
+      .filter((t: { _id: string }) => selectedTemplateIds.has(t._id))
+      .map((t: { _id: string; title?: string }) => ({
+        kind: 'task' as const,
+        id: t._id,
+        title: t.title ?? 'Untitled',
+        sourceOutletId: selectedOutletId!,
+      }));
+    setBatchTransferTargets(targets);
+  };
+
+  const selectedCount = selectedTemplateIds.size;
   const parentRoles = rolesData?.data?.parentRoles ?? [];
+  const roleOptions = useMemo(
+    () =>
+      (parentRoles as { _id: string; name: string }[]).map((r) => ({
+        value: r._id,
+        label: r.name,
+      })),
+    [parentRoles]
+  );
   const employees = (employeesData as { data?: { employees?: unknown[] } })?.data?.employees ?? [];
   const assigneeEmployeeOptions = useMemo(
     () =>
@@ -416,6 +560,8 @@ export function TasksPage() {
           : [];
     setEditStaffIds(staffIds);
     setEditIsShared(Boolean(t.isCollaborative && staffIds.length > 1));
+    const roleId = (t.parentRoleId as { _id?: string })?._id ?? t.parentRoleId ?? '';
+    setEditRoleIds(roleId ? [String(roleId)] : []);
     
     editForm.reset({
       title: t.title ?? '',
@@ -432,6 +578,7 @@ export function TasksPage() {
       repeatEndTime: t.repeatEndTime || '20:00',
       startTime: t.startTime || '06:00',
       timeLimitMinutes: t.timeLimitMinutes != null ? Number(t.timeLimitMinutes) : undefined,
+      mandatoryProofOfCompletion: Boolean((t as { mandatoryProofOfCompletion?: boolean }).mandatoryProofOfCompletion),
       checklistItems: t.checklistItems ?? [],
     });
   };
@@ -476,6 +623,7 @@ export function TasksPage() {
       parentRoleId: assignToType === 'role' ? d.parentRoleId : undefined,
       startTime: d.startTime || undefined,
       timeLimitMinutes: d.timeLimitMinutes ? Number(d.timeLimitMinutes) : undefined,
+      mandatoryProofOfCompletion: Boolean(d.mandatoryProofOfCompletion),
       checklistItems: d.checklistItems?.map((item, idx) => ({
         ...item,
         order: idx,
@@ -515,7 +663,38 @@ export function TasksPage() {
       return;
     }
 
-    createMutation.mutate({ payload: basePayload });
+    if (createRoleIds.length === 0) {
+      form.setError('parentRoleId', {
+        type: 'manual',
+        message: 'Select at least one role',
+      });
+      return;
+    }
+    form.clearErrors('parentRoleId');
+    form.setValue('parentRoleId', createRoleIds[0]);
+    if (createIsShared) {
+      createMutation.mutate({
+        payload: {
+          ...basePayload,
+          assignToType: 'role',
+          parentRoleId: createRoleIds[0],
+          assignToRoleId: createRoleIds[0],
+          isCollaborative: true,
+          collaboratorRoleIds: createRoleIds,
+        },
+      });
+      return;
+    }
+    if (createRoleIds.length > 1) {
+      createMutation.mutate({
+        payload: { ...basePayload, assignToType: 'role', parentRoleId: createRoleIds[0], assignToRoleId: createRoleIds[0] },
+        duplicateRoleIds: createRoleIds,
+      });
+      return;
+    }
+    createMutation.mutate({
+      payload: { ...basePayload, parentRoleId: createRoleIds[0], assignToRoleId: createRoleIds[0] },
+    });
   });
 
   if (!selectedOutletId && outlets.length === 0) {
@@ -543,18 +722,47 @@ export function TasksPage() {
             </p>
           </div>
           {canManageTemplates && viewMode === 'all-tasks' && (
-            <button
-              onClick={() => {
-                form.reset({ ...defaultFormValues });
-                setCreateStaffIds([]);
-                setCreateIsShared(false);
-                setVoiceError(null);
-                setShowCreate(true);
-              }}
-              className="px-5 py-2.5 bg-gradient-to-r from-emerald-600 to-emerald-700 text-white rounded-xl font-semibold hover:from-emerald-700 hover:to-emerald-800 transition-all shadow-emerald flex items-center gap-2 w-fit shrink-0"
-            >
-              <ListTodo className="h-5 w-5" /> Create task
-            </button>
+            <div className="flex flex-wrap items-center gap-2 w-fit shrink-0">
+              {selectionMode ? (
+                <>
+                  <button
+                    type="button"
+                    onClick={selectAllTemplates}
+                    disabled={templates.length === 0}
+                    className="px-4 py-2.5 rounded-xl border border-gray-200 font-medium text-gray-700 hover:bg-gray-50 disabled:opacity-50"
+                  >
+                    Select all
+                  </button>
+                  <button
+                    type="button"
+                    onClick={exitSelectionMode}
+                    className="px-4 py-2.5 rounded-xl border border-gray-200 font-medium text-gray-700 hover:bg-gray-50"
+                  >
+                    Cancel
+                  </button>
+                </>
+              ) : (
+                <button
+                  type="button"
+                  onClick={() => setSelectionMode(true)}
+                  className="px-4 py-2.5 rounded-xl border border-emerald-200 font-medium text-emerald-700 hover:bg-emerald-50"
+                >
+                  Select
+                </button>
+              )}
+              <button
+                onClick={() => {
+                  form.reset({ ...defaultFormValues });
+                  setCreateStaffIds([]);
+                  setCreateIsShared(false);
+                  setVoiceError(null);
+                  setShowCreate(true);
+                }}
+                className="px-5 py-2.5 bg-gradient-to-r from-emerald-600 to-emerald-700 text-white rounded-xl font-semibold hover:from-emerald-700 hover:to-emerald-800 transition-all shadow-emerald flex items-center gap-2"
+              >
+                <ListTodo className="h-5 w-5" /> Create task
+              </button>
+            </div>
           )}
         </div>
 
@@ -585,14 +793,70 @@ export function TasksPage() {
               <LoadingSpinner className="py-16" />
             ) : (
               <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-3 gap-4 animate-in-stagger">
-                {templates.map((t: { _id: string; title?: string; description?: string; parentRoleId?: { name: string }; shiftType?: string; assignToType?: 'role' | 'staff'; isCollaborative?: boolean; assignToEmployeeId?: { name?: string } | string; assignToEmployeeIds?: Array<{ name?: string } | string> }) => (
-                  <div key={t._id} className="group rounded-2xl border border-emerald-100 p-5 card-hover bg-white overflow-hidden shadow-sm">
+                {templates.map((t: { _id: string; title?: string; description?: string; parentRoleId?: { name: string }; shiftType?: string; assignToType?: 'role' | 'staff'; isCollaborative?: boolean; assignToEmployeeId?: { name?: string } | string; assignToEmployeeIds?: Array<{ name?: string } | string> }) => {
+                  const isSelected = selectedTemplateIds.has(t._id);
+                  return (
+                  <div
+                    key={t._id}
+                    role={selectionMode ? 'button' : undefined}
+                    tabIndex={selectionMode ? 0 : undefined}
+                    onClick={selectionMode ? () => toggleTemplateSelection(t._id) : undefined}
+                    onKeyDown={
+                      selectionMode
+                        ? (e) => {
+                            if (e.key === 'Enter' || e.key === ' ') {
+                              e.preventDefault();
+                              toggleTemplateSelection(t._id);
+                            }
+                          }
+                        : undefined
+                    }
+                    className={`group rounded-2xl border p-5 card-hover bg-white overflow-hidden shadow-sm transition-colors ${
+                      selectionMode
+                        ? isSelected
+                          ? 'border-emerald-500 ring-2 ring-emerald-200 cursor-pointer'
+                          : 'border-emerald-100 cursor-pointer hover:border-emerald-300'
+                        : 'border-emerald-100'
+                    }`}
+                  >
                     <div className="flex items-start justify-between mb-3">
-                      <div className="w-12 h-12 rounded-xl bg-emerald-100 flex items-center justify-center">
-                        <CheckSquare className="h-6 w-6 text-emerald-600" />
-                      </div>
-                      {canManageTemplates && (
+                      {selectionMode ? (
+                        <button
+                          type="button"
+                          onClick={(e) => {
+                            e.stopPropagation();
+                            toggleTemplateSelection(t._id);
+                          }}
+                          className="w-12 h-12 rounded-xl flex items-center justify-center text-emerald-600 hover:bg-emerald-50"
+                          aria-label={isSelected ? 'Deselect task' : 'Select task'}
+                        >
+                          {isSelected ? (
+                            <CheckSquare className="h-7 w-7" />
+                          ) : (
+                            <Square className="h-7 w-7 text-gray-300" />
+                          )}
+                        </button>
+                      ) : (
+                        <div className="w-12 h-12 rounded-xl bg-emerald-100 flex items-center justify-center">
+                          <CheckSquare className="h-6 w-6 text-emerald-600" />
+                        </div>
+                      )}
+                      {canManageTemplates && !selectionMode && (
                         <div className="flex gap-1 opacity-0 group-hover:opacity-100 transition-opacity">
+                          <button
+                            onClick={() =>
+                              setDuplicateTarget({
+                                kind: 'task',
+                                id: t._id,
+                                title: t.title ?? 'Untitled',
+                                sourceOutletId: selectedOutletId!,
+                              })
+                            }
+                            className="p-2 rounded-lg hover:bg-blue-50 text-gray-500 hover:text-blue-600 transition-colors"
+                            title="Duplicate to outlet"
+                          >
+                            <Copy className="h-4 w-4" />
+                          </button>
                           <button onClick={() => openEdit(t)} className="p-2 rounded-lg hover:bg-emerald-50 text-gray-500 hover:text-emerald-600 transition-colors" title="Edit"><Pencil className="h-4 w-4" /></button>
                           <button onClick={() => setConfirmDelete({ _id: t._id, title: t.title })} className="p-2 rounded-lg hover:bg-red-50 text-gray-500 hover:text-red-600 transition-colors" title="Delete"><Trash2 className="h-4 w-4" /></button>
                         </div>
@@ -607,7 +871,8 @@ export function TasksPage() {
                       <span className="px-2.5 py-0.5 rounded-lg text-xs font-medium bg-emerald-50 text-emerald-600">{t.shiftType ?? 'Both'}</span>
                     </div>
                   </div>
-                ))}
+                  );
+                })}
               </div>
             )}
 
@@ -633,7 +898,7 @@ export function TasksPage() {
       {/* Create modal */}
       {showCreate && (
         <div className="fixed inset-0 z-50 flex items-end sm:items-center justify-center bg-black/50 backdrop-blur-sm p-0 sm:p-4 animate-fade-in">
-          <div className="relative flex max-h-[96vh] sm:max-h-[92vh] w-full max-w-3xl flex-col overflow-hidden rounded-t-2xl sm:rounded-2xl border border-gray-200/80 bg-white shadow-2xl animate-slide-up">
+          <div className="relative flex max-h-[96vh] sm:max-h-[92vh] w-full max-w-3xl flex-col overflow-hidden rounded-2xl border border-gray-200/80 bg-white shadow-2xl animate-slide-up">
             <div className="flex shrink-0 items-center justify-between border-b border-gray-100 px-5 py-4 sm:px-6">
               <div>
                 <h2 className="text-lg font-semibold text-gray-900">Create task</h2>
@@ -752,65 +1017,69 @@ export function TasksPage() {
                   </div>
                   {form.watch('assignToType') === 'role' && (
                     <div>
-                      <label className="block text-sm font-medium text-gray-700 mb-2">Role</label>
-                      <div className="flex flex-wrap gap-2 items-center">
-                        {parentRoles.map((r: { _id: string; name: string }) => (
-                          <button
-                            key={r._id}
-                            type="button"
-                            onClick={() => form.setValue('parentRoleId', r._id)}
-                            className={`px-4 py-2 rounded-lg text-sm font-medium ${
-                              form.watch('parentRoleId') === r._id ? 'bg-emerald-100 text-emerald-700' : 'bg-gray-100 text-gray-600 hover:bg-gray-200'
-                            }`}
-                          >
-                            {r.name}
-                          </button>
-                        ))}
+                      <label className="block text-sm font-medium text-gray-700 mb-1.5">
+                        Roles <span className="font-normal text-gray-400">(select one or more)</span>
+                      </label>
+                      <MultiSearchableSelect
+                        values={createRoleIds}
+                        onChange={(ids) => {
+                          setCreateRoleIds(ids);
+                          form.setValue('parentRoleId', ids[0] || '');
+                          if (ids.length > 0) form.clearErrors('parentRoleId');
+                        }}
+                        options={roleOptions}
+                        placeholder="Search & select roles…"
+                      />
+                      {createRoleIds.length > 1 && !createIsShared && (
+                        <p className="mt-2 text-xs text-gray-500">
+                          Creates a separate task copy for each selected role.
+                        </p>
+                      )}
+                      {createRoleIds.length > 0 ? (
+                        <label className="mt-3 flex items-start gap-2 text-sm text-gray-700">
+                          <input
+                            type="checkbox"
+                            checked={createIsShared}
+                            onChange={(e) => setCreateIsShared(e.target.checked)}
+                            className="mt-0.5"
+                          />
+                          <span>
+                            <span className="font-medium">Shared task</span>
+                            <span className="block text-gray-500 text-xs mt-0.5">
+                              One checklist for the team — anyone in the selected role(s) can complete it.
+                            </span>
+                          </span>
+                        </label>
+                      ) : null}
+                      <div className="mt-2">
                         <button
                           type="button"
                           onClick={() => setShowCreateRole(true)}
-                          className="flex items-center gap-2 px-3 py-2 rounded-lg border-2 border-dashed border-emerald-400 text-emerald-600 text-sm font-medium hover:bg-emerald-50"
+                          className="text-sm font-medium text-emerald-600 hover:text-emerald-700"
                         >
-                          + Create role
+                          + Create new role
                         </button>
                       </div>
-                      {form.formState.errors.parentRoleId && form.watch('assignToType') === 'role' && (
-                        <p className="text-red-600 text-sm mt-1">Select a role</p>
+                      {form.formState.errors.parentRoleId && (
+                        <p className="text-red-600 text-sm mt-1">{form.formState.errors.parentRoleId.message}</p>
                       )}
                     </div>
                   )}
                   {form.watch('assignToType') === 'staff' && (
                     <div>
-                      <label className="block text-sm font-medium text-gray-700 mb-1.5">Staff members</label>
-                      <div className="max-h-48 overflow-y-auto rounded-lg border border-gray-200 divide-y divide-gray-100">
-                        {(employees as { _id: string; name: string }[]).map((emp) => {
-                          const checked = createStaffIds.includes(emp._id);
-                          return (
-                            <label
-                              key={emp._id}
-                              className="flex items-center gap-3 px-3 py-2 text-sm hover:bg-gray-50 cursor-pointer"
-                            >
-                              <input
-                                type="checkbox"
-                                checked={checked}
-                                onChange={() => {
-                                  setCreateStaffIds((prev) => {
-                                    const next = checked
-                                      ? prev.filter((id) => id !== emp._id)
-                                      : [...prev, emp._id];
-                                    form.setValue('assignToEmployeeId', next[0] || '', {
-                                      shouldValidate: true,
-                                    });
-                                    if (next.length > 0) form.clearErrors('assignToEmployeeId');
-                                    return next;
-                                  });
-                                }}
-                              />
-                              <span>{emp.name}</span>
-                            </label>
-                          );
-                        })}
-                      </div>
+                      <label className="block text-sm font-medium text-gray-700 mb-1.5">
+                        Staff members <span className="font-normal text-gray-400">(select one or more)</span>
+                      </label>
+                      <MultiSearchableSelect
+                        values={createStaffIds}
+                        onChange={(ids) => {
+                          setCreateStaffIds(ids);
+                          form.setValue('assignToEmployeeId', ids[0] || '', { shouldValidate: true });
+                          if (ids.length > 0) form.clearErrors('assignToEmployeeId');
+                        }}
+                        options={assigneeEmployeeOptions}
+                        placeholder="Search & select staff…"
+                      />
                       {createStaffIds.length > 1 ? (
                         <label className="mt-3 flex items-start gap-2 text-sm text-gray-700">
                           <input
@@ -827,12 +1096,11 @@ export function TasksPage() {
                           </span>
                         </label>
                       ) : null}
-                      {form.formState.errors.assignToEmployeeId &&
-                        form.watch('assignToType') === 'staff' && (
-                          <p className="text-red-600 text-sm mt-1">
-                            {form.formState.errors.assignToEmployeeId.message}
-                          </p>
-                        )}
+                      {form.formState.errors.assignToEmployeeId && (
+                        <p className="text-red-600 text-sm mt-1">
+                          {form.formState.errors.assignToEmployeeId.message}
+                        </p>
+                      )}
                     </div>
                   )}
                 </section>
@@ -933,6 +1201,22 @@ export function TasksPage() {
                   </div>
                 </section>
 
+                <section className="space-y-3">
+                  <label className="flex items-start gap-3 p-4 rounded-xl border border-amber-200 bg-amber-50/60 cursor-pointer">
+                    <input
+                      type="checkbox"
+                      className="mt-1 rounded border-gray-300 text-emerald-600 focus:ring-emerald-500"
+                      {...form.register('mandatoryProofOfCompletion')}
+                    />
+                    <span>
+                      <span className="block text-sm font-medium text-gray-900">Mandatory proof of completion</span>
+                      <span className="block text-xs text-gray-600 mt-0.5">
+                        Staff must upload a photo to complete, or explain why they could not. Checklist items also need proof or a reason.
+                      </span>
+                    </span>
+                  </label>
+                </section>
+
                 {/* Photo */}
                 <section className="space-y-4">
                   <h3 className="text-sm font-semibold text-gray-500 uppercase tracking-wider flex items-center gap-2">
@@ -1005,7 +1289,7 @@ export function TasksPage() {
 
       {editing && (
         <div className="fixed inset-0 z-50 flex items-end sm:items-center justify-center bg-black/50 backdrop-blur-sm p-0 sm:p-4 animate-fade-in">
-          <div className="relative flex max-h-[96vh] sm:max-h-[92vh] w-full max-w-3xl flex-col overflow-hidden rounded-t-2xl sm:rounded-2xl border border-gray-200/80 bg-white shadow-2xl animate-slide-up">
+          <div className="relative flex max-h-[96vh] sm:max-h-[92vh] w-full max-w-3xl flex-col overflow-hidden rounded-2xl border border-gray-200/80 bg-white shadow-2xl animate-slide-up">
             <div className="flex shrink-0 items-center justify-between border-b border-gray-100 px-5 py-4 sm:px-6">
               <div>
                 <h2 className="text-lg font-semibold text-gray-900">Edit task</h2>
@@ -1043,7 +1327,16 @@ export function TasksPage() {
                     });
                     return;
                   }
+                  if (d.assignToType === 'role' && editRoleIds.length === 0) {
+                    editForm.setError('parentRoleId', {
+                      type: 'manual',
+                      message: 'Select at least one role',
+                    });
+                    return;
+                  }
                   editForm.clearErrors('assignToEmployeeId');
+                  editForm.clearErrors('parentRoleId');
+                  editForm.setValue('parentRoleId', editRoleIds[0] || '');
                   updateMutation.mutate({ id: editing._id, data: d });
                 })}
                 className="space-y-5"
@@ -1091,58 +1384,60 @@ export function TasksPage() {
                   </div>
                   {editForm.watch('assignToType') === 'role' && (
                     <div>
-                      <label className="block text-sm font-medium text-gray-700 mb-2">Role</label>
-                      <div className="flex flex-wrap gap-2 items-center">
-                        {parentRoles.map((r: { _id: string; name: string }) => (
-                          <button
-                            key={r._id}
-                            type="button"
-                            onClick={() => editForm.setValue('parentRoleId', r._id)}
-                            className={`px-4 py-2 rounded-lg text-sm font-medium ${
-                              editForm.watch('parentRoleId') === r._id ? 'bg-emerald-600 text-white shadow-sm' : 'bg-gray-100 text-gray-600 hover:bg-gray-200'
-                            }`}
-                          >
-                            {r.name}
-                          </button>
-                        ))}
-                      </div>
-                      {editForm.formState.errors.parentRoleId && editForm.watch('assignToType') === 'role' && (
-                        <p className="text-red-600 text-sm mt-1">Select a role</p>
+                      <label className="block text-sm font-medium text-gray-700 mb-1.5">
+                        Roles <span className="font-normal text-gray-400">(select one or more)</span>
+                      </label>
+                      <MultiSearchableSelect
+                        values={editRoleIds}
+                        onChange={(ids) => {
+                          setEditRoleIds(ids);
+                          editForm.setValue('parentRoleId', ids[0] || '');
+                          if (ids.length > 0) editForm.clearErrors('parentRoleId');
+                        }}
+                        options={roleOptions}
+                        placeholder="Search & select roles…"
+                      />
+                      {editRoleIds.length > 1 && !editIsShared && (
+                        <p className="mt-2 text-xs text-gray-500">
+                          Updates this task for the first role; creates copies for additional roles.
+                        </p>
+                      )}
+                      {editRoleIds.length > 0 ? (
+                        <label className="mt-3 flex items-start gap-2 text-sm text-gray-700">
+                          <input
+                            type="checkbox"
+                            checked={editIsShared}
+                            onChange={(e) => setEditIsShared(e.target.checked)}
+                            className="mt-0.5"
+                          />
+                          <span>
+                            <span className="font-medium">Shared task</span>
+                            <span className="block text-gray-500 text-xs mt-0.5">
+                              One checklist for the team — anyone in the selected role(s) can complete it.
+                            </span>
+                          </span>
+                        </label>
+                      ) : null}
+                      {editForm.formState.errors.parentRoleId && (
+                        <p className="text-red-600 text-sm mt-1">{editForm.formState.errors.parentRoleId.message}</p>
                       )}
                     </div>
                   )}
                   {editForm.watch('assignToType') === 'staff' && (
                     <div>
-                      <label className="block text-sm font-medium text-gray-700 mb-1.5">Staff members</label>
-                      <div className="max-h-48 overflow-y-auto rounded-lg border border-gray-200 divide-y divide-gray-100">
-                        {(employees as { _id: string; name: string }[]).map((emp) => {
-                          const checked = editStaffIds.includes(emp._id);
-                          return (
-                            <label
-                              key={emp._id}
-                              className="flex items-center gap-3 px-3 py-2 text-sm hover:bg-gray-50 cursor-pointer"
-                            >
-                              <input
-                                type="checkbox"
-                                checked={checked}
-                                onChange={() => {
-                                  setEditStaffIds((prev) => {
-                                    const next = checked
-                                      ? prev.filter((id) => id !== emp._id)
-                                      : [...prev, emp._id];
-                                    editForm.setValue('assignToEmployeeId', next[0] || '', {
-                                      shouldValidate: true,
-                                    });
-                                    if (next.length > 0) editForm.clearErrors('assignToEmployeeId');
-                                    return next;
-                                  });
-                                }}
-                              />
-                              <span>{emp.name}</span>
-                            </label>
-                          );
-                        })}
-                      </div>
+                      <label className="block text-sm font-medium text-gray-700 mb-1.5">
+                        Staff members <span className="font-normal text-gray-400">(select one or more)</span>
+                      </label>
+                      <MultiSearchableSelect
+                        values={editStaffIds}
+                        onChange={(ids) => {
+                          setEditStaffIds(ids);
+                          editForm.setValue('assignToEmployeeId', ids[0] || '', { shouldValidate: true });
+                          if (ids.length > 0) editForm.clearErrors('assignToEmployeeId');
+                        }}
+                        options={assigneeEmployeeOptions}
+                        placeholder="Search & select staff…"
+                      />
                       {editStaffIds.length > 1 ? (
                         <label className="mt-3 flex items-start gap-2 text-sm text-gray-700">
                           <input
@@ -1159,12 +1454,11 @@ export function TasksPage() {
                           </span>
                         </label>
                       ) : null}
-                      {editForm.formState.errors.assignToEmployeeId &&
-                        editForm.watch('assignToType') === 'staff' && (
-                          <p className="text-red-600 text-sm mt-1">
-                            {editForm.formState.errors.assignToEmployeeId.message}
-                          </p>
-                        )}
+                      {editForm.formState.errors.assignToEmployeeId && (
+                        <p className="text-red-600 text-sm mt-1">
+                          {editForm.formState.errors.assignToEmployeeId.message}
+                        </p>
+                      )}
                     </div>
                   )}
                 </section>
@@ -1265,6 +1559,22 @@ export function TasksPage() {
                   </div>
                 </section>
 
+                <section className="space-y-3">
+                  <label className="flex items-start gap-3 p-4 rounded-xl border border-amber-200 bg-amber-50/60 cursor-pointer">
+                    <input
+                      type="checkbox"
+                      className="mt-1 rounded border-gray-300 text-emerald-600 focus:ring-emerald-500"
+                      {...editForm.register('mandatoryProofOfCompletion')}
+                    />
+                    <span>
+                      <span className="block text-sm font-medium text-gray-900">Mandatory proof of completion</span>
+                      <span className="block text-xs text-gray-600 mt-0.5">
+                        Staff must upload a photo to complete, or explain why they could not. Checklist items also need proof or a reason.
+                      </span>
+                    </span>
+                  </label>
+                </section>
+
                 {/* Photo */}
                 <section className="space-y-4">
                   <h3 className="text-sm font-semibold text-gray-500 uppercase tracking-wider flex items-center gap-2">
@@ -1326,6 +1636,91 @@ export function TasksPage() {
           </div>
         </div>
       )}
+
+      {/* Batch delete confirm */}
+      {batchConfirmDelete && selectedCount > 0 && (
+        <div className="fixed inset-0 bg-black/40 backdrop-blur-sm flex items-center justify-center z-50 animate-fade-in">
+          <div className="bg-white rounded-2xl shadow-xl w-full max-w-sm mx-4 p-6 animate-slide-up relative">
+            <button
+              type="button"
+              onClick={() => setBatchConfirmDelete(false)}
+              className="absolute top-4 right-4 p-2 rounded-lg text-gray-400 hover:text-gray-600 hover:bg-gray-100 transition-colors"
+              aria-label="Close"
+            >
+              <X className="h-5 w-5" />
+            </button>
+            <p className="text-gray-900 font-medium pr-8">
+              Delete {selectedCount} task{selectedCount === 1 ? '' : 's'}?
+            </p>
+            <p className="text-sm text-gray-500 mt-1">These task templates will be permanently removed.</p>
+            {batchDeleteMutation.isError && (
+              <p className="mt-3 text-sm text-red-600">{getApiErrorMessage(batchDeleteMutation.error)}</p>
+            )}
+            <div className="flex gap-3 mt-6">
+              <button
+                onClick={() => batchDeleteMutation.mutate([...selectedTemplateIds])}
+                disabled={batchDeleteMutation.isPending}
+                className="flex-1 px-4 py-2.5 bg-red-600 text-white rounded-xl font-medium hover:bg-red-700 disabled:opacity-50"
+              >
+                {batchDeleteMutation.isPending ? 'Deleting…' : 'Delete all'}
+              </button>
+              <button
+                onClick={() => setBatchConfirmDelete(false)}
+                className="px-4 py-2.5 border border-gray-200 rounded-xl font-medium hover:bg-gray-50"
+              >
+                Cancel
+              </button>
+            </div>
+          </div>
+        </div>
+      )}
+
+      {/* Batch action bar */}
+      {selectionMode && selectedCount > 0 && (
+        <div className="fixed bottom-6 left-1/2 z-40 flex -translate-x-1/2 flex-wrap items-center justify-center gap-2 rounded-2xl border border-gray-800/10 bg-gray-900 px-4 py-3 text-white shadow-2xl sm:gap-3 sm:px-6">
+          <span className="text-sm font-medium sm:pr-2">
+            {selectedCount} selected
+          </span>
+          <button
+            type="button"
+            onClick={openBatchTransfer}
+            disabled={outlets.length < 2}
+            title={outlets.length < 2 ? 'Add another outlet to transfer tasks' : undefined}
+            className="flex items-center gap-1.5 rounded-xl bg-emerald-600 px-4 py-2 text-sm font-semibold hover:bg-emerald-500 disabled:opacity-50"
+          >
+            <ArrowRightLeft className="h-4 w-4" />
+            Transfer
+          </button>
+          <button
+            type="button"
+            onClick={() => setBatchConfirmDelete(true)}
+            className="flex items-center gap-1.5 rounded-xl bg-red-600 px-4 py-2 text-sm font-semibold hover:bg-red-500"
+          >
+            <Trash2 className="h-4 w-4" />
+            Delete
+          </button>
+          <button
+            type="button"
+            onClick={clearTemplateSelection}
+            className="rounded-xl px-3 py-2 text-sm font-medium text-gray-300 hover:bg-white/10"
+          >
+            Clear
+          </button>
+        </div>
+      )}
+
+      <DuplicateToOutletModal
+        target={duplicateTarget}
+        targets={batchTransferTargets}
+        onClose={() => {
+          setDuplicateTarget(null);
+          setBatchTransferTargets(null);
+        }}
+        onSuccess={() => {
+          exitSelectionMode();
+          void refreshTaskQueries();
+        }}
+      />
     </div>
   );
 }

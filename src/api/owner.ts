@@ -33,6 +33,27 @@ export type BrandProfile = {
   logoUrl: string | null;
 };
 
+export type FeatureMenuPrefRow = { key: string; enabled: boolean };
+
+export type FeatureMenuCatalogItem = {
+  key: string;
+  label: string;
+  path?: string;
+  section?: string;
+  locked?: boolean;
+};
+
+export type FeatureMenuSection = {
+  defaults: FeatureMenuPrefRow[];
+  items: FeatureMenuPrefRow[];
+  catalog: FeatureMenuCatalogItem[];
+};
+
+export type FeatureMenuConfig = {
+  webNav: FeatureMenuSection;
+  mobileMore: FeatureMenuSection;
+};
+
 export interface Outlet {
   _id: string;
   name: string;
@@ -157,5 +178,23 @@ export const ownerApi = {
       data: { rulesVersion: number };
     }>(`/owner/outlets/${outletId}/rules`, { rulesAndRegulations });
     return data;
+  },
+
+  getFeatureMenu: async () => {
+    const { data } = await api.get<{ success: boolean; data: FeatureMenuConfig }>(
+      '/owner/feature-menu'
+    );
+    return data.data;
+  },
+
+  updateFeatureMenu: async (payload: {
+    webNav?: FeatureMenuPrefRow[];
+    mobileMore?: FeatureMenuPrefRow[];
+  }) => {
+    const { data } = await api.put<{ success: boolean; data: FeatureMenuConfig }>(
+      '/owner/feature-menu',
+      payload
+    );
+    return data.data;
   },
 };

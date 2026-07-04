@@ -1,4 +1,5 @@
 import { api } from './client';
+import type { FeatureMenuConfig, FeatureMenuPrefRow } from './owner';
 
 export interface Owner {
   _id: string;
@@ -72,6 +73,25 @@ export const adminApi = {
   ) => {
     const { data } = await api.put(`/admin/outlets/${id}`, payload);
     return data;
+  },
+
+  getOutletFeatureMenu: async (outletId: string) => {
+    const { data } = await api.get<{
+      success: boolean;
+      data: { outletId: string; outletName: string } & FeatureMenuConfig;
+    }>(`/super-admin/outlets/${outletId}/feature-menu`);
+    return data.data;
+  },
+
+  updateOutletFeatureMenu: async (
+    outletId: string,
+    payload: { webNav?: FeatureMenuPrefRow[]; mobileMore?: FeatureMenuPrefRow[] }
+  ) => {
+    const { data } = await api.put<{
+      success: boolean;
+      data: Awaited<ReturnType<typeof adminApi.getOutletFeatureMenu>>;
+    }>(`/super-admin/outlets/${outletId}/feature-menu`, payload);
+    return data.data;
   },
 
   impersonateOwner: async (ownerId: string) => {

@@ -37,7 +37,6 @@ export const OWNER_ROUTE_WEB_PERMISSIONS: Record<string, string | string[]> = {
   '/owner/support': 'webSupport',
   '/owner/duty-roster': 'webDutyRoster',
   '/owner/rules-regulations': 'webRulesRegulations',
-  '/owner/features': 'webFeatures',
 };
 
 export function hasOwnerRouteAccess(

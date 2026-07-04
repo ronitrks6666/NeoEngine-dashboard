@@ -41,10 +41,6 @@ const BUNDLE_UI: Record<string, { title?: string; hint?: string }> = {
   issues: {
     hint: 'Issue tracker and Support on web.',
   },
-  feature_menu: {
-    title: 'Menu customization',
-    hint: 'Web Features page and mobile App Features screen — control sidebar and More menu items.',
-  },
 };
 
 const ZONE_UI: Record<string, { title: string; hint: string }> = {

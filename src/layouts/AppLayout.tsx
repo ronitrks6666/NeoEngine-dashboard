@@ -39,7 +39,6 @@ import {
   CalendarClock,
   ScrollText,
   Phone,
-  SlidersHorizontal,
 } from 'lucide-react';
 
 import { NeoEngineLogo } from '@/components/NeoEngineLogo';
@@ -48,7 +47,6 @@ import { useHighlightSection } from '@/hooks/useHighlightSection';
 import { useSuperAdminPermissions } from '@/hooks/useSuperAdminPermissions';
 import { filterOwnerNavForEmployee } from '@/lib/webDashboardAccess';
 import { applyOwnerNavPreferences, type OwnerNavItem } from '@/lib/featureMenu';
-import { canAccessWebFeatureMenu } from '@/lib/featureMenuAccess';
 import { SUPER_ADMIN_PERMISSIONS as P } from '@/constants/superAdminPermissions';
 import type { SuperAdminPermission } from '@/constants/superAdminPermissions';
 import type { LucideIcon } from 'lucide-react';
@@ -94,13 +92,6 @@ const ownerNav: OwnerNavItem[] = [
   { key: 'departments', to: '/owner/departments', label: 'Departments', icon: Building2 },
   { key: 'vendors', to: '/owner/vendors', label: 'Vendors', icon: Phone },
   { key: 'outlets', to: '/owner/outlets', label: 'Outlets', icon: Store },
-  {
-    key: 'features',
-    to: '/owner/features',
-    label: 'Features',
-    icon: SlidersHorizontal,
-    locked: true,
-  },
   { key: 'rules-regulations', to: '/owner/rules-regulations', label: 'Rules & Regs', icon: ScrollText },
   { key: 'support', to: '/owner/support', label: 'Support', icon: Headset },
 ];
@@ -196,7 +187,7 @@ export function AppLayout({ children, role }: AppLayoutProps) {
     refreshEmployeeSession,
   } = useAuth();
   const { can } = useSuperAdminPermissions();
-  const { setOutlets, clear } = useOutletStore();
+  const { setOutlets, clear, selectedOutletId } = useOutletStore();
   const [sidebarCollapsed, setSidebarCollapsed] = useState(false);
   const [profileOpen, setProfileOpen] = useState(false);
   const [sidebarFlyout, setSidebarFlyout] = useState<SidebarFlyout>(null);
@@ -214,10 +205,12 @@ export function AppLayout({ children, role }: AppLayoutProps) {
     enabled: role === 'OWNER',
   });
 
+  const isMerchantPortal = authRole === 'OWNER' || authRole === 'EMPLOYEE';
+
   const { data: featureMenu } = useQuery({
-    queryKey: ['owner-feature-menu'],
-    queryFn: () => ownerApi.getFeatureMenu(),
-    enabled: canAccessWebFeatureMenu(authRole, featurePermissions),
+    queryKey: ['owner-feature-menu', selectedOutletId],
+    queryFn: () => ownerApi.getFeatureMenu(selectedOutletId!),
+    enabled: isMerchantPortal && !!selectedOutletId,
   });
 
   useEffect(() => {
@@ -260,10 +253,9 @@ export function AppLayout({ children, role }: AppLayoutProps) {
     }
   }, [role, authRole, refreshSuperAdminProfile, refreshEmployeeSession]);
 
-  const isMerchantPortal = authRole === 'OWNER' || authRole === 'EMPLOYEE';
   const ownerNavFiltered = filterOwnerNavForEmployee(ownerNav, featurePermissions ?? null, authRole);
   const ownerNavWithPrefs =
-    canAccessWebFeatureMenu(authRole, featurePermissions) && featureMenu?.webNav?.items
+    featureMenu?.webNav?.items
       ? applyOwnerNavPreferences(ownerNavFiltered, featureMenu.webNav.items)
       : ownerNavFiltered;
   const navItems =

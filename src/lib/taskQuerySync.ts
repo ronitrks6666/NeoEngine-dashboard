@@ -23,6 +23,7 @@ export async function refetchAllTaskQueries(
     queryClient.refetchQueries({ queryKey: ['manager-tasks'], type: 'all' }),
     queryClient.refetchQueries({ queryKey: ['task-templates'], type: 'all' }),
     queryClient.refetchQueries({ queryKey: ['manager-dashboard'], type: 'all' }),
+    queryClient.refetchQueries({ queryKey: ['dashboard-tasks'], type: 'all' }),
   ]);
   await queryClient.refetchQueries({
     queryKey: ['manager-tasks', outletId, todayYmd],

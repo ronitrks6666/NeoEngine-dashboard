@@ -16,6 +16,7 @@ export interface ManagerTaskItem {
   taskMediaKind?: 'image' | 'gif' | 'video' | null;
   isCompleted: boolean;
   completedAt?: string | null;
+  completedByName?: string | null;
   forDate?: string;
   startTime?: string | null;
   timeLimitMinutes?: number | null;

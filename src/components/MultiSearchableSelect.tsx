@@ -106,7 +106,7 @@ export function MultiSearchableSelect({
         createPortal(
           <div
             ref={panelRef}
-            style={panelStyle}
+            style={{ ...panelStyle, display: 'flex', flexDirection: 'column' }}
             className="overflow-hidden rounded-xl border border-emerald-100 bg-white shadow-lg"
             onMouseDown={(e) => e.stopPropagation()}
           >
@@ -123,7 +123,7 @@ export function MultiSearchableSelect({
                 />
               </div>
             </div>
-            <ul className="max-h-60 overflow-y-auto py-1">
+            <ul className="min-h-0 flex-1 overflow-y-auto py-1">
               {options.length === 0 ? (
                 <li className="px-3 py-3 text-center text-sm text-gray-500">{noOptionsText}</li>
               ) : filtered.length === 0 ? (

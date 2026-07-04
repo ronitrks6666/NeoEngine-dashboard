@@ -43,7 +43,7 @@ import { DepartmentsPage } from '@/pages/owner/DepartmentsPage';
 import { VendorsPage } from '@/pages/owner/VendorsPage';
 import { DutyRosterPage } from '@/pages/owner/DutyRosterPage';
 import { RulesRegulationsPage } from '@/pages/owner/RulesRegulationsPage';
-import { FeatureMenuPage } from '@/pages/owner/FeatureMenuPage';
+import { OutletFeatureMenuPage } from '@/pages/super-admin/OutletFeatureMenuPage';
 import { useAuth } from '@/hooks/useAuth';
 import { getDefaultEmployeeDashboardPath } from '@/lib/webDashboardAccess';
 import { NeoEngineApkDownloadPage } from '@/pages/NeoEngineApkDownloadPage';
@@ -101,6 +101,14 @@ function App() {
                   element={
                     <SuperAdminPermissionRoute permission={P.OUTLETS_VIEW}>
                       <OutletsPage />
+                    </SuperAdminPermissionRoute>
+                  }
+                />
+                <Route
+                  path="outlets/:outletId/features"
+                  element={
+                    <SuperAdminPermissionRoute permission={P.OUTLETS_VIEW}>
+                      <OutletFeatureMenuPage />
                     </SuperAdminPermissionRoute>
                   }
                 />
@@ -362,14 +370,6 @@ function App() {
                   element={
                     <EmployeeWebPermissionRoute routePath="/owner/support">
                       <OwnerSupportTicketsPage />
-                    </EmployeeWebPermissionRoute>
-                  }
-                />
-                <Route
-                  path="features"
-                  element={
-                    <EmployeeWebPermissionRoute routePath="/owner/features">
-                      <FeatureMenuPage />
                     </EmployeeWebPermissionRoute>
                   }
                 />

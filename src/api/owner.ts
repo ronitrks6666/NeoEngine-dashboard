@@ -180,20 +180,9 @@ export const ownerApi = {
     return data;
   },
 
-  getFeatureMenu: async () => {
+  getFeatureMenu: async (outletId: string) => {
     const { data } = await api.get<{ success: boolean; data: FeatureMenuConfig }>(
-      '/owner/feature-menu'
-    );
-    return data.data;
-  },
-
-  updateFeatureMenu: async (payload: {
-    webNav?: FeatureMenuPrefRow[];
-    mobileMore?: FeatureMenuPrefRow[];
-  }) => {
-    const { data } = await api.put<{ success: boolean; data: FeatureMenuConfig }>(
-      '/owner/feature-menu',
-      payload
+      `/owner/feature-menu?outletId=${encodeURIComponent(outletId)}`
     );
     return data.data;
   },

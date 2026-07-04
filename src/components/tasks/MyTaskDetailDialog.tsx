@@ -21,6 +21,8 @@ function resolveMediaUrl(url?: string | null) {
   return `${base}${url.startsWith('/') ? url : `/${url}`}`;
 }
 
+const PROOF_SKIP_REASON_MIN_LENGTH = 3;
+
 function formatDueLabel(task: ManagerTaskItem) {
   if (task.dueAt) {
     try {
@@ -59,6 +61,10 @@ export function MyTaskDetailDialog({
   const [error, setError] = useState<string | null>(null);
   const [proofModalOpen, setProofModalOpen] = useState(false);
   const [proofModalStep, setProofModalStep] = useState<'task' | 'checklist'>('task');
+  const [proofModalError, setProofModalError] = useState<string | null>(null);
+  const [checklistProofFieldErrors, setChecklistProofFieldErrors] = useState<
+    Record<string, string>
+  >({});
   const [taskProofSkipReason, setTaskProofSkipReason] = useState('');
   const [checklistProofSkipReasons, setChecklistProofSkipReasons] = useState<Record<string, string>>({});
   const proofInputRef = useRef<HTMLInputElement>(null);
@@ -153,7 +159,9 @@ export function MyTaskDetailDialog({
       return;
     }
 
-    if (!hasTaskProof && taskProofSkipReason.trim().length < 3) {
+    if (!hasTaskProof && taskProofSkipReason.trim().length < PROOF_SKIP_REASON_MIN_LENGTH) {
+      setProofModalError(null);
+      setChecklistProofFieldErrors({});
       setProofModalStep('task');
       setProofModalOpen(true);
       return;
@@ -165,8 +173,10 @@ export function MyTaskDetailDialog({
           itemId: item.id,
           reason: (checklistProofSkipReasons[item.id] || '').trim(),
         }))
-        .filter((r) => r.reason.length >= 3);
+        .filter((r) => r.reason.length >= PROOF_SKIP_REASON_MIN_LENGTH);
       if (reasons.length < missingChecklistProof.length) {
+        setProofModalError(null);
+        setChecklistProofFieldErrors({});
         setProofModalStep('checklist');
         setProofModalOpen(true);
         return;
@@ -184,14 +194,18 @@ export function MyTaskDetailDialog({
   };
 
   const handleProofModalContinue = async () => {
+    const reasonTooShortMessage =
+      'Please upload proof or enter a reason (at least 3 characters).';
+
     if (proofModalStep === 'task') {
-      if (!hasTaskProof && taskProofSkipReason.trim().length < 3) {
-        setError('Please upload proof or enter a reason (at least 3 characters).');
+      if (!hasTaskProof && taskProofSkipReason.trim().length < PROOF_SKIP_REASON_MIN_LENGTH) {
+        setProofModalError(reasonTooShortMessage);
         return;
       }
+      setProofModalError(null);
       if (missingChecklistProof.length > 0) {
+        setChecklistProofFieldErrors({});
         setProofModalStep('checklist');
-        setError(null);
         return;
       }
       await finalizeMarkDone(
@@ -200,16 +214,27 @@ export function MyTaskDetailDialog({
       return;
     }
 
-    const reasons = missingChecklistProof
-      .map((item) => ({
-        itemId: item.id,
-        reason: (checklistProofSkipReasons[item.id] || '').trim(),
-      }))
-      .filter((r) => r.reason.length >= 3);
-    if (reasons.length < missingChecklistProof.length) {
-      setError('Add a reason for each checklist item missing proof, or upload the photos.');
+    const fieldErrors: Record<string, string> = {};
+    for (const item of missingChecklistProof) {
+      const reason = (checklistProofSkipReasons[item.id] || '').trim();
+      if (reason.length < PROOF_SKIP_REASON_MIN_LENGTH) {
+        fieldErrors[item.id] = 'Enter at least 3 characters.';
+      }
+    }
+    if (Object.keys(fieldErrors).length > 0) {
+      setChecklistProofFieldErrors(fieldErrors);
+      setProofModalError(
+        'Add a reason for each checklist item missing proof, or upload the photos.'
+      );
       return;
     }
+
+    const reasons = missingChecklistProof.map((item) => ({
+      itemId: item.id,
+      reason: (checklistProofSkipReasons[item.id] || '').trim(),
+    }));
+    setProofModalError(null);
+    setChecklistProofFieldErrors({});
     await finalizeMarkDone({
       ...(!hasTaskProof ? { completionProofSkipReason: taskProofSkipReason.trim() } : {}),
       checklistProofSkipReasons: reasons,
@@ -313,6 +338,16 @@ export function MyTaskDetailDialog({
                 {formatDueLabel(localTask)}
               </p>
             )}
+            {localTask.isCompleted && localTask.completedAt && (
+              <p className="mt-1 text-xs text-gray-500">
+                {[
+                  localTask.completedByName ? `Completed by ${localTask.completedByName}` : null,
+                  new Date(localTask.completedAt).toLocaleString(),
+                ]
+                  .filter(Boolean)
+                  .join(' • ')}
+              </p>
+            )}
           </div>
           <button
             type="button"
@@ -390,8 +425,22 @@ export function MyTaskDetailDialog({
                           {item.text}
                         </span>
                       </button>
-                      {item.isCompleted && item.completedByName ? (
-                        <p className="mt-1 pl-8 text-xs text-gray-500">Done by {item.completedByName}</p>
+                      {item.isCompleted && (item.completedByName || item.completedAt) ? (
+                        <p className="mt-1 pl-8 text-xs text-gray-500">
+                          {[
+                            item.completedByName ? `Done by ${item.completedByName}` : null,
+                            item.completedAt
+                              ? new Date(item.completedAt).toLocaleString()
+                              : null,
+                          ]
+                            .filter(Boolean)
+                            .join(' • ')}
+                        </p>
+                      ) : null}
+                      {item.proofSkipReason ? (
+                        <p className="mt-1 pl-8 text-xs italic text-amber-700">
+                          Reason (no photo): {item.proofSkipReason}
+                        </p>
                       ) : null}
 
                       {refMedia.length > 0 && (
@@ -470,19 +519,30 @@ export function MyTaskDetailDialog({
             </section>
           )}
 
-          {localTask.isCompleted && completionProofUrl && (
+          {localTask.isCompleted && (completionProofUrl || localTask.completionProofSkipReason) && (
             <section>
               <p className="mb-2 text-xs font-bold uppercase tracking-wider text-gray-500">
                 Completion proof
               </p>
-              <a
-                href={completionProofUrl}
-                target="_blank"
-                rel="noreferrer"
-                className="block overflow-hidden rounded-xl border border-emerald-100"
-              >
-                <img src={completionProofUrl} alt="Completion proof" className="max-h-48 w-full object-contain bg-gray-50" />
-              </a>
+              {completionProofUrl ? (
+                <a
+                  href={completionProofUrl}
+                  target="_blank"
+                  rel="noreferrer"
+                  className="block overflow-hidden rounded-xl border border-emerald-100"
+                >
+                  <img
+                    src={completionProofUrl}
+                    alt="Completion proof"
+                    className="max-h-48 w-full object-contain bg-gray-50"
+                  />
+                </a>
+              ) : null}
+              {localTask.completionProofSkipReason ? (
+                <p className="mt-2 text-sm italic text-amber-700">
+                  Reason (no photo): {localTask.completionProofSkipReason}
+                </p>
+              ) : null}
             </section>
           )}
 
@@ -585,7 +645,11 @@ export function MyTaskDetailDialog({
       {proofModalOpen ? (
         <div
           className="fixed inset-0 z-[60] flex items-center justify-center bg-black/45 p-4"
-          onClick={() => setProofModalOpen(false)}
+          onClick={() => {
+            setProofModalOpen(false);
+            setProofModalError(null);
+            setChecklistProofFieldErrors({});
+          }}
           role="presentation"
         >
           <div
@@ -600,12 +664,18 @@ export function MyTaskDetailDialog({
                 <p className="mt-2 text-sm text-gray-600">
                   Upload a completion photo above, or explain why you could not upload proof.
                 </p>
+                <p className="mt-2 text-xs text-amber-700">Reason must be at least 3 characters.</p>
                 <textarea
                   value={taskProofSkipReason}
-                  onChange={(e) => setTaskProofSkipReason(e.target.value)}
+                  onChange={(e) => {
+                    setTaskProofSkipReason(e.target.value);
+                    if (proofModalError) setProofModalError(null);
+                  }}
                   rows={3}
                   placeholder="Reason you could not upload photo..."
-                  className="mt-3 w-full rounded-xl border border-gray-200 px-3 py-2 text-sm"
+                  className={`mt-2 w-full rounded-xl border px-3 py-2 text-sm ${
+                    proofModalError ? 'border-red-300 bg-red-50' : 'border-gray-200'
+                  }`}
                 />
               </>
             ) : (
@@ -614,30 +684,57 @@ export function MyTaskDetailDialog({
                 <p className="mt-2 text-sm text-gray-600">
                   Looks like you missed proof for some checklist items. Upload photos for each item, or add a reason below.
                 </p>
+                <p className="mt-2 text-xs text-amber-700">Each reason must be at least 3 characters.</p>
                 <div className="mt-3 max-h-52 space-y-3 overflow-y-auto">
                   {missingChecklistProof.map((item) => (
                     <div key={item.id}>
                       <p className="text-xs font-medium text-gray-700">{item.text}</p>
                       <input
                         value={checklistProofSkipReasons[item.id] || ''}
-                        onChange={(e) =>
+                        onChange={(e) => {
                           setChecklistProofSkipReasons((prev) => ({
                             ...prev,
                             [item.id]: e.target.value,
-                          }))
-                        }
+                          }));
+                          if (checklistProofFieldErrors[item.id]) {
+                            setChecklistProofFieldErrors((prev) => {
+                              const next = { ...prev };
+                              delete next[item.id];
+                              return next;
+                            });
+                          }
+                          if (proofModalError) setProofModalError(null);
+                        }}
                         placeholder="Reason or upload proof above"
-                        className="mt-1 w-full rounded-lg border border-gray-200 px-3 py-2 text-sm"
+                        className={`mt-1 w-full rounded-lg border px-3 py-2 text-sm ${
+                          checklistProofFieldErrors[item.id]
+                            ? 'border-red-300 bg-red-50'
+                            : 'border-gray-200'
+                        }`}
                       />
+                      {checklistProofFieldErrors[item.id] ? (
+                        <p className="mt-1 text-xs text-red-600">
+                          {checklistProofFieldErrors[item.id]}
+                        </p>
+                      ) : null}
                     </div>
                   ))}
                 </div>
               </>
             )}
+            {proofModalError ? (
+              <p className="mt-3 rounded-xl border border-amber-200 bg-amber-50 px-3 py-2 text-sm text-amber-800">
+                {proofModalError}
+              </p>
+            ) : null}
             <div className="mt-4 flex gap-2">
               <button
                 type="button"
-                onClick={() => setProofModalOpen(false)}
+                onClick={() => {
+                  setProofModalOpen(false);
+                  setProofModalError(null);
+                  setChecklistProofFieldErrors({});
+                }}
                 className="flex-1 rounded-xl border border-gray-200 py-2.5 text-sm font-medium text-gray-700"
               >
                 Cancel

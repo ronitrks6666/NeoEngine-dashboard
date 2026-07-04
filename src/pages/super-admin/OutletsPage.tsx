@@ -162,10 +162,16 @@ export function OutletsPage() {
                   <td className="px-4 py-2">{o.address || '-'}</td>
                   <td className="px-4 py-2">{o.phone || '-'}</td>
                   <td className="px-4 py-2">{getOwnerNames(o)}</td>
-                  <td className="px-4 py-2 text-right">
+                  <td className="px-4 py-2 text-right space-x-3">
+                    <button
+                      onClick={() => navigate(`/super-admin/outlets/${o._id}/features`)}
+                      className="text-emerald-700 hover:text-emerald-900 font-medium text-sm"
+                    >
+                      Menu layout
+                    </button>
                     <button
                       onClick={() => setEditingOutlet(o)}
-                      className="mr-3 text-gray-700 hover:text-gray-900 font-medium text-sm"
+                      className="text-gray-700 hover:text-gray-900 font-medium text-sm"
                     >
                       Edit
                     </button>

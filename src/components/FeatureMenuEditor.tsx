@@ -1,4 +1,4 @@
-import { useState, useMemo, useCallback, useEffect } from 'react';
+import { useState, useMemo, useCallback } from 'react';
 import {
   DndContext,
   closestCenter,
@@ -16,10 +16,8 @@ import {
   verticalListSortingStrategy,
 } from '@dnd-kit/sortable';
 import { CSS } from '@dnd-kit/utilities';
-import { useMutation, useQuery, useQueryClient } from '@tanstack/react-query';
 import { GripVertical, LayoutGrid, Smartphone, Save } from 'lucide-react';
-import { ownerApi, type FeatureMenuPrefRow, type FeatureMenuSection } from '@/api/owner';
-import { LoadingSpinner } from '@/components/LoadingSpinner';
+import type { FeatureMenuConfig, FeatureMenuPrefRow, FeatureMenuSection } from '@/api/owner';
 
 type TabId = 'web' | 'mobile';
 
@@ -167,53 +165,38 @@ function FeatureListEditor({
   );
 }
 
-export function FeatureMenuPage() {
-  const queryClient = useQueryClient();
+export type FeatureMenuEditorProps = {
+  title: string;
+  description: string;
+  data: FeatureMenuConfig;
+  webRows: FeatureMenuPrefRow[];
+  mobileRows: FeatureMenuPrefRow[];
+  dirty: boolean;
+  saving: boolean;
+  onWebRowsChange: (rows: FeatureMenuPrefRow[]) => void;
+  onMobileRowsChange: (rows: FeatureMenuPrefRow[]) => void;
+  onSave: () => void;
+};
+
+export function FeatureMenuEditor({
+  title,
+  description,
+  data,
+  webRows,
+  mobileRows,
+  dirty,
+  saving,
+  onWebRowsChange,
+  onMobileRowsChange,
+  onSave,
+}: FeatureMenuEditorProps) {
   const [tab, setTab] = useState<TabId>('web');
-  const [webRows, setWebRows] = useState<FeatureMenuPrefRow[]>([]);
-  const [mobileRows, setMobileRows] = useState<FeatureMenuPrefRow[]>([]);
-  const [dirty, setDirty] = useState(false);
-
-  const { data, isLoading } = useQuery({
-    queryKey: ['owner-feature-menu'],
-    queryFn: () => ownerApi.getFeatureMenu(),
-  });
-
-  useEffect(() => {
-    if (!data) return;
-    setWebRows(data.webNav.items);
-    setMobileRows(data.mobileMore.items);
-    setDirty(false);
-  }, [data]);
-
-  const saveMutation = useMutation({
-    mutationFn: () =>
-      ownerApi.updateFeatureMenu({
-        webNav: webRows,
-        mobileMore: mobileRows,
-      }),
-    onSuccess: (next) => {
-      queryClient.setQueryData(['owner-feature-menu'], next);
-      setWebRows(next.webNav.items);
-      setMobileRows(next.mobileMore.items);
-      setDirty(false);
-    },
-  });
-
-  const markDirty = () => setDirty(true);
-
-  if (isLoading || !data) {
-    return <LoadingSpinner />;
-  }
 
   return (
     <div className="mx-auto max-w-2xl space-y-6 p-6">
       <div>
-        <h1 className="text-2xl font-bold text-gray-900">Features</h1>
-        <p className="mt-1 text-sm text-gray-600">
-          Choose which features appear in the web sidebar and the mobile app More menu. Drag to
-          reorder.
-        </p>
+        <h1 className="text-2xl font-bold text-gray-900">{title}</h1>
+        <p className="mt-1 text-sm text-gray-600">{description}</p>
       </div>
 
       <div className="flex gap-2 rounded-xl bg-emerald-50 p-1">
@@ -240,33 +223,19 @@ export function FeatureMenuPage() {
       </div>
 
       {tab === 'web' ? (
-        <FeatureListEditor
-          section={data.webNav}
-          rows={webRows}
-          onChange={(rows) => {
-            setWebRows(rows);
-            markDirty();
-          }}
-        />
+        <FeatureListEditor section={data.webNav} rows={webRows} onChange={onWebRowsChange} />
       ) : (
-        <FeatureListEditor
-          section={data.mobileMore}
-          rows={mobileRows}
-          onChange={(rows) => {
-            setMobileRows(rows);
-            markDirty();
-          }}
-        />
+        <FeatureListEditor section={data.mobileMore} rows={mobileRows} onChange={onMobileRowsChange} />
       )}
 
       <button
         type="button"
-        disabled={!dirty || saveMutation.isPending}
-        onClick={() => saveMutation.mutate()}
+        disabled={!dirty || saving}
+        onClick={onSave}
         className="inline-flex items-center gap-2 rounded-xl bg-emerald-600 px-5 py-2.5 text-sm font-semibold text-white shadow-sm hover:bg-emerald-700 disabled:opacity-50"
       >
         <Save className="h-4 w-4" />
-        {saveMutation.isPending ? 'Saving…' : 'Save changes'}
+        {saving ? 'Saving…' : 'Save changes'}
       </button>
     </div>
   );

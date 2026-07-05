@@ -24,7 +24,7 @@ export function CoBrandMark({ brand, className = '', logoSize = 28, variant = 's
   const isHeader = variant === 'header';
 
   return (
-    <div className={`flex items-center min-w-0 ${isHeader ? 'gap-3' : 'gap-2'} ${className}`}>
+    <div className={`flex min-w-0 items-center ${isHeader ? 'justify-center' : ''} ${isHeader ? 'gap-2 sm:gap-3' : 'gap-2'} ${className}`}>
       {isHeader ? (
         <span className="flex shrink-0 items-baseline gap-0">
           <span className="text-xl font-extrabold tracking-tight text-slate-900">neo</span>

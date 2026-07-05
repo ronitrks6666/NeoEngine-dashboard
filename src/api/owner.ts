@@ -131,7 +131,7 @@ export const ownerApi = {
     return data.data.brand;
   },
 
-  updateBrandLogo: async (file: File) => {
+  uploadBrandLogo: async (file: File) => {
     const formData = new FormData();
     formData.append('image', file);
     const { data } = await api.post<{ success: boolean; url: string }>(

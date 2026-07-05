@@ -259,6 +259,8 @@ export function AppLayout({ children, role }: AppLayoutProps) {
       ? navItems[0]?.to ?? '/owner/dashboard'
       : `${basePath}/dashboard`;
 
+  const isChatShellPage = /\/operations-ai\/?$/.test(location.pathname);
+
   const userEmail = user && 'email' in user ? user.email : '';
 
   const showNavFlyout = (el: HTMLElement, label: string) => {
@@ -272,10 +274,10 @@ export function AppLayout({ children, role }: AppLayoutProps) {
   };
 
   return (
-    <div className="flex min-h-screen bg-emerald-50/40">
+    <div className="flex min-h-screen overflow-x-hidden bg-emerald-50/40">
       <SidebarFlyoutLayer flyout={sidebarCollapsed ? sidebarFlyout : null} />
       <aside
-        className="fixed left-0 top-0 z-40 flex h-screen flex-col overflow-x-visible overflow-y-hidden bg-gradient-to-b from-emerald-800 to-emerald-900 shadow-emerald-lg transition-[width] duration-300 ease-in-out"
+        className="fixed left-0 top-0 z-40 flex h-screen flex-col overflow-y-hidden bg-gradient-to-b from-emerald-800 to-emerald-900 shadow-emerald-lg transition-[width] duration-300 ease-in-out"
         style={{ width: sidebarWidth }}
       >
         <button
@@ -300,7 +302,7 @@ export function AppLayout({ children, role }: AppLayoutProps) {
           )}
         </button>
 
-        <nav className="sidebar-nav-scroll flex min-h-0 flex-1 flex-col space-y-0.5 overflow-y-auto overflow-x-visible p-2">
+        <nav className="sidebar-nav-scroll flex min-h-0 flex-1 flex-col space-y-0.5 overflow-y-auto p-2">
           <Link
             to={dashboardPath}
             onMouseEnter={(e) => {
@@ -356,46 +358,83 @@ export function AppLayout({ children, role }: AppLayoutProps) {
         </nav>
       </aside>
       <main
-        className="flex-1 min-h-screen overflow-auto transition-all duration-300 ease-in-out"
-        style={{ marginLeft: sidebarWidth }}
+        className="flex h-screen min-w-0 flex-col overflow-hidden transition-[margin,width] duration-300 ease-in-out"
+        style={{ marginLeft: sidebarWidth, width: `calc(100% - ${sidebarWidth}px)` }}
       >
-        <header className="sticky top-0 z-30 min-h-[3.5rem] shrink-0 bg-white/90 backdrop-blur-md border-b border-emerald-100 px-4 sm:px-6 py-2 grid grid-cols-1 sm:grid-cols-[minmax(0,1fr)_auto_minmax(0,1fr)] items-center gap-3 shadow-sm">
-          {isMerchantPortal && (
-            <>
-              <div className="flex min-h-0 flex-wrap items-center gap-3 sm:gap-4 min-w-0 justify-self-start">
-                <span className="shrink-0 text-sm font-medium leading-none text-emerald-800">Outlet:</span>
-                <OutletSelector allowCreate={authRole === 'OWNER'} />
-                {authRole === 'OWNER' && (
-                  <DashboardVoiceButton
-                    outletId={selectedOutletId}
-                    onResult={(result) => {
-                      const url = result.sectionId ? `${result.route}?highlight=${result.sectionId}` : result.route;
-                      if (result.action === 'create_task' && result.prefilledData) {
-                        navigate(url, { state: { openCreate: true, prefilledTask: result.prefilledData } });
-                      } else if (result.action === 'create_staff' && result.prefilledData) {
-                        navigate(url, { state: { openCreate: true, prefilledStaff: result.prefilledData } });
-                      } else {
-                        navigate(url);
-                      }
-                    }}
-                    onError={(err) => {
-                      window.alert(err || 'Voice processing failed. Try: "Show staff", "Create a task to...", etc.');
-                    }}
+        <header className="sticky top-0 z-30 shrink-0 border-b border-emerald-100 bg-white/90 shadow-sm backdrop-blur-md">
+          <div className="relative flex min-h-14 max-w-full items-center gap-2 px-3 py-2 sm:gap-3 sm:px-4 lg:px-6">
+            {isMerchantPortal && (
+              <>
+                <div
+                  className={`flex min-w-0 flex-1 items-center gap-2 sm:gap-3 ${
+                    authRole === 'OWNER' ? 'pr-24 sm:pr-32 md:pr-40' : ''
+                  }`}
+                >
+                  <span className="hidden shrink-0 text-sm font-medium leading-none text-emerald-800 sm:inline">
+                    Outlet:
+                  </span>
+                  <OutletSelector
+                    allowCreate={authRole === 'OWNER'}
+                    className="min-w-0 max-w-[9.5rem] shrink sm:max-w-[11rem]"
                   />
-                )}
-              </div>
-
-              {authRole === 'OWNER' && (
-                <div className="flex min-w-0 items-center justify-center justify-self-center order-first sm:order-none w-full sm:w-auto py-1 sm:py-0">
-                  <CoBrandMark brand={ownerBrand ?? null} variant="header" logoSize={32} />
+                  {authRole === 'OWNER' && (
+                    <DashboardVoiceButton
+                      outletId={selectedOutletId}
+                      onResult={(result) => {
+                        const url = result.sectionId ? `${result.route}?highlight=${result.sectionId}` : result.route;
+                        if (result.action === 'create_task' && result.prefilledData) {
+                          navigate(url, { state: { openCreate: true, prefilledTask: result.prefilledData } });
+                        } else if (result.action === 'create_staff' && result.prefilledData) {
+                          navigate(url, { state: { openCreate: true, prefilledStaff: result.prefilledData } });
+                        } else {
+                          navigate(url);
+                        }
+                      }}
+                      onError={(err) => {
+                        window.alert(err || 'Voice processing failed. Try: "Show staff", "Create a task to...", etc.');
+                      }}
+                    />
+                  )}
                 </div>
-              )}
 
-              <div className="flex min-w-0 items-center gap-2 sm:gap-3 justify-self-end w-full sm:w-auto">
-                <SiteSearchTypeahead
-                  role="OWNER"
-                  className="min-w-0 flex-1 sm:flex-none w-full sm:max-w-xs md:max-w-sm lg:max-w-md"
-                />
+                {authRole === 'OWNER' && (
+                  <div className="pointer-events-none absolute left-1/2 top-1/2 z-10 max-w-[min(100%,14rem)] -translate-x-1/2 -translate-y-1/2 px-2 sm:max-w-xs">
+                    <CoBrandMark
+                      brand={ownerBrand ?? null}
+                      variant="header"
+                      logoSize={32}
+                      className="justify-center"
+                    />
+                  </div>
+                )}
+
+                <div
+                  className={`relative z-20 flex flex-1 shrink-0 items-center justify-end gap-2 sm:gap-3 ${
+                    authRole === 'OWNER' ? 'pl-24 sm:pl-32 md:pl-40' : ''
+                  }`}
+                >
+                  <SiteSearchTypeahead
+                    role="OWNER"
+                    authRole={authRole}
+                    permissions={featurePermissions}
+                    className="hidden min-w-0 w-32 md:block lg:w-44 xl:w-56"
+                  />
+                  <HeaderProfileMenu
+                    profileRef={profileRef}
+                    profileOpen={profileOpen}
+                    setProfileOpen={setProfileOpen}
+                    userName={user?.name}
+                    userEmail={userEmail}
+                    onLogout={handleLogout}
+                  />
+                </div>
+              </>
+            )}
+            {role === 'SUPER_ADMIN' && (
+              <>
+                <div className="min-w-0 flex-1">
+                  <SiteSearchTypeahead role="SUPER_ADMIN" className="w-full max-w-md" />
+                </div>
                 <HeaderProfileMenu
                   profileRef={profileRef}
                   profileOpen={profileOpen}
@@ -404,26 +443,19 @@ export function AppLayout({ children, role }: AppLayoutProps) {
                   userEmail={userEmail}
                   onLogout={handleLogout}
                 />
-              </div>
-            </>
-          )}
-          {role === 'SUPER_ADMIN' && (
-            <>
-              <div className="col-span-full flex min-w-0 flex-1 items-center justify-start px-0 sm:px-2 sm:col-span-2">
-                <SiteSearchTypeahead role="SUPER_ADMIN" className="w-full max-w-md" />
-              </div>
-              <HeaderProfileMenu
-                profileRef={profileRef}
-                profileOpen={profileOpen}
-                setProfileOpen={setProfileOpen}
-                userName={user?.name}
-                userEmail={userEmail}
-                onLogout={handleLogout}
-              />
-            </>
-          )}
+              </>
+            )}
+          </div>
         </header>
-        {children}
+        <div
+          className={
+            isChatShellPage
+              ? 'flex min-h-0 min-w-0 flex-1 flex-col overflow-hidden'
+              : 'min-h-0 min-w-0 flex-1 overflow-x-hidden overflow-y-auto'
+          }
+        >
+          {children}
+        </div>
       </main>
     </div>
   );

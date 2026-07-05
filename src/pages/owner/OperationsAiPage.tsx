@@ -6,12 +6,11 @@ import { Bot, RefreshCw, Sparkles } from 'lucide-react';
 import { ChatSidebar } from '@/components/operations-ai/ChatSidebar';
 import { ChatInput } from '@/components/operations-ai/ChatInput';
 import { QuickAskChips } from '@/components/operations-ai/QuickAskChips';
-import { ContextChips } from '@/components/operations-ai/ContextChips';
 import { SuggestionChips } from '@/components/operations-ai/SuggestionChips';
 import { EmptyState } from '@/components/operations-ai/EmptyState';
 import { OpsAiResponseCard, isInsightCardType } from '@/components/operations-ai/OpsAiResponseCard';
 import { parseResponseCard } from '@/components/operations-ai/parseResponseCard';
-import type { ChatMessage, ChatThread, ParsedContext, ThreadUiPrefs } from '@/components/operations-ai/types';
+import type { ChatMessage, ChatThread, ThreadUiPrefs } from '@/components/operations-ai/types';
 import {
   detectDomainFromMeta,
   formatDateTime,
@@ -61,8 +60,6 @@ export function OperationsAiPage() {
   const [threads, setThreads] = useState<ChatThread[]>([]);
   const [activeThreadId, setActiveThreadId] = useState('');
   const [threadPrefs, setThreadPrefs] = useState<ThreadUiPrefs>(loadThreadPrefs);
-  const [contextOverride, setContextOverride] = useState<Partial<ParsedContext>>({});
-  const [removedContextKeys, setRemovedContextKeys] = useState<Set<keyof ParsedContext>>(new Set());
   const messagesEndRef = useRef<HTMLDivElement>(null);
 
   const selectedOutletName = useMemo(
@@ -161,47 +158,6 @@ export function OperationsAiPage() {
     return msgs.filter((m) => m.id !== 'welcome');
   }, [activeThread?.messages]);
 
-  useEffect(() => {
-    setRemovedContextKeys(new Set());
-  }, [activeThreadId]);
-
-  const conversationContext = useMemo(() => {
-    const ctx: ParsedContext = {};
-    if (!removedContextKeys.has('outlet')) {
-      ctx.outlet = contextOverride.outlet ?? selectedOutletName ?? undefined;
-    }
-    if (!removedContextKeys.has('period')) {
-      ctx.period = contextOverride.period;
-    }
-    if (!removedContextKeys.has('employee')) {
-      ctx.employee = contextOverride.employee;
-    }
-    for (let i = visibleMessages.length - 1; i >= 0; i -= 1) {
-      const m = visibleMessages[i];
-      if (m.role !== 'assistant' || m.isThinking) continue;
-      const parsed = parseResponseCard(m.text, m.meta);
-      if ('context' in parsed) {
-        if (!removedContextKeys.has('period') && !ctx.period && parsed.context.period) {
-          ctx.period = parsed.context.period;
-        }
-        if (!removedContextKeys.has('outlet') && !ctx.outlet && parsed.context.outlet) {
-          ctx.outlet = parsed.context.outlet;
-        }
-        if (!removedContextKeys.has('employee') && !ctx.employee && parsed.context.employee) {
-          ctx.employee = parsed.context.employee;
-        }
-      }
-      if (
-        !removedContextKeys.has('employee') &&
-        !ctx.employee &&
-        parsed.type === 'employee'
-      ) {
-        ctx.employee = parsed.name;
-      }
-    }
-    return ctx;
-  }, [visibleMessages, contextOverride, selectedOutletName, removedContextKeys]);
-
   const updateThreadById = useCallback((threadId: string, updater: (thread: ChatThread) => ChatThread) => {
     setThreads((prev) => prev.map((t) => (t.id === threadId ? updater(t) : t)));
   }, []);
@@ -217,8 +173,6 @@ export function OperationsAiPage() {
     setActiveThreadId(next.id);
     setPrompt('');
     setError('');
-    setContextOverride({});
-    setRemovedContextKeys(new Set());
   };
 
   const sendMessage = async (rawValue: string) => {
@@ -337,7 +291,7 @@ export function OperationsAiPage() {
   const showEmpty = isWelcomeOnly(visibleMessages);
 
   return (
-    <div className="flex h-[calc(100vh-3.5rem)] bg-emerald-50/30 animate-fade-in overflow-hidden">
+    <div className="flex min-h-0 flex-1 overflow-hidden bg-emerald-50/30 animate-fade-in">
       <ChatSidebar
         threads={threads}
         activeThreadId={activeThreadId}
@@ -371,7 +325,7 @@ export function OperationsAiPage() {
         }}
       />
 
-      <section className="flex-1 flex flex-col min-w-0 bg-white/40">
+      <section className="flex min-h-0 flex-1 flex-col min-w-0 bg-white/40">
         <header className="shrink-0 border-b border-emerald-100 bg-white/90 backdrop-blur-sm px-5 py-3.5 flex items-center justify-between gap-3">
           <div className="flex items-center gap-3 min-w-0">
             <div className="w-10 h-10 rounded-xl bg-emerald-100 flex items-center justify-center">
@@ -404,9 +358,11 @@ export function OperationsAiPage() {
           </div>
         </header>
 
-        <QuickAskChips onSelect={sendMessage} disabled={busy} />
+        <div className="shrink-0">
+          <QuickAskChips onSelect={sendMessage} disabled={busy} />
+        </div>
 
-        <div className="flex-1 overflow-y-auto px-4 sm:px-6 py-5">
+        <div className="min-h-0 flex-1 overflow-y-auto px-4 sm:px-6 py-5">
           {showEmpty ? (
             <EmptyState userName={user?.name} onSelect={sendMessage} disabled={busy} />
           ) : (
@@ -455,17 +411,14 @@ export function OperationsAiPage() {
           )}
         </div>
 
-        <ContextChips
-          context={conversationContext}
-          onRemove={(key) => setRemovedContextKeys((prev) => new Set([...prev, key]))}
-        />
-
-        <ChatInput
-          value={prompt}
-          busy={busy}
-          onChange={setPrompt}
-          onSubmit={() => sendMessage(prompt)}
-        />
+        <div className="shrink-0">
+          <ChatInput
+            value={prompt}
+            busy={busy}
+            onChange={setPrompt}
+            onSubmit={() => sendMessage(prompt)}
+          />
+        </div>
       </section>
     </div>
   );

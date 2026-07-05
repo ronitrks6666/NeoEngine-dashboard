@@ -51,7 +51,7 @@ export function ChatSidebar({
     prefs.titleOverrides[thread.id] || thread.title || 'Untitled chat';
 
   return (
-    <aside className="w-[280px] shrink-0 border-r border-emerald-100 bg-white/80 backdrop-blur-sm flex flex-col h-full">
+    <aside className="flex h-full min-h-0 w-[280px] shrink-0 flex-col border-r border-emerald-100 bg-white/80 backdrop-blur-sm">
       <div className="p-4 border-b border-emerald-50">
         <button
           type="button"
@@ -62,7 +62,7 @@ export function ChatSidebar({
         </button>
       </div>
 
-      <div className="flex-1 overflow-y-auto px-3 py-3 space-y-4">
+      <div className="min-h-0 flex-1 overflow-y-auto px-3 py-3 space-y-4">
         {loading && <p className="text-xs text-gray-400 px-2">Loading conversations...</p>}
         {grouped.map((group) => (
           <div key={group.label}>

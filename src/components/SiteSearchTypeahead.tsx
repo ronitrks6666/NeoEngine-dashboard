@@ -5,13 +5,20 @@ import { getSiteSearchMatches, type AppRole } from '@/data/siteSearchIndex';
 
 type SiteSearchTypeaheadProps = {
   role: AppRole;
+  authRole?: 'OWNER' | 'EMPLOYEE' | 'SUPER_ADMIN' | null;
+  permissions?: Record<string, boolean | undefined> | null;
   className?: string;
 };
 
 /**
  * Bootstrap-style typeahead: static index only (no API) — minimal CPU, no extra network load.
  */
-export function SiteSearchTypeahead({ role, className = '' }: SiteSearchTypeaheadProps) {
+export function SiteSearchTypeahead({
+  role,
+  authRole = null,
+  permissions = null,
+  className = '',
+}: SiteSearchTypeaheadProps) {
   const navigate = useNavigate();
   const listId = useId();
   const containerRef = useRef<HTMLDivElement>(null);
@@ -21,7 +28,10 @@ export function SiteSearchTypeahead({ role, className = '' }: SiteSearchTypeahea
   const [open, setOpen] = useState(false);
   const [activeIndex, setActiveIndex] = useState(0);
 
-  const matches = useMemo(() => getSiteSearchMatches(query, role), [query, role]);
+  const matches = useMemo(
+    () => getSiteSearchMatches(query, role, { authRole, permissions }),
+    [query, role, authRole, permissions]
+  );
 
   useEffect(() => {
     setActiveIndex(0);
@@ -115,7 +125,7 @@ export function SiteSearchTypeahead({ role, className = '' }: SiteSearchTypeahea
           }}
           onFocus={() => query.trim() && setOpen(true)}
           onKeyDown={onKeyDown}
-          className="w-full min-w-[12rem] max-w-md rounded-xl border border-emerald-200/90 bg-white py-2 pl-9 pr-16 text-sm text-gray-900 shadow-sm placeholder:text-gray-400 focus:border-emerald-500 focus:outline-none focus:ring-2 focus:ring-emerald-500/20"
+          className="w-full min-w-0 rounded-xl border border-emerald-200/90 bg-white py-2 pl-9 pr-16 text-sm text-gray-900 shadow-sm placeholder:text-gray-400 focus:border-emerald-500 focus:outline-none focus:ring-2 focus:ring-emerald-500/20"
         />
         <kbd
           className="pointer-events-none absolute right-2 top-1/2 hidden -translate-y-1/2 select-none items-center gap-0.5 rounded border border-emerald-100 bg-emerald-50/80 px-1.5 py-0.5 font-mono text-[10px] font-medium text-emerald-700 sm:flex"

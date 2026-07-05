@@ -35,6 +35,7 @@ type SopGroup = {
   _id: string;
   name: string;
   parentRoleId?: { _id?: string; name?: string };
+  collaboratorRoleIds?: Array<{ _id?: string; name?: string } | string>;
   taskIds?: { _id: string; title?: string }[];
   assignToType?: 'role' | 'staff';
   assignedEmployeeIds?: { _id: string; name?: string }[];
@@ -78,6 +79,37 @@ function scheduleSummary(g: SopGroup): string {
     default:
       return 'Daily';
   }
+}
+
+function roleNamesFromGroup(g: SopGroup): string[] {
+  const fromCollab = (g.collaboratorRoleIds ?? [])
+    .map((r) => (typeof r === 'object' && r?.name ? r.name : null))
+    .filter((n): n is string => Boolean(n));
+  if (fromCollab.length > 0) return fromCollab;
+  if (g.parentRoleId?.name) return [g.parentRoleId.name];
+  return [];
+}
+
+function assignSummary(g: SopGroup): string {
+  if (g.isCollaborative) {
+    if (g.assignToType === 'staff' && g.assignedEmployeeIds?.length) {
+      const names = g.assignedEmployeeIds
+        .map((e) => (typeof e === 'object' && e?.name ? e.name : null))
+        .filter((n): n is string => Boolean(n));
+      return names.length ? `Shared · ${names.join(', ')}` : 'Shared · staff';
+    }
+    const roles = roleNamesFromGroup(g);
+    if (roles.length > 1) return `Shared · ${roles.join(', ')}`;
+    if (roles.length === 1) return `Shared · ${roles[0]}`;
+    return 'Shared';
+  }
+  if (g.assignToType === 'staff' && g.assignedEmployeeIds?.length) {
+    const names = g.assignedEmployeeIds
+      .map((e) => (typeof e === 'object' && e?.name ? e.name : null))
+      .filter((n): n is string => Boolean(n));
+    return names.length ? names.join(', ') : 'Staff';
+  }
+  return roleNamesFromGroup(g)[0] ?? '—';
 }
 
 export function SopPage() {
@@ -181,7 +213,13 @@ export function SopPage() {
     setEditing(g);
     setName(g.name);
     const prId = (g.parentRoleId as { _id?: string })?._id ?? '';
-    setRoleIds(prId ? [prId] : []);
+    const collabRoleIds =
+      g.isCollaborative && g.assignToType !== 'staff' && g.collaboratorRoleIds?.length
+        ? g.collaboratorRoleIds
+            .map((r) => (typeof r === 'object' && r?._id ? String(r._id) : typeof r === 'string' ? r : ''))
+            .filter(Boolean)
+        : [];
+    setRoleIds(collabRoleIds.length > 0 ? collabRoleIds : prId ? [prId] : []);
     setTaskIds((g.taskIds ?? []).map((t) => (typeof t === 'string' ? t : t._id)));
     setAssignToType(g.assignToType ?? 'role');
     setStaffIds((g.assignedEmployeeIds ?? []).map((e) => (typeof e === 'string' ? e : e._id)));
@@ -196,11 +234,11 @@ export function SopPage() {
   };
 
   const buildPayload = () => {
-    const parentRoleId = roleIds[0] ?? '';
+    const parentRoleId = assignToType === 'role' ? (roleIds[0] ?? '') : undefined;
     const payload: Record<string, unknown> = {
       name: name.trim(),
       outletId: selectedOutletId!,
-      parentRoleId,
+      ...(parentRoleId ? { parentRoleId } : {}),
       taskIds,
       assignToType,
       assignedEmployeeIds: assignToType === 'staff' ? staffIds : [],
@@ -222,10 +260,10 @@ export function SopPage() {
       if (modal === 'edit' && editing) {
         return taskApi.updateTemplateGroup(editing._id, buildPayload());
       }
-      if (isSharedSop) {
+      if (isSharedSop || assignToType === 'staff') {
         return taskApi.createTemplateGroup(buildPayload());
       }
-      const targets = assignToType === 'role' && roleIds.length > 1 ? roleIds : [roleIds[0]];
+      const targets = roleIds.length > 1 ? roleIds : [roleIds[0]];
       let last;
       for (let i = 0; i < targets.length; i++) {
         const rid = targets[i];
@@ -338,9 +376,10 @@ export function SopPage() {
 
   const canSave =
     name.trim() &&
-    roleIds.length > 0 &&
     taskIds.length > 0 &&
-    (assignToType === 'role' || staffIds.length > 0) &&
+    (assignToType === 'role' ? roleIds.length > 0 : staffIds.length > 0) &&
+    (!isSharedSop ||
+      (assignToType === 'role' ? roleIds.length >= 2 : staffIds.length >= 2)) &&
     (occurrenceType !== 'onetime' || specificDate) &&
     (occurrenceType !== 'every-n-days' || (parseInt(intervalDays, 10) >= 1 && parseInt(intervalDays, 10) <= 90));
 
@@ -481,7 +520,7 @@ export function SopPage() {
                     <div className="min-w-0">
                     <h2 className="text-lg font-semibold text-gray-900">{g.name}</h2>
                     <p className="text-sm text-gray-500 mt-0.5">
-                      {g.parentRoleId?.name ?? '—'} · {g.taskIds?.length ?? 0} tasks · {scheduleSummary(g)} ·{' '}
+                      {assignSummary(g)} · {g.taskIds?.length ?? 0} tasks · {scheduleSummary(g)} ·{' '}
                       {g.shiftType ?? 'Both'} shift
                     </p>
                     {tab === 'active' && (
@@ -704,16 +743,10 @@ export function SopPage() {
                   </div>
                 ) : (
                   <div className="space-y-3">
+                    <p className="text-xs text-gray-500">
+                      Pick one or more staff — roles are taken from each person&apos;s active role.
+                    </p>
                     <MultiSearchableSelect values={staffIds} onChange={setStaffIds} options={staffOptions} placeholder="Select staff…" />
-                    <div>
-                      <label className="block text-xs font-medium text-gray-500 mb-1">Master role (required for bundle)</label>
-                      <SearchableSelect
-                        value={roleIds[0] ?? ''}
-                        onChange={(v) => setRoleIds(v ? [v] : [])}
-                        options={roleOptions}
-                        placeholder="Select master role…"
-                      />
-                    </div>
                   </div>
                 )}
               </div>

@@ -28,7 +28,7 @@ export const OWNER_ROUTE_WEB_PERMISSIONS: Record<string, string | string[]> = {
   '/owner/leave-rules': 'webLeaveRules',
   '/owner/payroll-settings': 'webPayrollSettings',
   '/owner/overtime': 'webOvertime',
-  '/owner/hierarchy': 'webHierarchy',
+  '/owner/hierarchy': ['webHierarchy', 'webStaff', 'webRoles'],
   '/owner/activity': 'webActivity',
   '/owner/roles': 'webRoles',
   '/owner/departments': 'webDepartments',

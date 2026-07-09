@@ -1,4 +1,4 @@
-import { useCallback, useMemo, useState } from 'react';
+import { useCallback, useEffect, useMemo, useState } from 'react';
 import { useQuery, useMutation, useQueryClient } from '@tanstack/react-query';
 import { useOutletStore } from '@/stores/outletStore';
 import { employeeApi, type DutyRosterRow } from '@/api/employee';
@@ -12,7 +12,7 @@ import {
   parseFlexibleTimeDigits,
   parseHHmm,
 } from '@/utils/taskScheduleUtils';
-import { CalendarClock, Pencil, Sparkles, X } from 'lucide-react';
+import { CalendarClock, ChevronDown, Pencil, Sparkles, Users, X } from 'lucide-react';
 
 const WEEKDAYS = [
   'Monday',
@@ -27,6 +27,11 @@ const WEEKDAYS = [
 const MAX_WEEKLY_OFF = 3;
 
 type EditModal = 'time' | 'hours' | 'role' | 'weeklyOff' | null;
+type BulkApplyMode = 'set_all_staff' | 'outlet_default_only';
+
+function normalizePunchTime(raw: string): string | null {
+  return parseFlexibleTimeDigits(raw) ?? (parseHHmm(raw) != null ? raw.trim() : null);
+}
 
 function sortWeekdays(days: string[]) {
   return WEEKDAYS.filter((d) => days.includes(d));
@@ -98,6 +103,12 @@ export function DutyRosterPage() {
   const [hoursUsesDefault, setHoursUsesDefault] = useState(true);
   const [weeklyOffDraft, setWeeklyOffDraft] = useState<string[]>([]);
   const [saveError, setSaveError] = useState<string | null>(null);
+  const [bulkPanelOpen, setBulkPanelOpen] = useState(false);
+  const [bulkPunch, setBulkPunch] = useState('');
+  const [bulkHours, setBulkHours] = useState('');
+  const [bulkError, setBulkError] = useState<string | null>(null);
+  const [bulkSuccess, setBulkSuccess] = useState<string | null>(null);
+  const [bulkConfirmMode, setBulkConfirmMode] = useState<BulkApplyMode | null>(null);
 
   const { data, isLoading, isFetching } = useQuery({
     queryKey: ['duty-roster', selectedOutletId, debouncedSearch],
@@ -138,6 +149,29 @@ export function DutyRosterPage() {
       queryClient.invalidateQueries({ queryKey: ['duty-roster', selectedOutletId] });
     },
     onError: (e) => setSaveError(getApiErrorMessage(e)),
+  });
+
+  const bulkMutation = useMutation({
+    mutationFn: (payload: {
+      outletId: string;
+      punchInTime: string;
+      minHoursPerDay: number;
+      applyMode: BulkApplyMode;
+    }) => employeeApi.applyDutyRosterBulk(payload),
+    onSuccess: (_data, variables) => {
+      setBulkError(null);
+      setBulkConfirmMode(null);
+      setBulkSuccess(
+        variables.applyMode === 'set_all_staff'
+          ? 'Shift hours updated for whole team'
+          : 'Outlet shift default saved'
+      );
+      queryClient.invalidateQueries({ queryKey: ['duty-roster', selectedOutletId] });
+    },
+    onError: (e) => {
+      setBulkConfirmMode(null);
+      setBulkError(getApiErrorMessage(e));
+    },
   });
 
   const closeModal = useCallback(() => {
@@ -228,6 +262,52 @@ export function DutyRosterPage() {
   const roster = data?.roster ?? [];
   const outletDefaults = data?.outletDefaults;
 
+  useEffect(() => {
+    if (!outletDefaults) return;
+    setBulkPunch(outletDefaults.punchInTime);
+    setBulkHours(String(outletDefaults.minHoursPerDay));
+  }, [outletDefaults]);
+
+  const requestBulkApply = (mode: BulkApplyMode) => {
+    setBulkSuccess(null);
+    const hours = bulkHours.trim() ? parseInt(bulkHours, 10) : NaN;
+    if (!bulkHours.trim() || isNaN(hours) || hours < 1 || hours > 24) {
+      setBulkError('Hours must be between 1 and 24');
+      return;
+    }
+    const normalizedPunch = normalizePunchTime(bulkPunch);
+    if (!normalizedPunch) {
+      setBulkError('Enter a valid coming time (e.g. 07:15)');
+      return;
+    }
+    setBulkError(null);
+    setBulkConfirmMode(mode);
+  };
+
+  const confirmBulkApply = () => {
+    if (!selectedOutletId || !bulkConfirmMode) return;
+    const hours = parseInt(bulkHours, 10);
+    const normalizedPunch = normalizePunchTime(bulkPunch);
+    if (!normalizedPunch || isNaN(hours)) return;
+    bulkMutation.mutate({
+      outletId: selectedOutletId,
+      punchInTime: normalizedPunch,
+      minHoursPerDay: hours,
+      applyMode: bulkConfirmMode,
+    });
+  };
+
+  const bulkConfirmCopy =
+    bulkConfirmMode === 'set_all_staff'
+      ? {
+          title: 'Apply to whole team?',
+          body: `Set coming time ${formatRosterTime(normalizePunchTime(bulkPunch))} and ${bulkHours}h/day for every staff member in this outlet.`,
+        }
+      : {
+          title: 'Update outlet default?',
+          body: `Save ${formatRosterTime(normalizePunchTime(bulkPunch))} and ${bulkHours}h as the outlet default. Staff without custom hours will use this (same as Payroll settings).`,
+        };
+
   if (!selectedOutletId) {
     return <div className="p-6 text-amber-600">Select an outlet in the header first.</div>;
   }
@@ -270,6 +350,97 @@ export function DutyRosterPage() {
           Coming time, min hours, master role, and weekly off are all editable.
         </p>
       </div>
+
+      {outletDefaults ? (
+        <div className="mb-6 rounded-2xl border border-gray-200 bg-white shadow-sm overflow-hidden">
+          <button
+            type="button"
+            onClick={() => setBulkPanelOpen((open) => !open)}
+            className="flex w-full items-center justify-between gap-4 px-5 py-4 text-left hover:bg-gray-50/80 transition-colors"
+          >
+            <div>
+              <p className="font-semibold text-gray-900 flex items-center gap-2">
+                <Users className="h-4 w-4 text-emerald-600" />
+                Team shift defaults
+              </p>
+              <p className="text-sm text-gray-500 mt-0.5">
+                Synced with Payroll expected hours ·{' '}
+                {formatRosterTime(outletDefaults.punchInTime)} · {outletDefaults.minHoursPerDay}h
+              </p>
+            </div>
+            <ChevronDown
+              className={`h-5 w-5 shrink-0 text-gray-400 transition-transform ${
+                bulkPanelOpen ? 'rotate-180' : ''
+              }`}
+            />
+          </button>
+
+          {bulkPanelOpen ? (
+            <div className="border-t border-gray-100 px-5 py-5 space-y-4 bg-gray-50/40">
+              <div className="grid gap-4 sm:grid-cols-2">
+                <div>
+                  <label className="mb-1.5 block text-sm font-medium text-gray-700">
+                    Coming time
+                  </label>
+                  <SmartTimeInput
+                    value={bulkPunch}
+                    onChange={setBulkPunch}
+                    placeholder={outletDefaults.punchInTime}
+                    ariaLabel="Team coming time"
+                  />
+                </div>
+                <div>
+                  <label className="mb-1.5 block text-sm font-medium text-gray-700">
+                    Total working time (hours/day)
+                  </label>
+                  <input
+                    type="number"
+                    min={1}
+                    max={24}
+                    value={bulkHours}
+                    onChange={(e) => setBulkHours(e.target.value.replace(/[^\d]/g, ''))}
+                    placeholder={String(outletDefaults.minHoursPerDay)}
+                    className="w-full px-4 py-2.5 rounded-xl border border-gray-200 text-lg font-semibold tabular-nums bg-white"
+                  />
+                </div>
+              </div>
+
+              <div className="flex flex-col sm:flex-row gap-3">
+                <button
+                  type="button"
+                  disabled={bulkMutation.isPending}
+                  onClick={() => requestBulkApply('set_all_staff')}
+                  className="flex-1 py-2.5 rounded-xl bg-emerald-600 text-white font-semibold hover:bg-emerald-700 disabled:opacity-50"
+                >
+                  {bulkMutation.isPending && bulkConfirmMode === 'set_all_staff'
+                    ? 'Applying…'
+                    : 'Apply to whole team'}
+                </button>
+                <button
+                  type="button"
+                  disabled={bulkMutation.isPending}
+                  onClick={() => requestBulkApply('outlet_default_only')}
+                  className="flex-1 py-2.5 rounded-xl border border-gray-200 bg-white text-gray-800 font-semibold hover:border-emerald-300 hover:bg-emerald-50 disabled:opacity-50"
+                >
+                  Save outlet default only
+                </button>
+              </div>
+
+              <p className="text-xs text-gray-500 leading-relaxed">
+                Apply to whole team sets the same coming time and hours on every staff member.
+                Outlet default only updates Payroll/outlet settings and clears per-staff overrides.
+              </p>
+
+              {bulkError ? <p className="text-sm text-red-600">{bulkError}</p> : null}
+              {bulkSuccess ? (
+                <p className="text-sm text-emerald-700 font-medium rounded-lg bg-emerald-50 border border-emerald-100 px-3 py-2">
+                  {bulkSuccess}
+                </p>
+              ) : null}
+            </div>
+          ) : null}
+        </div>
+      ) : null}
 
       {isLoading ? (
         <LoadingSpinner className="py-16" />
@@ -347,6 +518,46 @@ export function DutyRosterPage() {
           {isFetching && !isLoading && (
             <div className="px-4 py-2 text-xs text-gray-400 border-t border-gray-100">Refreshing…</div>
           )}
+        </div>
+      )}
+
+      {bulkConfirmMode && (
+        <div className="fixed inset-0 z-50 flex items-center justify-center p-4 bg-black/40 backdrop-blur-sm">
+          <div className="bg-white rounded-2xl shadow-xl w-full max-w-md">
+            <div className="flex items-center justify-between px-5 py-4 border-b border-gray-100">
+              <h2 className="font-semibold text-gray-900">{bulkConfirmCopy.title}</h2>
+              <button
+                type="button"
+                onClick={() => setBulkConfirmMode(null)}
+                className="p-2 rounded-lg hover:bg-gray-100 text-gray-500"
+                aria-label="Close"
+              >
+                <X className="h-5 w-5" />
+              </button>
+            </div>
+            <div className="p-5 space-y-4">
+              <p className="text-sm text-gray-600">{bulkConfirmCopy.body}</p>
+              {bulkError ? <p className="text-sm text-red-600">{bulkError}</p> : null}
+              <div className="flex gap-3">
+                <button
+                  type="button"
+                  disabled={bulkMutation.isPending}
+                  onClick={() => setBulkConfirmMode(null)}
+                  className="flex-1 py-2.5 rounded-xl border border-gray-200 text-gray-700 font-semibold hover:bg-gray-50 disabled:opacity-50"
+                >
+                  Cancel
+                </button>
+                <button
+                  type="button"
+                  disabled={bulkMutation.isPending}
+                  onClick={confirmBulkApply}
+                  className="flex-1 py-2.5 rounded-xl bg-emerald-600 text-white font-semibold hover:bg-emerald-700 disabled:opacity-50"
+                >
+                  {bulkMutation.isPending ? 'Saving…' : 'Confirm'}
+                </button>
+              </div>
+            </div>
+          </div>
         </div>
       )}
 

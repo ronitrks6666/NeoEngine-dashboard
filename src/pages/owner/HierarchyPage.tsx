@@ -3,6 +3,7 @@ import { useQuery, useMutation, useQueryClient, type QueryKey } from '@tanstack/
 import { useOutletStore } from '@/stores/outletStore';
 import { useAuth } from '@/hooks/useAuth';
 import type { Owner } from '@/types/auth';
+import { ownerApi } from '@/api/owner';
 import { employeeApi } from '@/api/employee';
 import { getApiErrorMessage } from '@/api/auth';
 import { LoadingSpinner } from '@/components/LoadingSpinner';
@@ -346,12 +347,27 @@ export function HierarchyPage() {
   const [ownerBranchExpanded, setOwnerBranchExpanded] = useState(true);
   const queryClient = useQueryClient();
 
+  const { data: outletsForOwner = [], isLoading: outletsForOwnerLoading } = useQuery({
+    queryKey: ['owner-outlets', 'hierarchy-owner'],
+    queryFn: () => ownerApi.getOutlets(),
+    enabled: !!selectedOutletId && authRole !== 'OWNER',
+  });
+
   const ownerInfo = useMemo(() => {
-    if (authRole !== 'OWNER' || !user || !('id' in user)) return null;
-    const o = user as Owner;
-    if (!o.id) return null;
-    return { id: String(o.id), name: o.name?.trim() || 'Owner' };
-  }, [authRole, user]);
+    if (authRole === 'OWNER' && user && 'id' in user) {
+      const o = user as Owner;
+      if (!o.id) return null;
+      return { id: String(o.id), name: o.name?.trim() || 'Owner' };
+    }
+    if (!selectedOutletId) return null;
+    const outlet = outletsForOwner.find((o) => String(o._id) === String(selectedOutletId));
+    if (!outlet?.ownerId) return null;
+    const raw = outlet.ownerId as string | { _id?: string; name?: string };
+    const id = typeof raw === 'object' && raw?._id ? String(raw._id) : String(raw);
+    const name =
+      typeof raw === 'object' && raw?.name?.trim() ? raw.name.trim() : 'Owner';
+    return { id, name };
+  }, [authRole, user, outletsForOwner, selectedOutletId]);
 
   const { data: empData, isLoading } = useQuery({
     queryKey: ['my-employees', selectedOutletId],
@@ -587,10 +603,20 @@ export function HierarchyPage() {
   }
 
   if (!ownerInfo) {
+    if (authRole === 'EMPLOYEE' && outletsForOwnerLoading) {
+      return (
+        <div className="p-6 max-w-3xl mx-auto animate-fade-in">
+          <h1 className="text-2xl font-bold text-emerald-900">Hierarchy</h1>
+          <LoadingSpinner className="py-12" />
+        </div>
+      );
+    }
     return (
       <div className="p-6 max-w-3xl mx-auto animate-fade-in">
         <h1 className="text-2xl font-bold text-emerald-900">Hierarchy</h1>
-        <p className="text-amber-700 mt-4">Sign in as the outlet owner to view the reporting tree.</p>
+        <p className="text-amber-700 mt-4">
+          Could not load the outlet owner for the reporting tree. Check your outlet access and try again.
+        </p>
       </div>
     );
   }

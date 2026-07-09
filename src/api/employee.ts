@@ -226,6 +226,16 @@ export const employeeApi = {
     return data;
   },
 
+  applyDutyRosterBulk: async (payload: {
+    outletId: string;
+    punchInTime?: string;
+    minHoursPerDay?: number;
+    applyMode?: 'set_all_staff' | 'outlet_default_only';
+  }) => {
+    const { data } = await api.put('/employee/duty-roster/bulk', payload);
+    return data;
+  },
+
   getStaffNotes: async (employeeId: string) => {
     const { data } = await api.get<{
       success?: boolean;

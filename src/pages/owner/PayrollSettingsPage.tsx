@@ -1,7 +1,8 @@
 import { useState, useEffect } from 'react';
 import { useQuery, useMutation, useQueryClient } from '@tanstack/react-query';
 import { useOutletStore } from '@/stores/outletStore';
-import { ownerApi, type PayrollSettings } from '@/api/owner';
+import type { PayrollSettings } from '@/api/owner';
+import { payrollApi } from '@/api/payroll';
 import { LoadingSpinner } from '@/components/LoadingSpinner';
 import { Wallet, Save, Info, RefreshCcw } from 'lucide-react';
 
@@ -53,22 +54,27 @@ export function PayrollSettingsPage() {
   const [settings, setSettings] = useState<PayrollSettings>({});
   const [saved, setSaved] = useState(false);
 
-  const { data: outlet, isLoading } = useQuery({
-    queryKey: ['outlet-detail', selectedOutletId],
-    queryFn: () => ownerApi.getOutlet(selectedOutletId!),
+  const { data: loadedSettings, isLoading } = useQuery({
+    queryKey: ['payroll-settings', selectedOutletId],
+    queryFn: () => payrollApi.getPayrollSettings(selectedOutletId!),
     enabled: !!selectedOutletId,
   });
 
   useEffect(() => {
-    if (outlet?.payrollSettings) {
-      setSettings(outlet.payrollSettings);
+    if (!selectedOutletId) {
+      setSettings({});
+      return;
     }
-  }, [outlet]);
+    if (loadedSettings) {
+      setSettings(loadedSettings);
+    }
+  }, [loadedSettings, selectedOutletId]);
 
   const saveMutation = useMutation({
-    mutationFn: () => ownerApi.updateOutlet(selectedOutletId!, { payrollSettings: settings }),
-    onSuccess: () => {
-      queryClient.invalidateQueries({ queryKey: ['outlet-detail', selectedOutletId] });
+    mutationFn: () => payrollApi.updatePayrollSettings(selectedOutletId!, settings),
+    onSuccess: (saved) => {
+      setSettings(saved);
+      queryClient.setQueryData(['payroll-settings', selectedOutletId], saved);
       queryClient.invalidateQueries({ queryKey: ['owner-outlets'] });
       setSaved(true);
       setTimeout(() => setSaved(false), 2500);

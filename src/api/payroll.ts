@@ -1,6 +1,23 @@
 import { api } from './client';
+import type { PayrollSettings } from './owner';
 
 export const payrollApi = {
+  getPayrollSettings: async (outletId: string) => {
+    const { data } = await api.get<{
+      success: boolean;
+      data: { settings: PayrollSettings };
+    }>(`/payroll/outlet/${outletId}/settings`);
+    return data.data.settings;
+  },
+
+  updatePayrollSettings: async (outletId: string, settings: PayrollSettings) => {
+    const { data } = await api.put<{
+      success: boolean;
+      data: { settings: PayrollSettings };
+    }>(`/payroll/outlet/${outletId}/settings`, settings);
+    return data.data.settings;
+  },
+
   getPeriods: async (outletId: string) => {
     const { data } = await api.get(`/payroll/outlet/${outletId}/periods`);
     return data;

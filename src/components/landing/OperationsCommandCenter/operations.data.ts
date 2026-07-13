@@ -131,7 +131,7 @@ export type ActivityEvent = {
 };
 
 export const ACTIVITY_EVENTS: ActivityEvent[] = [
-  { id: '1', time: '09:10', title: 'Kitchen opened' },
+  { id: '1', time: '09:10', title: 'Morning shift started' },
   { id: '2', time: '09:35', title: 'Payroll approved' },
   { id: '3', time: '10:12', title: 'Outlet manager checked in' },
   { id: '4', time: '10:48', title: 'Inventory synced' },
@@ -156,7 +156,7 @@ export const AI_INSIGHTS: AIInsight[] = [
   },
   {
     id: '3',
-    message: 'Dinner demand expected to rise',
+    message: 'Peak-hour staffing needs review',
     priority: 'Low',
   },
 ];

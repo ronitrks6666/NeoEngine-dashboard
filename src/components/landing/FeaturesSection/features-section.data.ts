@@ -21,21 +21,21 @@ export type FeatureBentoItem = {
 export const FEATURES_EYEBROW = 'ONE PLATFORM. EVERY OPERATION.';
 
 export const FEATURES_HEADING = {
-  line1: 'Everything your restaurant needs,',
+  line1: 'Everything your workforce needs,',
   line2Prefix: 'in one ',
   line2Highlight: 'operating system',
   line2Suffix: '.',
 };
 
 export const FEATURES_DESCRIPTION =
-  'NeoEngine unifies workforce, tasks, attendance, payroll, inventory, and analytics, so every outlet runs on one intelligent platform built for restaurant operations.';
+  'NeoEngine unifies SOPs, attendance, payroll, tasks, and analytics—so every outlet and team runs on one intelligent platform built for workforce-led SMEs.';
 
 export const BENTO_FEATURES: FeatureBentoItem[] = [
   {
     id: 'workforce',
     title: 'Workforce Management',
     description:
-      'Manage staff across outlets with roles, shifts, and real-time visibility into who is on the floor.',
+      'Manage staff across locations with roles, shifts, and real-time visibility into who is on shift.',
     icon: Users,
     illustration: 'workforce',
     gridClass: 'md:col-span-2 lg:col-span-6',
@@ -73,7 +73,7 @@ export const BENTO_FEATURES: FeatureBentoItem[] = [
     id: 'inventory',
     title: 'Inventory',
     description:
-      'Track stock levels, low-inventory alerts, and replenishment workflows across every kitchen.',
+      'Track stock levels, low-inventory alerts, and replenishment workflows across every location.',
     icon: Boxes,
     illustration: 'inventory',
     gridClass: 'lg:col-span-4',

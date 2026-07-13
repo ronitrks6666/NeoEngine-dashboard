@@ -31,7 +31,7 @@ export const FeaturedStory = memo(function FeaturedStory({ story }: FeaturedStor
               </div>
               <div>
                 <p className="text-lg font-bold text-slate-900">{story.ownerName}</p>
-                <p className="text-sm font-semibold text-[#0F8F68]">{story.restaurant}</p>
+                <p className="text-sm font-semibold text-[#0F8F68]">{story.company}</p>
                 <p className="text-sm text-slate-500">{story.location}</p>
                 <p className="mt-0.5 text-xs text-slate-400">{story.designation}</p>
               </div>

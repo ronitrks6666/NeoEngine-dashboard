@@ -27,17 +27,17 @@ export type ClientLogo = {
   name: string;
 };
 
-export const TRUST_SECTION_LABEL = 'TRUSTED BY GROWING RESTAURANT BRANDS';
+export const TRUST_SECTION_LABEL = 'TRUSTED BY GROWING SME BRANDS';
 
 export const CLIENT_LOGOS: ClientLogo[] = [
-  { id: 'restaurant', name: 'Restaurant Brand' },
-  { id: 'cafe', name: 'Cafe Brand' },
-  { id: 'hotel', name: 'Hotel Brand' },
-  { id: 'cloud-kitchen', name: 'Cloud Kitchen' },
-  { id: 'bakery', name: 'Bakery' },
-  { id: 'qsr', name: 'QSR' },
   { id: 'retail', name: 'Retail' },
-  { id: 'factory', name: 'Factory' },
+  { id: 'hospitality', name: 'Hospitality' },
+  { id: 'healthcare', name: 'Healthcare' },
+  { id: 'manufacturing', name: 'Manufacturing' },
+  { id: 'services', name: 'Services' },
+  { id: 'logistics', name: 'Logistics' },
+  { id: 'education', name: 'Education' },
+  { id: 'franchise', name: 'Franchise' },
 ];
 
 export const TRUST_METRICS: TrustMetric[] = [

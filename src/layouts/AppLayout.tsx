@@ -64,6 +64,7 @@ const superAdminNav: { to: string; label: string; icon: LucideIcon; permission?:
   { to: '/super-admin/coupons', label: 'Coupons', icon: Gift, permission: P.COUPONS_VIEW },
   { to: '/super-admin/sub-admins', label: 'Sub Admins', icon: Shield, permission: P.SUB_ADMINS_VIEW },
   { to: '/super-admin/support', label: 'Support Tickets', icon: Headset, permission: P.SUPPORT_VIEW },
+  { to: '/super-admin/demo-requests', label: 'Demo Requests', icon: Phone, permission: P.SUPPORT_VIEW },
   { to: '/super-admin/audit-logs', label: 'Audit Logs', icon: ClipboardList, permission: P.AUDIT_VIEW },
   { to: '/super-admin/analytics', label: 'Analytics', icon: BarChart3, permission: P.ANALYTICS_VIEW },
 ];
@@ -376,8 +377,14 @@ export function AppLayout({ children, role }: AppLayoutProps) {
                 <OutletSelector allowCreate={authRole === 'OWNER'} className="max-w-[min(100%,14rem)]" />
               </div>
 
-              <div className="pointer-events-none absolute left-1/2 top-1/2 hidden -translate-x-1/2 -translate-y-1/2 sm:block">
-                <CoBrandMark brand={ownerBrand ?? null} variant="header" logoSize={28} />
+              <div className="absolute left-1/2 top-1/2 hidden -translate-x-1/2 -translate-y-1/2 sm:block">
+                <Link
+                  to={dashboardPath}
+                  className="rounded-lg px-2 py-1 transition-colors hover:bg-emerald-50/80 focus:outline-none focus-visible:ring-2 focus-visible:ring-emerald-500"
+                  aria-label="Go to dashboard"
+                >
+                  <CoBrandMark brand={ownerBrand ?? null} variant="header" logoSize={28} />
+                </Link>
               </div>
 
               <div className="flex min-w-0 flex-1 items-center justify-end gap-2 sm:gap-3">

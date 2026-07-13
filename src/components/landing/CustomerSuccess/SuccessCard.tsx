@@ -51,7 +51,7 @@ export const SuccessCard = memo(function SuccessCard({ story, index, animate }: 
         </span>
       </div>
 
-      <h3 className="text-base font-bold text-slate-900">{story.restaurant}</h3>
+      <h3 className="text-base font-bold text-slate-900">{story.company}</h3>
       <p className="mt-0.5 text-sm text-slate-500">{story.location}</p>
 
       <div className="my-6">

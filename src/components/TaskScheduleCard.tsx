@@ -12,6 +12,7 @@ import {
   inferFrequencyChip,
   buildScheduleSummary,
   getNextRunTimes,
+  getRepeatWindowError,
 } from '@/utils/taskScheduleUtils';
 
 const DAY_NAMES = ['Sun', 'Mon', 'Tue', 'Wed', 'Thu', 'Fri', 'Sat'];
@@ -127,6 +128,11 @@ export function TaskScheduleCard<T extends FieldValues & ScheduleFields>({
         ? getNextRunTimes(startTime, repeatEndTime, Number(intervalMinutes) || 60, 5)
         : [],
     [multipleTimesPerDay, startTime, repeatEndTime, intervalMinutes]
+  );
+
+  const repeatWindowError = useMemo(
+    () => (multipleTimesPerDay ? getRepeatWindowError(startTime, repeatEndTime) : null),
+    [multipleTimesPerDay, startTime, repeatEndTime]
   );
 
   const activeWindowPreset = useMemo(
@@ -354,6 +360,12 @@ export function TaskScheduleCard<T extends FieldValues & ScheduleFields>({
                     />
                   )}
                 />
+                {repeatWindowError && (
+                  <p className="mt-1.5 text-xs font-medium text-red-600">{repeatWindowError}</p>
+                )}
+                {!repeatWindowError && (
+                  <p className="mt-1.5 text-xs text-gray-500">Must be later than start time (same day)</p>
+                )}
               </div>
 
               <div className="space-y-3">
@@ -415,6 +427,9 @@ export function TaskScheduleCard<T extends FieldValues & ScheduleFields>({
 
         <div className="space-y-4 rounded-xl border border-gray-200 bg-slate-50/80 p-4">
           <p className="text-sm leading-relaxed text-gray-800">{summary}</p>
+          {repeatWindowError && (
+            <p className="text-sm font-medium text-red-600">{repeatWindowError}</p>
+          )}
           {nextRuns.length > 0 && (
             <div>
               <p className="mb-2 text-xs font-semibold uppercase tracking-wider text-gray-500">Next runs today</p>

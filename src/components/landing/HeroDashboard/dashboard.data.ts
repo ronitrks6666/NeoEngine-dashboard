@@ -104,7 +104,7 @@ export const CHART_SERIES: ChartSeries[] = [
 
 export const ACTIVITY_ITEMS: ActivityItem[] = [
   { id: '1', title: 'Rahul checked in', timestamp: '2m ago', icon: UserCheck },
-  { id: '2', title: 'Kitchen checklist completed', timestamp: '8m ago', icon: ClipboardCheck },
+  { id: '2', title: 'Opening SOP completed', timestamp: '8m ago', icon: ClipboardCheck },
   { id: '3', title: 'Payroll generated', timestamp: '14m ago', icon: Banknote },
   { id: '4', title: 'Leave approved for Priya', timestamp: '22m ago', icon: BadgeCheck },
   { id: '5', title: 'New task assigned: Front desk', timestamp: '31m ago', icon: CheckSquare },

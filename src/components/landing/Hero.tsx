@@ -57,7 +57,7 @@ export function Hero({ onWatchDemo }: HeroProps) {
               className="inline-flex h-10 max-w-full items-center rounded-full border border-[rgba(15,143,104,0.08)] bg-[#DDF7EE] px-5 shadow-landing-card"
             >
               <span className="text-center text-xs font-medium uppercase leading-tight tracking-[0.12em] text-[#0F8F68]">
-                The operating system for multi-outlet businesses
+                Workforce management for growing SMEs
               </span>
             </motion.div>
 
@@ -76,8 +76,8 @@ export function Hero({ onWatchDemo }: HeroProps) {
               initial={reducedMotion ? false : undefined}
               className="mt-7 w-full max-w-[500px] text-lg font-normal leading-8 text-slate-600"
             >
-              NeoEngine unifies attendance, tasks, payroll, and operations across every location, so
-              you run multi-outlet businesses from one intelligent platform.
+              NeoEngine unifies SOPs, attendance, payroll, and daily operations in one platform—for
+              restaurants, retail, clinics, factories, and every SME that runs on a frontline team.
             </motion.p>
 
             <motion.div

@@ -11,6 +11,7 @@ import { OwnersPage } from '@/pages/super-admin/OwnersPage';
 import { OutletsPage } from '@/pages/super-admin/OutletsPage';
 import { AnalyticsPage } from '@/pages/super-admin/AnalyticsPage';
 import { SupportTicketsPage } from '@/pages/super-admin/SupportTicketsPage';
+import { SalesLeadsPage } from '@/pages/super-admin/SalesLeadsPage';
 import { AuditLogsPage } from '@/pages/super-admin/AuditLogsPage';
 import { SubAdminsPage } from '@/pages/super-admin/SubAdminsPage';
 import { SubscriptionsPage } from '@/pages/super-admin/SubscriptionsPage';
@@ -149,6 +150,14 @@ function App() {
                   element={
                     <SuperAdminPermissionRoute permission={P.SUPPORT_VIEW}>
                       <SupportTicketsPage />
+                    </SuperAdminPermissionRoute>
+                  }
+                />
+                <Route
+                  path="demo-requests"
+                  element={
+                    <SuperAdminPermissionRoute permission={P.SUPPORT_VIEW}>
+                      <SalesLeadsPage />
                     </SuperAdminPermissionRoute>
                   }
                 />

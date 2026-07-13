@@ -18,7 +18,7 @@ export const TraditionalStack = memo(function TraditionalStack() {
     >
       <header className="mb-6">
         <p className="text-xs font-semibold uppercase tracking-wide text-slate-400">Old Way</p>
-        <h3 className="mt-2 text-xl font-bold text-slate-900">Traditional Restaurant Operations</h3>
+        <h3 className="mt-2 text-xl font-bold text-slate-900">Traditional Workforce Operations</h3>
         <p className="mt-1 text-sm text-slate-500">Disconnected tools create disconnected teams.</p>
       </header>
 

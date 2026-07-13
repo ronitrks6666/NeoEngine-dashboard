@@ -4,6 +4,7 @@ import { useOutletStore } from '@/stores/outletStore';
 import { ownerApi } from '@/api/owner';
 import { getApiErrorMessage } from '@/api/auth';
 import { LoadingSpinner } from '@/components/LoadingSpinner';
+import { RichTextEditor } from '@/components/RichTextEditor';
 import { BookOpen, Save, Undo2 } from 'lucide-react';
 
 export function RulesRegulationsPage() {
@@ -105,18 +106,18 @@ export function RulesRegulationsPage() {
       {isLoading ? (
         <LoadingSpinner className="py-16" />
       ) : (
-        <div className="rounded-2xl border border-gray-200 bg-white shadow-sm overflow-hidden">
-          <div className="px-4 py-3 border-b border-gray-100 bg-gray-50/80">
+        <div className="space-y-4">
+          <div className="rounded-2xl border border-gray-200 bg-gray-50/80 px-4 py-3">
             <p className="text-sm text-gray-600">
-              Write clear, outlet-specific rules (dress code, break policy, safety, etc.). Staff can read
-              these from the app under More → Rules and Regulations.
+              Write clear, outlet-specific rules (dress code, break policy, safety, etc.). Use bold, lists, and
+              underline — staff see formatted text in the mobile app.
             </p>
           </div>
-          <textarea
+          <RichTextEditor
             value={text}
-            onChange={(e) => setText(e.target.value)}
+            onChange={setText}
             placeholder="Enter rules and regulations for this outlet…"
-            className="w-full min-h-[420px] p-5 text-sm leading-relaxed text-gray-800 focus:outline-none resize-y"
+            minHeight={420}
           />
         </div>
       )}

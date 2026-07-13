@@ -92,7 +92,7 @@ export function LandingPage() {
                   <span className="text-lg font-bold tracking-tight text-slate-900">NeoEngine</span>
                 </Link>
                 <p className="max-w-[260px] text-sm leading-relaxed text-slate-500">
-                  One operating system for every restaurant outlet. Attendance, payroll, tasks and more, live.
+                  One platform for SOPs, attendance, and payroll—built for SMEs with outlets, shifts, and teams to manage.
                 </p>
               </div>
 

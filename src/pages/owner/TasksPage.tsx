@@ -64,6 +64,13 @@ const taskSchema = z.object({
     referenceMediaUrl: z.string().optional(),
   })).optional(),
 }).superRefine((data, ctx) => {
+  if (data.taskType === 'onetime' && !data.specificDate?.trim()) {
+    ctx.addIssue({
+      code: z.ZodIssueCode.custom,
+      message: 'Date is required for one-time tasks',
+      path: ['specificDate'],
+    });
+  }
   if (!data.multipleTimesPerDay) return;
   const start = parseHHmm(data.startTime);
   const end = parseHHmm(data.repeatEndTime);

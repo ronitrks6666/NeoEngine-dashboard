@@ -195,7 +195,9 @@ export function TaskScheduleCard<T extends FieldValues & ScheduleFields>({
 
         {taskType === 'onetime' && (
           <div className="animate-slide-up">
-            <label className="mb-1.5 block text-sm font-medium text-gray-700">Date</label>
+            <label className="mb-1.5 block text-sm font-medium text-gray-700">
+              Date <span className="text-red-500">*</span>
+            </label>
             <Controller
               name={'specificDate' as Path<T>}
               control={control}
@@ -208,6 +210,11 @@ export function TaskScheduleCard<T extends FieldValues & ScheduleFields>({
                 />
               )}
             />
+            {form.formState.errors.specificDate?.message ? (
+              <p className="mt-1.5 text-sm text-red-600">
+                {String(form.formState.errors.specificDate.message)}
+              </p>
+            ) : null}
           </div>
         )}
 

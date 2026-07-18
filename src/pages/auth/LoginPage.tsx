@@ -116,11 +116,12 @@ export function LoginPage() {
     error?: string;
     placeholder?: string;
   }) => (
-    <div>
+      <div>
       <label className="block text-sm font-medium text-gray-700 mb-1">{placeholder}</label>
       <div className="relative">
         <input
           {...fieldProps}
+          data-testid={placeholder === 'Password' ? 'login-password' : undefined}
           type={showPassword ? 'text' : 'password'}
           className="w-full px-3 py-2 pr-10 border border-emerald-200 rounded-xl focus:ring-2 focus:ring-emerald-500/30 focus:border-emerald-500"
           placeholder={placeholder}
@@ -183,6 +184,7 @@ export function LoginPage() {
                 <input
                   {...ownerPasswordForm.register('identifier')}
                   type="text"
+                  data-testid="login-identifier"
                   className="w-full px-3 py-2 border border-emerald-200 rounded-xl focus:ring-2 focus:ring-emerald-500/30 focus:border-emerald-500"
                   placeholder="email@example.com or 9876543210"
                 />
@@ -198,6 +200,7 @@ export function LoginPage() {
               />
               <button
                 type="submit"
+                data-testid="login-submit"
                 disabled={ownerPasswordForm.formState.isSubmitting}
                 className="w-full py-2.5 px-4 bg-gradient-to-r from-emerald-600 to-emerald-700 text-white font-semibold rounded-xl hover:from-emerald-700 hover:to-emerald-800 shadow-emerald disabled:opacity-50 transition-all"
               >

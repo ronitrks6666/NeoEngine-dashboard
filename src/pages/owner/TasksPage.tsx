@@ -771,6 +771,7 @@ export function TasksPage() {
                 </button>
               )}
               <button
+                data-testid="tasks-create-btn"
                 onClick={() => {
                   form.reset({ ...defaultFormValues });
                   setCreateStaffIds([]);

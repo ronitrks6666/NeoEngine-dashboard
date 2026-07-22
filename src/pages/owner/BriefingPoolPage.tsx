@@ -1,14 +1,12 @@
-import { useState, useMemo, useEffect } from 'react';
+import { useState, useMemo } from 'react';
 import { useQuery, useMutation, useQueryClient } from '@tanstack/react-query';
 import { useOutletStore } from '@/stores/outletStore';
 import { managerApi } from '@/api/manager';
 import { taskApi } from '@/api/task';
-import { getApiErrorMessage } from '@/api/auth';
 import { LoadingSpinner } from '@/components/LoadingSpinner';
 import { useDebouncedValue } from '@/hooks/useDebouncedValue';
+import { NeoNotesPanel } from '@/components/neoNotes/NeoNotesPanel';
 import {
-  ChevronDown,
-  ChevronUp,
   Search,
   Calendar,
   Clock,
@@ -17,9 +15,6 @@ import {
   ChevronLeft,
   ChevronRight,
   Filter,
-  StickyNote,
-  Save,
-  Undo2,
 } from 'lucide-react';
 import { format, subDays } from 'date-fns';
 import { CalendarDateField } from '@/components/CalendarDateField';
@@ -31,9 +26,6 @@ export function BriefingPoolPage() {
   const debouncedPoolSearch = useDebouncedValue(poolSearch, 350);
   const [selectedDate, setSelectedDate] = useState(new Date().toISOString().slice(0, 10));
   const [dateRangeMode, setDateRangeMode] = useState<'daily' | '7d' | '15d' | '30d'>('daily');
-  const [notesText, setNotesText] = useState('');
-  const [savedNotesText, setSavedNotesText] = useState('');
-  const [notesExpanded, setNotesExpanded] = useState(true);
   const queryClient = useQueryClient();
 
   const getRange = () => {
@@ -68,30 +60,6 @@ export function BriefingPoolPage() {
     queryKey: ['briefing-pool-tasks', expandedId],
     queryFn: () => managerApi.getBriefingPoolEmployeeTasks(expandedId!),
     enabled: !!expandedId,
-  });
-
-  const notesQuery = useQuery({
-    queryKey: ['briefing-pool-notes', selectedOutletId],
-    queryFn: () => managerApi.getBriefingPoolNotes(selectedOutletId!),
-    enabled: !!selectedOutletId,
-  });
-
-  useEffect(() => {
-    if (notesQuery.data) {
-      const body = notesQuery.data.notes ?? '';
-      setNotesText(body);
-      setSavedNotesText(body);
-    }
-  }, [notesQuery.data]);
-
-  const notesDirty = notesText !== savedNotesText;
-
-  const saveNotesMutation = useMutation({
-    mutationFn: () => managerApi.updateBriefingPoolNotes(selectedOutletId!, notesText),
-    onSuccess: () => {
-      setSavedNotesText(notesText);
-      queryClient.invalidateQueries({ queryKey: ['briefing-pool-notes', selectedOutletId] });
-    },
   });
 
   const completeMutation = useMutation({
@@ -155,78 +123,7 @@ export function BriefingPoolPage() {
         </div>
       </div>
 
-      {/* Briefing notes — shared outlet notes (parity with mobile) */}
-      <div className="mb-6 rounded-2xl border border-emerald-100 bg-white shadow-sm overflow-hidden">
-        <button
-          type="button"
-          onClick={() => setNotesExpanded((v) => !v)}
-          className="w-full flex items-center justify-between gap-3 px-5 py-4 hover:bg-emerald-50/40 transition-colors text-left"
-        >
-          <div className="flex items-center gap-2">
-            <StickyNote className="h-5 w-5 text-emerald-600" />
-            <div>
-              <p className="font-semibold text-gray-900">Briefing notes</p>
-              <p className="text-xs text-gray-500">
-                Shared notes for {notesQuery.data?.outletName || 'this outlet'} — visible in the app briefing pool
-              </p>
-            </div>
-          </div>
-          {notesExpanded ? <ChevronUp className="h-5 w-5 text-gray-400" /> : <ChevronDown className="h-5 w-5 text-gray-400" />}
-        </button>
-        {notesExpanded && (
-          <div className="px-5 pb-5 border-t border-gray-100 pt-4 space-y-3">
-            {notesQuery.isLoading ? (
-              <LoadingSpinner className="py-6" />
-            ) : notesQuery.isError ? (
-              <p className="text-sm text-amber-700 bg-amber-50 border border-amber-100 rounded-lg px-3 py-2">
-                You don&apos;t have permission to view briefing notes, or they could not be loaded.
-              </p>
-            ) : (
-              <>
-                <p className="text-xs text-gray-500">
-                  Use this for shift handover notes, priorities, or reminders for managers reviewing the briefing pool.
-                </p>
-                <textarea
-                  value={notesText}
-                  onChange={(e) => setNotesText(e.target.value)}
-                  rows={5}
-                  placeholder="Enter briefing notes for this outlet…"
-                  className="w-full rounded-xl border border-gray-200 px-4 py-3 text-sm focus:border-emerald-500 focus:ring-1 focus:ring-emerald-500 resize-y"
-                />
-                <div className="flex flex-wrap items-center justify-between gap-2">
-                  {saveNotesMutation.isError ? (
-                    <p className="text-sm text-red-600">{getApiErrorMessage(saveNotesMutation.error)}</p>
-                  ) : notesDirty ? (
-                    <p className="text-xs text-amber-600">Unsaved changes</p>
-                  ) : (
-                    <span />
-                  )}
-                  <div className="flex gap-2">
-                    <button
-                      type="button"
-                      disabled={!notesDirty || saveNotesMutation.isPending}
-                      onClick={() => setNotesText(savedNotesText)}
-                      className="inline-flex items-center gap-1 px-3 py-1.5 rounded-lg border border-gray-200 text-xs font-medium text-gray-700 hover:bg-gray-50 disabled:opacity-40"
-                    >
-                      <Undo2 className="h-3.5 w-3.5" />
-                      Reset
-                    </button>
-                    <button
-                      type="button"
-                      disabled={!notesDirty || saveNotesMutation.isPending}
-                      onClick={() => saveNotesMutation.mutate()}
-                      className="inline-flex items-center gap-1 px-4 py-1.5 rounded-lg bg-emerald-600 text-white text-xs font-semibold hover:bg-emerald-700 disabled:opacity-40"
-                    >
-                      <Save className="h-3.5 w-3.5" />
-                      {saveNotesMutation.isPending ? 'Saving…' : 'Save notes'}
-                    </button>
-                  </div>
-                </div>
-              </>
-            )}
-          </div>
-        )}
-      </div>
+      <NeoNotesPanel outletId={selectedOutletId} className="mb-6" />
 
       {/* Filters & Navigation */}
       <div className="bg-white rounded-2xl border border-gray-100 p-2 mb-8 shadow-sm">

@@ -14,6 +14,7 @@ export function hasWebDashboardAccess(
 /** Owner routes → required web* permission key(s). Omitted routes are owner-only. */
 export const OWNER_ROUTE_WEB_PERMISSIONS: Record<string, string | string[]> = {
   '/owner/dashboard': 'webDashboard',
+  '/owner/neo-notes': 'webDashboard',
   '/owner/tasks': 'webTasks',
   '/owner/sops': 'webSops',
   '/owner/issues': 'webIssues',

@@ -70,6 +70,7 @@ const superAdminNav: { to: string; label: string; icon: LucideIcon; permission?:
 
 const ownerNav: OwnerNavItem[] = [
   { key: 'dashboard', to: '/owner/dashboard', label: 'Dashboard', icon: LayoutDashboard },
+  { key: 'neo-notes', to: '/owner/neo-notes', label: 'Neo Notes', icon: FileText },
   { key: 'tasks', to: '/owner/tasks', label: 'Tasks', icon: CheckSquare },
   { key: 'sops', to: '/owner/sops', label: 'SOPs', icon: BookOpen },
   { key: 'issues', to: '/owner/issues', label: 'Issues', icon: AlertTriangle },

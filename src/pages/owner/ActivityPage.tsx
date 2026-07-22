@@ -67,6 +67,7 @@ function getEventVisuals(type: string, subType?: string) {
     return { icon: LogIn, bg: 'bg-emerald-100', text: 'text-emerald-600' };
   if (raw.includes('punch_out') || raw.includes('checkout') || (type === 'punch' && subType === 'OUT'))
     return { icon: LogOut, bg: 'bg-red-100', text: 'text-red-600' };
+  if (raw.includes('escalat')) return { icon: AlertTriangle, bg: 'bg-red-100', text: 'text-red-600' };
   if (raw.includes('task')) return { icon: CheckSquare, bg: 'bg-blue-100', text: 'text-blue-600' };
   if (raw.includes('issue')) return { icon: AlertTriangle, bg: 'bg-orange-100', text: 'text-orange-600' };
   if (raw.includes('break')) return { icon: Coffee, bg: 'bg-amber-100', text: 'text-amber-600' };
@@ -77,6 +78,10 @@ function getEventVisuals(type: string, subType?: string) {
 function displayTypeLine(e: ActivityEvent): string {
   if (e.type === 'punch' && e.subType) return e.subType.replace(/_/g, ' ');
   if (e.type === 'task') return 'task completed';
+  if (e.type === 'escalation') return 'task escalated';
+  if (e.type === 'issue' && e.subType === 'resolved') return 'issue resolved';
+  if (e.type === 'issue') return 'issue opened';
+  if (e.type === 'leave') return `leave ${e.subType || 'update'}`.replace(/_/g, ' ');
   return e.type.replace(/_/g, ' ');
 }
 

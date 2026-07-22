@@ -76,6 +76,13 @@ export const SITE_SEARCH_INDEX: SiteSearchItem[] = [
     roles: OWNER,
   },
   {
+    path: '/owner/neo-notes',
+    title: 'Neo Notes',
+    subtitle: 'Daily personal and public outlet notes',
+    keywords: ['neo notes', 'notes', 'handover', 'journal', 'public', 'private'],
+    roles: OWNER,
+  },
+  {
     path: '/owner/briefing-pool',
     title: 'Briefing Pool',
     subtitle: 'Escalated and incomplete tasks by staff',

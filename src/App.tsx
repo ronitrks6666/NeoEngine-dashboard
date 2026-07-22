@@ -29,6 +29,7 @@ import { LeavePage } from '@/pages/owner/LeavePage';
 import { PayrollPage } from '@/pages/owner/PayrollPage';
 import { AnalyticsPage as OwnerAnalyticsPage } from '@/pages/owner/AnalyticsPage';
 import { BriefingPoolPage } from '@/pages/owner/BriefingPoolPage';
+import { NeoNotesPage } from '@/pages/owner/NeoNotesPage';
 import { HierarchyPage } from '@/pages/owner/HierarchyPage';
 import { ReportsPage } from '@/pages/owner/ReportsPage';
 import { PermissionsPage } from '@/pages/owner/PermissionsPage';
@@ -314,6 +315,14 @@ function App() {
                   element={
                     <EmployeeWebPermissionRoute routePath="/owner/analytics">
                       <OwnerAnalyticsPage />
+                    </EmployeeWebPermissionRoute>
+                  }
+                />
+                <Route
+                  path="neo-notes"
+                  element={
+                    <EmployeeWebPermissionRoute routePath="/owner/neo-notes">
+                      <NeoNotesPage />
                     </EmployeeWebPermissionRoute>
                   }
                 />

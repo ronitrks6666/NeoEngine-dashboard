@@ -10,9 +10,12 @@ import {
   TrendingUp,
   Clock,
   IndianRupee,
+  Phone,
 } from 'lucide-react';
 import { format } from 'date-fns';
 import { billingCycleLabel } from '@/lib/billing';
+import { useSuperAdminPermissions } from '@/hooks/useSuperAdminPermissions';
+import { SUPER_ADMIN_PERMISSIONS as P } from '@/constants/superAdminPermissions';
 
 function StatusBadge({ value }: { value: string }) {
   const styles: Record<string, string> = {
@@ -33,10 +36,22 @@ function StatusBadge({ value }: { value: string }) {
 }
 
 export function SuperAdminDashboardPage() {
+  const { can } = useSuperAdminPermissions();
+  const canViewLeads = can(P.SUPPORT_VIEW);
+
   const { data, isLoading, error } = useQuery({
     queryKey: ['super-admin-dashboard-overview'],
     queryFn: adminApi.getDashboardOverview,
   });
+
+  const { data: salesLeads = [] } = useQuery({
+    queryKey: ['admin-sales-leads'],
+    queryFn: adminApi.getSalesLeads,
+    enabled: canViewLeads,
+  });
+
+  const recentLeads = salesLeads.slice(0, 5);
+  const newLeadCount = salesLeads.filter((l) => l.status === 'New').length;
 
   if (isLoading) {
     return (
@@ -148,6 +163,66 @@ export function SuperAdminDashboardPage() {
           <p className="text-sm text-emerald-600 mt-2">
             Default {plan.defaultTrialDays}-day free trial on new outlets. Use coupons for extended trials.
           </p>
+        </div>
+      )}
+
+      {canViewLeads && (
+        <div className="mb-8 bg-white rounded-2xl border border-emerald-100 shadow-sm overflow-hidden">
+          <div className="px-6 py-4 border-b border-emerald-50 flex items-center justify-between">
+            <h2 className="font-bold text-emerald-900 flex items-center gap-2">
+              <Phone className="h-5 w-5 text-emerald-600" />
+              Demo requests
+              {newLeadCount > 0 ? (
+                <span className="rounded-full bg-sky-100 px-2.5 py-0.5 text-xs font-bold text-sky-800">
+                  {newLeadCount} new
+                </span>
+              ) : null}
+            </h2>
+            <Link
+              to="/super-admin/demo-requests"
+              className="text-sm font-semibold text-emerald-600 hover:underline"
+            >
+              View all
+            </Link>
+          </div>
+          <div className="overflow-x-auto">
+            <table className="w-full text-sm">
+              <thead className="bg-emerald-50/50 text-left text-emerald-800">
+                <tr>
+                  <th className="px-4 py-3 font-semibold">Submitted</th>
+                  <th className="px-3 py-3 font-semibold">Name</th>
+                  <th className="px-3 py-3 font-semibold">Phone</th>
+                  <th className="px-3 py-3 font-semibold">Interest</th>
+                  <th className="px-3 py-3 font-semibold">Status</th>
+                </tr>
+              </thead>
+              <tbody className="divide-y divide-emerald-50">
+                {recentLeads.length === 0 ? (
+                  <tr>
+                    <td colSpan={5} className="px-6 py-8 text-center text-emerald-600/70">
+                      No demo requests from the landing page yet
+                    </td>
+                  </tr>
+                ) : (
+                  recentLeads.map((lead) => (
+                    <tr key={lead._id} className="hover:bg-emerald-50/30">
+                      <td className="px-4 py-3 text-emerald-700 whitespace-nowrap">
+                        {lead.createdAt ? format(new Date(lead.createdAt), 'dd MMM yyyy, HH:mm') : '—'}
+                      </td>
+                      <td className="px-3 py-3 font-semibold text-emerald-950">{lead.name}</td>
+                      <td className="px-3 py-3 font-medium text-emerald-800">{lead.phone}</td>
+                      <td className="px-3 py-3 text-emerald-800">{lead.interest}</td>
+                      <td className="px-3 py-3">
+                        <span className="inline-flex rounded-full bg-sky-100 px-2.5 py-0.5 text-xs font-semibold text-sky-800">
+                          {lead.status}
+                        </span>
+                      </td>
+                    </tr>
+                  ))
+                )}
+              </tbody>
+            </table>
+          </div>
         </div>
       )}
 

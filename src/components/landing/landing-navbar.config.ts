@@ -26,7 +26,7 @@ export const LANDING_NAV_ITEMS: LandingNavItem[] = [
     label: 'Solutions',
     href: '#solutions',
     children: [
-      { label: 'Restaurants & cafés', href: '#solutions' },
+      { label: 'Workforce & operations', href: '#solutions' },
       { label: 'Why NeoEngine', href: '#solutions' },
       { label: 'Customer stories', href: '#stories' },
     ],

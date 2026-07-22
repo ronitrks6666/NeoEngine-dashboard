@@ -1,8 +1,8 @@
 import { useEffect, useState } from 'react';
 import { Link } from 'react-router-dom';
 import { X } from 'lucide-react';
-import { NeoEngineLogo } from '@/components/NeoEngineLogo';
 import { LandingNavbar } from '@/components/landing/LandingNavbar';
+import { LandingNavbarBrand } from '@/components/landing/LandingNavbarBrand';
 import { Hero } from '@/components/landing/Hero';
 import { TrustMetrics } from '@/components/landing/TrustMetrics';
 import { FeaturesSection } from '@/components/landing/FeaturesSection';
@@ -87,12 +87,9 @@ export function LandingPage() {
             <div className="flex flex-col gap-10 sm:flex-row sm:items-start sm:justify-between">
               {/* Brand */}
               <div className="flex flex-col gap-3">
-                <Link to="/" className="flex items-center gap-2.5 w-fit">
-                  <NeoEngineLogo size={30} />
-                  <span className="text-lg font-bold tracking-tight text-slate-900">NeoEngine</span>
-                </Link>
+                <LandingNavbarBrand />
                 <p className="max-w-[260px] text-sm leading-relaxed text-slate-500">
-                  One operating system for every restaurant outlet. Attendance, payroll, tasks and more, live.
+                  One platform for SOPs, attendance, and payroll—built for SMEs with outlets, shifts, and teams to manage.
                 </p>
               </div>
 

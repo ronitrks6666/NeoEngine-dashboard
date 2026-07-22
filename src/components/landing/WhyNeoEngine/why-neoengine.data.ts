@@ -49,7 +49,7 @@ export const SECTION_COPY = {
     line2Suffix: '.',
   },
   description:
-    'Restaurant teams juggle spreadsheets, chat threads, and separate apps. NeoEngine replaces the patchwork with one connected operating system for every outlet.',
+    'Frontline teams juggle spreadsheets, chat threads, and separate apps. NeoEngine replaces the patchwork with one connected operating system for SOPs, attendance, and payroll.',
 };
 
 export const TRADITIONAL_TOOLS: TraditionalTool[] = [

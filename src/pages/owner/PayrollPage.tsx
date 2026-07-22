@@ -400,6 +400,9 @@ export function PayrollPage() {
               </div>
             </div>
           </div>
+        </div>
+      )}
+
       {/* Add transaction modal */}
       {showAddPayment && (
         <div className="fixed inset-0 bg-black/40 backdrop-blur-sm flex items-center justify-center z-50 animate-fade-in">
@@ -610,7 +613,6 @@ export function PayrollPage() {
             </div>
           </div>
         </div>
-      )}     </div>
       )}
     </div>
   );

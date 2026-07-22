@@ -36,7 +36,7 @@ export const VideoCard = memo(function VideoCard({ story, index }: VideoCardProp
         <button
           type="button"
           className="mb-6 flex h-16 w-16 items-center justify-center rounded-full border border-white/30 bg-white/20 text-white shadow-[0_8px_32px_rgba(0,0,0,0.2)] backdrop-blur-md transition-transform duration-300 group-hover:scale-110 focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-white focus-visible:ring-offset-2 focus-visible:ring-offset-slate-900"
-          aria-label={`Play video testimonial from ${story.restaurant}`}
+          aria-label={`Play video testimonial from ${story.company}`}
         >
           <Play className="ml-1 h-7 w-7 fill-white" aria-hidden="true" />
         </button>
@@ -44,7 +44,7 @@ export const VideoCard = memo(function VideoCard({ story, index }: VideoCardProp
         <p className="text-xs font-semibold uppercase tracking-wide text-emerald-300">
           Video Testimonial
         </p>
-        <h3 className="mt-2 text-lg font-bold text-white">{story.restaurant}</h3>
+        <h3 className="mt-2 text-lg font-bold text-white">{story.company}</h3>
         <p className="mt-1 text-sm text-white/70">{story.location}</p>
         <p className="mt-4 max-w-[240px] text-sm leading-relaxed text-white/80">
           {story.quote}

@@ -1,14 +1,14 @@
-export type Industry = 'Cloud Kitchen' | 'Cafe' | 'Fine Dining' | 'QSR';
+export type Industry = 'Retail' | 'Healthcare' | 'Manufacturing' | 'Hospitality' | 'Services';
 
 export interface SuccessStory {
   id: string;
-  restaurant: string;
+  company: string;
   location: string;
   industry: Industry;
   quote: string;
   revenueIncrease?: number;
   timeSaved?: string;
-  foodWasteReduction?: number;
+  wasteReduction?: number;
   taskCompletion?: number;
   logo: string;
   bigMetric: {
@@ -24,7 +24,7 @@ export interface SuccessStory {
 
 export interface FeaturedStoryData {
   ownerName: string;
-  restaurant: string;
+  company: string;
   location: string;
   designation: string;
   avatarInitials: string;
@@ -51,27 +51,27 @@ export interface BrandLogo {
 export const SECTION_COPY = {
   eyebrow: 'CUSTOMER STORIES',
   heading: {
-    line1: 'Trusted by restaurants',
+    line1: 'Trusted by SMEs',
     line2: 'that are ',
     highlight: 'growing faster',
     line2Suffix: '.',
   },
   description:
-    'Real operators share how NeoEngine cut manual work, tightened multi-outlet control, and turned daily chaos into measurable growth.',
+    'Operators across retail, healthcare, manufacturing, and more share how NeoEngine tightened SOPs, attendance, and payroll—and turned daily chaos into measurable control.',
 };
 
 export const FEATURED_STORY: FeaturedStoryData = {
   ownerName: 'Priya Mehta',
-  restaurant: 'Spice Route Kitchens',
-  location: 'Mumbai · 6 Outlets',
+  company: 'BrightPath Retail',
+  location: 'Mumbai · 6 Locations',
   designation: 'Founder & Operations Head',
   avatarInitials: 'PM',
   quote:
-    'We were losing hours to WhatsApp updates and spreadsheet payroll. NeoEngine gave us one dashboard for attendance, tasks, and inventory. We cut operational issues by half and finally scaled without adding headcount.',
+    'We were losing hours to WhatsApp updates and spreadsheet payroll. NeoEngine gave us one dashboard for SOPs, attendance, and payroll. We cut operational issues by half and finally scaled without adding headcount.',
   metrics: [
     { id: 'hours', label: 'Hours Saved Weekly', value: 18, suffix: ' hrs', positive: true },
     { id: 'labour', label: 'Labour Cost Reduced', value: 12, prefix: '-', suffix: '%', positive: true },
-    { id: 'tasks', label: 'Task Completion', value: 98, suffix: '%' },
+    { id: 'tasks', label: 'SOP Completion', value: 98, suffix: '%' },
     { id: 'attendance', label: 'Attendance Accuracy', value: 99, suffix: '%' },
   ],
   beforeValues: [42, 48, 45, 52, 49, 47, 44],
@@ -80,76 +80,76 @@ export const FEATURED_STORY: FeaturedStoryData = {
 
 export const SUCCESS_STORIES: SuccessStory[] = [
   {
-    id: 'cloud-kitchen',
-    restaurant: 'UrbanBite Cloud',
+    id: 'retail',
+    company: 'UrbanMart Stores',
     location: 'Bengaluru',
-    industry: 'Cloud Kitchen',
-    quote: 'Sales visibility across brands went from weekly guesses to live numbers.',
+    industry: 'Retail',
+    quote: 'Store-level visibility went from weekly guesses to live attendance and task numbers.',
     revenueIncrease: 41,
-    logo: 'UB',
-    bigMetric: { value: '+41%', label: 'Sales', numericValue: 41, prefix: '+', suffix: '%' },
+    logo: 'UM',
+    bigMetric: { value: '+41%', label: 'Productivity', numericValue: 41, prefix: '+', suffix: '%' },
   },
   {
-    id: 'cafe',
-    restaurant: 'Brew & Barrel',
+    id: 'healthcare',
+    company: 'CareFirst Clinics',
     location: 'Pune',
-    industry: 'Cafe',
+    industry: 'Healthcare',
     quote: 'Opening checklists and shift handoffs now take minutes, not hours.',
     timeSaved: '2.4 hrs',
-    logo: 'BB',
+    logo: 'CF',
     bigMetric: { value: '2.4 hrs', label: 'Saved Daily', numericValue: 2.4, suffix: ' hrs', decimals: 1 },
   },
   {
-    id: 'fine-dining',
-    restaurant: 'The Copper Table',
+    id: 'manufacturing',
+    company: 'NovaFab Industries',
     location: 'Hyderabad',
-    industry: 'Fine Dining',
-    quote: 'Every outlet follows the same SOP. Compliance is no longer a guessing game.',
+    industry: 'Manufacturing',
+    quote: 'Every site follows the same SOP. Compliance is no longer a guessing game.',
     taskCompletion: 96,
-    logo: 'CT',
-    bigMetric: { value: '96%', label: 'Task Completion', numericValue: 96, suffix: '%' },
+    logo: 'NF',
+    bigMetric: { value: '96%', label: 'SOP Completion', numericValue: 96, suffix: '%' },
   },
   {
-    id: 'qsr',
-    restaurant: 'Crisp & Co.',
+    id: 'hospitality',
+    company: 'Harbor & Co.',
     location: 'Delhi NCR',
-    industry: 'QSR',
-    quote: 'Inventory alerts stopped us from over-ordering and throwing away margin.',
-    foodWasteReduction: 34,
-    logo: 'CC',
-    bigMetric: { value: '34%', label: 'Lower Food Waste', numericValue: 34, suffix: '%' },
+    industry: 'Hospitality',
+    quote: 'Attendance-linked payroll stopped errors and saved our managers hours every month.',
+    wasteReduction: 34,
+    logo: 'HC',
+    bigMetric: { value: '34%', label: 'Less Payroll Rework', numericValue: 34, suffix: '%' },
   },
   {
     id: 'video',
-    restaurant: 'PlateCraft Group',
-    location: 'Chennai · 4 Outlets',
-    industry: 'QSR',
+    company: 'PlateCraft Group',
+    location: 'Chennai · 4 Locations',
+    industry: 'Services',
     quote: 'Hear how PlateCraft unified payroll and outlet reporting in 30 days.',
     logo: 'PC',
     bigMetric: { value: '+22%', label: 'Margin Growth', numericValue: 22, prefix: '+', suffix: '%' },
     isVideo: true,
   },
   {
-    id: 'multi-brand',
-    restaurant: 'Fire & Fork',
+    id: 'logistics',
+    company: 'SwiftRoute Logistics',
     location: 'Jaipur',
-    industry: 'Cloud Kitchen',
+    industry: 'Services',
     quote: 'NeoEngine replaced three separate tools. Our team actually uses one system now.',
     revenueIncrease: 33,
-    logo: 'FF',
-    bigMetric: { value: '+33%', label: 'Revenue Growth', numericValue: 33, prefix: '+', suffix: '%' },
+    logo: 'SR',
+    bigMetric: { value: '+33%', label: 'On-time Tasks', numericValue: 33, prefix: '+', suffix: '%' },
   },
 ];
 
 export const BRAND_LOGOS: BrandLogo[] = [
-  { id: 'spice-route', name: 'Spice Route', color: '#0F8F68' },
-  { id: 'urbanbite', name: 'UrbanBite', color: '#2563EB' },
-  { id: 'brew-barrel', name: 'Brew & Barrel', color: '#D97706' },
-  { id: 'copper-table', name: 'Copper Table', color: '#7C3AED' },
-  { id: 'crisp-co', name: 'Crisp & Co.', color: '#DC2626' },
+  { id: 'brightpath', name: 'BrightPath', color: '#0F8F68' },
+  { id: 'urbanmart', name: 'UrbanMart', color: '#2563EB' },
+  { id: 'carefirst', name: 'CareFirst', color: '#D97706' },
+  { id: 'novafab', name: 'NovaFab', color: '#7C3AED' },
+  { id: 'harbor', name: 'Harbor & Co.', color: '#DC2626' },
   { id: 'platecraft', name: 'PlateCraft', color: '#0891B2' },
-  { id: 'fire-fork', name: 'Fire & Fork', color: '#EA580C' },
-  { id: 'saffron-lane', name: 'Saffron Lane', color: '#CA8A04' },
-  { id: 'grain-house', name: 'Grain House', color: '#16A34A' },
-  { id: 'nova-bistro', name: 'Nova Bistro', color: '#4F46E5' },
+  { id: 'swiftroute', name: 'SwiftRoute', color: '#EA580C' },
+  { id: 'apex-care', name: 'Apex Care', color: '#CA8A04' },
+  { id: 'metro-retail', name: 'Metro Retail', color: '#16A34A' },
+  { id: 'vertex-works', name: 'Vertex Works', color: '#4F46E5' },
 ];

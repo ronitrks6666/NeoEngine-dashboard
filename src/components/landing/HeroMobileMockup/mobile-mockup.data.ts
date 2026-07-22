@@ -41,7 +41,7 @@ export const OUTLET_PROGRESS: OutletProgress[] = [
 ];
 
 export const TASK_ITEMS: TaskItem[] = [
-  { id: '1', label: 'Kitchen Opening', status: 'completed' },
+  { id: '1', label: 'Opening checklist', status: 'completed' },
   { id: '2', label: 'Inventory Count', status: 'pending' },
   { id: '3', label: 'Staff Briefing', status: 'completed' },
 ];

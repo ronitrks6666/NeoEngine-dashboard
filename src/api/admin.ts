@@ -114,6 +114,19 @@ export const adminApi = {
     return data.data;
   },
 
+  getSalesLeads: async () => {
+    const { data } = await api.get<{ success: boolean; data: SalesLead[] }>('/super-admin/sales-leads');
+    return data.data;
+  },
+
+  updateSalesLeadStatus: async (id: string, status: SalesLeadStatus) => {
+    const { data } = await api.put<{ success: boolean; data: SalesLead }>(
+      `/super-admin/sales-leads/${id}/status`,
+      { status }
+    );
+    return data.data;
+  },
+
   getTicketDetails: async (id: string) => {
     const { data } = await api.get(`/super-admin/support-tickets/${id}`);
     return data.data;
@@ -261,6 +274,19 @@ export const adminApi = {
     return data.data;
   },
 };
+
+export type SalesLeadStatus = 'New' | 'Contacted' | 'Qualified' | 'Closed';
+
+export interface SalesLead {
+  _id: string;
+  name: string;
+  phone: string;
+  interest: string;
+  status: SalesLeadStatus;
+  source?: string;
+  createdAt: string;
+  updatedAt: string;
+}
 
 export interface SubscriptionPlan {
   _id: string;

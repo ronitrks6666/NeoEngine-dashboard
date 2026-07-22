@@ -5,10 +5,27 @@
   "type": "module",
   "scripts": {
     "dev": "vite",
+    "dev:e2e": "vite --port 5199 --strictPort --host 127.0.0.1",
     "build": "tsc -b && vite build",
     "start": "serve dist -s -l 3001",
     "lint": "eslint .",
-    "preview": "vite preview"
+    "preview": "vite preview",
+    "test": "node tests/runner/menu.mjs",
+    "test:e2e": "playwright test",
+    "test:e2e:login": "playwright test tests/e2e/login.spec.ts",
+    "test:e2e:staff": "playwright test tests/e2e/staff.spec.ts",
+    "test:e2e:tasks": "playwright test tests/e2e/tasks.spec.ts",
+    "test:e2e:payroll": "playwright test tests/e2e/payroll.spec.ts",
+    "test:e2e:attendance": "playwright test tests/e2e/attendance.spec.ts",
+    "test:e2e:portal": "playwright test tests/e2e/portal-smoke.spec.ts",
+    "test:e2e:issues": "playwright test tests/e2e/issues.spec.ts",
+    "test:e2e:leave": "playwright test tests/e2e/leave.spec.ts",
+    "test:e2e:staff-web": "playwright test tests/e2e/staff-web-login.spec.ts",
+    "test:e2e:visual": "playwright test --project=visual",
+    "test:e2e:visual:update": "playwright test --project=visual --update-snapshots",
+    "test:e2e:perf": "playwright test --project=perf",
+    "smoke:production": "node tests/runner/smoke-production.mjs",
+    "release-test": "node tests/runner/release-test.mjs"
   },
   "dependencies": {
     "@dnd-kit/core": "^6.3.1",
@@ -34,6 +51,7 @@
     "zustand": "^4.5.0"
   },
   "devDependencies": {
+    "@playwright/test": "^1.49.1",
     "@types/node": "^20.19.37",
     "@types/react": "^18.2.55",
     "@types/react-dom": "^18.2.19",

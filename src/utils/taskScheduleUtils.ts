@@ -15,7 +15,7 @@ export const TIME_WINDOW_PRESETS = [
   { id: 'morning', label: 'Morning', start: '06:00', end: '12:00' },
   { id: 'afternoon', label: 'Afternoon', start: '12:00', end: '18:00' },
   { id: 'evening', label: 'Evening', start: '18:00', end: '23:00' },
-  { id: 'fullday', label: 'Full Day', start: '06:00', end: '02:00' },
+  { id: 'fullday', label: 'Full Day', start: '06:00', end: '23:00' },
 ] as const;
 
 export function parseHHmm(value?: string): number | null {
@@ -67,6 +67,18 @@ export function formatIntervalLabel(minutes: number): string {
   return `${minutes} minutes`;
 }
 
+/** Same-calendar-day repeat window: start must be strictly before end. */
+export function getRepeatWindowError(
+  startTime: string | undefined,
+  endTime: string | undefined
+): string | null {
+  const start = parseHHmm(startTime);
+  const end = parseHHmm(endTime);
+  if (start == null || end == null) return null;
+  if (start >= end) return 'End time must be after start time';
+  return null;
+}
+
 export function getNextRunTimes(
   startTime: string | undefined,
   endTime: string | undefined,
@@ -78,12 +90,10 @@ export function getNextRunTimes(
 
   let end = parseHHmm(endTime);
   if (end == null) end = start;
-
-  let endAdj = end;
-  if (endAdj <= start) endAdj += 24 * 60;
+  if (end <= start) return [];
 
   const slots: string[] = [];
-  for (let t = start; t <= endAdj && slots.length < limit; t += intervalMinutes) {
+  for (let t = start; t <= end && slots.length < limit; t += intervalMinutes) {
     slots.push(formatTime12(formatHHmm(t)));
   }
   return slots;

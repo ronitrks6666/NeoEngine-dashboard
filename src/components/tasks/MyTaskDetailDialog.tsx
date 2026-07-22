@@ -1,4 +1,5 @@
 import { useEffect, useMemo, useRef, useState } from 'react';
+import { createPortal } from 'react-dom';
 import { format, parseISO } from 'date-fns';
 import {
   AlertCircle,
@@ -35,9 +36,14 @@ function formatDueLabel(task: ManagerTaskItem) {
   return null;
 }
 
+const WEB_PROOF_SKIP_DEFAULT =
+  'Completed on web dashboard — photo/video proof requires the mobile app camera.';
+
 interface MyTaskDetailDialogProps {
   task: ManagerTaskItem;
   viewOnly: boolean;
+  /** Web cannot capture live camera proof — use skip-reason flow instead of file upload. */
+  disableProofUpload?: boolean;
   onClose: () => void;
   onTaskUpdated: (task: ManagerTaskItem) => void;
   onCompleted: () => void;
@@ -46,6 +52,7 @@ interface MyTaskDetailDialogProps {
 export function MyTaskDetailDialog({
   task,
   viewOnly,
+  disableProofUpload = false,
   onClose,
   onTaskUpdated,
   onCompleted,
@@ -154,8 +161,29 @@ export function MyTaskDetailDialog({
 
   const handleMarkDone = async () => {
     if (!canEdit || completing) return;
+    if (!localTask.id) {
+      setError('This task is not ready to complete yet. Refresh the page and try again.');
+      return;
+    }
     if (!mandatoryProof) {
       await finalizeMarkDone();
+      return;
+    }
+
+    if (disableProofUpload) {
+      const webReason = taskProofSkipReason.trim() || WEB_PROOF_SKIP_DEFAULT;
+      if (missingChecklistProof.length > 0) {
+        const reasons = missingChecklistProof.map((item) => ({
+          itemId: item.id,
+          reason: (checklistProofSkipReasons[item.id] || '').trim() || WEB_PROOF_SKIP_DEFAULT,
+        }));
+        await finalizeMarkDone({
+          completionProofSkipReason: webReason,
+          checklistProofSkipReasons: reasons,
+        });
+        return;
+      }
+      await finalizeMarkDone({ completionProofSkipReason: webReason });
       return;
     }
 
@@ -302,9 +330,9 @@ export function MyTaskDetailDialog({
     }
   };
 
-  return (
+  const dialog = (
     <div
-      className="fixed inset-0 z-50 flex items-center justify-center p-4 sm:p-6"
+      className="fixed inset-0 z-[200] flex items-center justify-center p-4 sm:p-6"
       onClick={onClose}
       role="presentation"
     >
@@ -480,7 +508,7 @@ export function MyTaskDetailDialog({
                               />
                             </a>
                           ))}
-                          {canEdit && (
+                          {canEdit && !disableProofUpload && (
                             <>
                               <input
                                 ref={(el) => {
@@ -546,7 +574,17 @@ export function MyTaskDetailDialog({
             </section>
           )}
 
-          {canEdit && (
+          {canEdit && disableProofUpload && (
+            <section className="rounded-2xl border border-blue-100 bg-blue-50/60 p-4">
+              <p className="text-xs font-bold uppercase tracking-wider text-blue-800">Proof on mobile</p>
+              <p className="mt-1 text-sm text-blue-900/90">
+                Photo and video proof must be captured with the live camera in the NeoEngine app. On web you can
+                still mark this task done; a note will be recorded that proof was not uploaded here.
+              </p>
+            </section>
+          )}
+
+          {canEdit && !disableProofUpload && (
             <section className={`rounded-2xl border border-dashed p-4 ${mandatoryProof ? 'border-amber-300 bg-amber-50/40' : 'border-emerald-200 bg-emerald-50/30'}`}>
               <p className={`mb-2 text-xs font-bold uppercase tracking-wider ${mandatoryProof ? 'text-amber-800' : 'text-emerald-700'}`}>
                 {mandatoryProof ? 'Task completion photo (required)' : 'Task completion photo (optional)'}
@@ -612,7 +650,7 @@ export function MyTaskDetailDialog({
           )}
         </div>
 
-        {!viewOnly && localTask.id && (
+        {!viewOnly && (
           <div className="shrink-0 border-t border-gray-100 bg-white px-5 py-4 sm:px-6">
             {localTask.isCompleted ? (
               <button
@@ -752,4 +790,6 @@ export function MyTaskDetailDialog({
       ) : null}
     </div>
   );
+
+  return typeof document !== 'undefined' ? createPortal(dialog, document.body) : dialog;
 }

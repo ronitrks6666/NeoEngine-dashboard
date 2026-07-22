@@ -27,6 +27,7 @@ import {
   removeTemplateFromTemplatesCache,
 } from '@/lib/taskQuerySync';
 import { DuplicateToOutletModal, type DuplicateToOutletTarget } from '@/components/DuplicateToOutletModal';
+import { parseHHmm } from '@/utils/taskScheduleUtils';
 import {
   CheckSquare,
   Users,
@@ -62,6 +63,25 @@ const taskSchema = z.object({
     text: z.string().min(1, 'Item text required'),
     referenceMediaUrl: z.string().optional(),
   })).optional(),
+}).superRefine((data, ctx) => {
+  if (data.taskType === 'onetime' && !data.specificDate?.trim()) {
+    ctx.addIssue({
+      code: z.ZodIssueCode.custom,
+      message: 'Date is required for one-time tasks',
+      path: ['specificDate'],
+    });
+  }
+  if (!data.multipleTimesPerDay) return;
+  const start = parseHHmm(data.startTime);
+  const end = parseHHmm(data.repeatEndTime);
+  if (start == null || end == null) return;
+  if (start >= end) {
+    ctx.addIssue({
+      code: z.ZodIssueCode.custom,
+      message: 'End time must be after start time',
+      path: ['repeatEndTime'],
+    });
+  }
 });
 
 type TaskForm = z.infer<typeof taskSchema>;
@@ -751,6 +771,7 @@ export function TasksPage() {
                 </button>
               )}
               <button
+                data-testid="tasks-create-btn"
                 onClick={() => {
                   form.reset({ ...defaultFormValues });
                   setCreateStaffIds([]);

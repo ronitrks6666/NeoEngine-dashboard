@@ -146,6 +146,7 @@ export function MyTasksTodayPanel({ outletId, todayYmd }: MyTasksTodayPanelProps
         <MyTaskDetailDialog
           task={selected}
           viewOnly={viewOnly}
+          disableProofUpload
           onClose={() => setSelected(null)}
           onTaskUpdated={setSelected}
           onCompleted={handleDialogCompleted}

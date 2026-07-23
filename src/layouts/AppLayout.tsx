@@ -71,7 +71,6 @@ const superAdminNav: { to: string; label: string; icon: LucideIcon; permission?:
 
 const ownerNav: OwnerNavItem[] = [
   { key: 'dashboard', to: '/owner/dashboard', label: 'Dashboard', icon: LayoutDashboard },
-  { key: 'neo-notes', to: '/owner/neo-notes', label: 'Neo Notes', icon: FileText },
   { key: 'tasks', to: '/owner/tasks', label: 'Tasks', icon: CheckSquare },
   { key: 'sops', to: '/owner/sops', label: 'SOPs', icon: BookOpen },
   { key: 'issues', to: '/owner/issues', label: 'Issues', icon: AlertTriangle },
@@ -79,6 +78,7 @@ const ownerNav: OwnerNavItem[] = [
   { key: 'payroll', to: '/owner/payroll', label: 'Payroll', icon: Wallet },
   { key: 'events', to: '/owner/events', label: 'Events', icon: CalendarPlus },
   { key: 'briefing-pool', to: '/owner/briefing-pool', label: 'Briefing Pool', icon: MessageSquare },
+  { key: 'neo-notes', to: '/owner/neo-notes', label: 'Neo Notes', icon: FileText },
   { key: 'analytics', to: '/owner/analytics', label: 'Analytics', icon: BarChart3 },
   { key: 'reports', to: '/owner/reports', label: 'Reports', icon: FileText },
   { key: 'attendance', to: '/owner/attendance', label: 'Attendance', icon: CalendarCheck },
@@ -160,7 +160,7 @@ function HeaderProfileMenu({
         </div>
       </button>
       {profileOpen && (
-        <div className="absolute right-0 top-full mt-2 w-64 bg-white rounded-xl shadow-emerald-lg border border-emerald-100 py-2 animate-fade-in z-50">
+        <div className="absolute right-0 top-full mt-2 w-64 bg-white rounded-xl shadow-emerald-lg border border-emerald-100 py-2 animate-fade-in z-[60]">
           <div className="px-4 py-3 border-b border-emerald-50">
             <p className="text-sm font-semibold text-gray-900 truncate">{userName}</p>
             <p className="text-xs text-emerald-600 truncate">{userEmail}</p>
@@ -368,31 +368,30 @@ export function AppLayout({ children, role }: AppLayoutProps) {
         </nav>
       </aside>
       <main
-        className="flex-1 min-h-screen overflow-auto transition-all duration-300 ease-in-out"
+        className="flex min-h-screen flex-1 flex-col transition-all duration-300 ease-in-out"
         style={{ marginLeft: sidebarWidth }}
       >
-        <header className="sticky top-0 z-30 relative flex h-14 shrink-0 items-center gap-3 border-b border-emerald-100 bg-white/90 px-4 shadow-sm backdrop-blur-md sm:px-6">
+        <header className="relative z-30 flex h-14 shrink-0 items-center gap-2 border-b border-emerald-100 bg-white/90 px-3 shadow-sm backdrop-blur-md sm:gap-3 sm:px-4 md:px-6">
           {isMerchantPortal && (
             <>
-              <div className="flex min-w-0 flex-1 items-center justify-start">
-                <OutletSelector allowCreate={authRole === 'OWNER'} className="max-w-[min(100%,14rem)]" />
-              </div>
-
-              <div className="absolute left-1/2 top-1/2 hidden -translate-x-1/2 -translate-y-1/2 sm:block">
-                <Link
-                  to={dashboardPath}
-                  className="rounded-lg px-2 py-1 transition-colors hover:bg-emerald-50/80 focus:outline-none focus-visible:ring-2 focus-visible:ring-emerald-500"
-                  aria-label="Go to dashboard"
-                >
-                  <CoBrandMark brand={ownerBrand ?? null} variant="header" logoSize={28} />
-                </Link>
-              </div>
-
-              <div className="flex min-w-0 flex-1 items-center justify-end gap-2 sm:gap-3">
-                <SiteSearchTypeahead
-                  role="OWNER"
-                  className="w-full max-w-[11rem] sm:max-w-xs md:max-w-sm"
+              <div className="relative z-20 flex min-w-0 flex-1 items-center justify-start">
+                <OutletSelector
+                  allowCreate={authRole === 'OWNER'}
+                  className="max-w-[min(100%,14rem)] sm:max-w-[min(100%,16rem)]"
                 />
+              </div>
+
+              {/* Hide center brand only when truly cramped; search shrinks first */}
+              <Link
+                to={dashboardPath}
+                className="relative z-20 mx-1 hidden shrink-0 rounded-lg px-1 py-1 transition-colors hover:bg-emerald-50/80 focus:outline-none focus-visible:ring-2 focus-visible:ring-emerald-500 sm:block"
+                aria-label="Go to dashboard"
+              >
+                <CoBrandMark brand={ownerBrand ?? null} variant="header" logoSize={28} />
+              </Link>
+
+              <div className="relative z-20 flex min-w-0 flex-1 items-center justify-end gap-2">
+                <SiteSearchTypeahead role="OWNER" className="min-w-0 shrink" />
                 <HeaderProfileMenu
                   profileRef={profileRef}
                   profileOpen={profileOpen}
@@ -406,21 +405,23 @@ export function AppLayout({ children, role }: AppLayoutProps) {
           )}
           {role === 'SUPER_ADMIN' && (
             <>
-              <div className="flex min-w-0 flex-1 items-center justify-start">
+              <div className="relative z-20 min-w-0 flex-1">
                 <SiteSearchTypeahead role="SUPER_ADMIN" className="w-full max-w-md" />
               </div>
-              <HeaderProfileMenu
-                profileRef={profileRef}
-                profileOpen={profileOpen}
-                setProfileOpen={setProfileOpen}
-                userName={user?.name}
-                userEmail={userEmail}
-                onLogout={handleLogout}
-              />
+              <div className="relative z-20 shrink-0">
+                <HeaderProfileMenu
+                  profileRef={profileRef}
+                  profileOpen={profileOpen}
+                  setProfileOpen={setProfileOpen}
+                  userName={user?.name}
+                  userEmail={userEmail}
+                  onLogout={handleLogout}
+                />
+              </div>
             </>
           )}
         </header>
-        {children}
+        <div className="min-h-0 flex-1 overflow-auto">{children}</div>
       </main>
     </div>
   );

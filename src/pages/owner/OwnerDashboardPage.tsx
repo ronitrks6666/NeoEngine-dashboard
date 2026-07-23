@@ -3,7 +3,6 @@ import { useQuery } from '@tanstack/react-query';
 import { HighlightSection } from '@/components/HighlightSection';
 import { useAuth } from '@/hooks/useAuth';
 import { useOutletStore } from '@/stores/outletStore';
-import { NeoNotesPanel } from '@/components/neoNotes/NeoNotesPanel';
 import { managerApi } from '@/api/manager';
 import {
   PieChart,
@@ -131,10 +130,6 @@ export function OwnerDashboardPage() {
               </div>
             </div>
             </HighlightSection>
-          </div>
-
-          <div className="mb-8">
-            <NeoNotesPanel outletId={selectedOutletId} compact />
           </div>
 
           {/* Staff status - card grid */}

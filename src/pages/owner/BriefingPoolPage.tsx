@@ -5,7 +5,6 @@ import { managerApi } from '@/api/manager';
 import { taskApi } from '@/api/task';
 import { LoadingSpinner } from '@/components/LoadingSpinner';
 import { useDebouncedValue } from '@/hooks/useDebouncedValue';
-import { NeoNotesPanel } from '@/components/neoNotes/NeoNotesPanel';
 import {
   Search,
   Calendar,
@@ -14,6 +13,8 @@ import {
   CheckCircle2,
   ChevronLeft,
   ChevronRight,
+  ChevronDown,
+  ChevronUp,
   Filter,
 } from 'lucide-react';
 import { format, subDays } from 'date-fns';
@@ -122,8 +123,6 @@ export function BriefingPoolPage() {
           />
         </div>
       </div>
-
-      <NeoNotesPanel outletId={selectedOutletId} className="mb-6" />
 
       {/* Filters & Navigation */}
       <div className="bg-white rounded-2xl border border-gray-100 p-2 mb-8 shadow-sm">

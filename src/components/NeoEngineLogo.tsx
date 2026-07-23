@@ -1,40 +1,26 @@
-/** NeoEngine logo - Clean N + E monogram with subtle engine accent */
-import { useId } from 'react';
-
+/** NeoEngine logo — green rounded square with white NE (matches landing home brand). */
 interface NeoEngineLogoProps {
   className?: string;
   size?: number;
 }
 
 export function NeoEngineLogo({ className = '', size = 32 }: NeoEngineLogoProps) {
-  const id = useId();
-  const gradId = `neo-grad-${id.replace(/:/g, '')}`;
+  const fontSize = Math.max(10, Math.round(size * 0.36));
+  const radius = Math.max(6, Math.round(size * 0.22));
+
   return (
-    <svg
-      width={size}
-      height={size}
-      viewBox="0 0 64 64"
-      fill="none"
-      xmlns="http://www.w3.org/2000/svg"
-      className={className}
+    <span
+      className={`inline-flex shrink-0 items-center justify-center bg-gradient-to-b from-green-600 to-[#047857] font-bold tracking-tight text-white ${className}`}
+      style={{
+        width: size,
+        height: size,
+        borderRadius: radius,
+        fontSize,
+        lineHeight: 1,
+      }}
+      aria-hidden="true"
     >
-      <defs>
-        <linearGradient id={gradId} x1="0%" y1="0%" x2="100%" y2="100%">
-          <stop offset="0%" stopColor="#10B981" />
-          <stop offset="100%" stopColor="#047857" />
-        </linearGradient>
-      </defs>
-      <rect width="64" height="64" rx="14" fill={`url(#${gradId})`} />
-      {/* N - left bar, diagonal, right bar */}
-      <path
-        d="M14 46V18h5L37 46h5V18h-5L19 46h-5z"
-        fill="white"
-      />
-      {/* E - clean three bars */}
-      <path
-        d="M46 18h12v4h-8v5h6v4h-6v5h8v4H46V18z"
-        fill="white"
-      />
-    </svg>
+      NE
+    </span>
   );
 }

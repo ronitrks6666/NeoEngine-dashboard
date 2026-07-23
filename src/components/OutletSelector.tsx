@@ -28,26 +28,32 @@ export function OutletSelector({ className = '', allowCreate = true }: OutletSel
   if (outlets.length === 0) return null;
   if (outlets.length === 1 && !allowCreate) {
     return (
-      <div className={`flex h-10 min-w-[180px] items-center gap-2 rounded-xl border border-emerald-200 bg-white px-4 text-sm font-medium text-emerald-800 shadow-sm ${className}`}>
-        <Store className="h-4 w-4 text-emerald-600 shrink-0" />
-        <span className="truncate flex-1 text-left">{outlets[0].name}</span>
+      <div
+        className={`flex h-9 max-w-full items-center gap-1.5 rounded-xl border border-emerald-200 bg-white px-2 text-sm font-medium text-emerald-800 shadow-sm sm:h-10 sm:gap-2 sm:px-3 ${className}`}
+        title={outlets[0].name}
+      >
+        <Store className="h-4 w-4 shrink-0 text-emerald-600" />
+        <span className="hidden min-w-0 truncate md:inline">{outlets[0].name}</span>
       </div>
     );
   }
   if (outlets.length === 1) {
     return (
-      <div ref={ref} className={`relative ${className}`}>
+      <div ref={ref} className={`relative max-w-full ${className}`}>
         <button
           type="button"
+          title={outlets[0].name}
           onClick={() => setOpen((o) => !o)}
-          className="flex h-10 min-w-[180px] items-center gap-2 rounded-xl border border-emerald-200 bg-white px-4 text-sm font-medium text-emerald-800 shadow-sm transition-all duration-200 hover:border-emerald-300 hover:bg-emerald-50/50 focus:border-emerald-500 focus:outline-none focus:ring-2 focus:ring-emerald-500/20"
+          className="flex h-9 w-full max-w-full items-center gap-1.5 rounded-xl border border-emerald-200 bg-white px-2 text-sm font-medium text-emerald-800 shadow-sm transition-all duration-200 hover:border-emerald-300 hover:bg-emerald-50/50 focus:border-emerald-500 focus:outline-none focus:ring-2 focus:ring-emerald-500/20 sm:h-10 sm:gap-2 sm:px-3"
         >
-          <Store className="h-4 w-4 text-emerald-600 shrink-0" />
-          <span className="truncate flex-1 text-left">{outlets[0].name}</span>
-          <ChevronDown className={`h-4 w-4 text-emerald-600 shrink-0 transition-transform duration-300 ease-out ${open ? 'rotate-180' : ''}`} />
+          <Store className="h-4 w-4 shrink-0 text-emerald-600" />
+          <span className="hidden min-w-0 flex-1 truncate text-left md:inline">{outlets[0].name}</span>
+          <ChevronDown
+            className={`h-4 w-4 shrink-0 text-emerald-600 transition-transform duration-300 ease-out ${open ? 'rotate-180' : ''}`}
+          />
         </button>
         <div
-          className={`absolute left-0 right-0 top-full mt-1.5 z-50 overflow-hidden rounded-xl border border-emerald-100 bg-white shadow-lg shadow-emerald-900/10 transition-all duration-200 ease-out origin-top ${
+          className={`absolute left-0 right-0 top-full z-[60] mt-1.5 overflow-hidden rounded-xl border border-emerald-100 bg-white shadow-lg shadow-emerald-900/10 transition-all duration-200 ease-out origin-top ${
             open ? 'opacity-100 scale-y-100 translate-y-0' : 'opacity-0 scale-y-95 -translate-y-1 pointer-events-none'
           }`}
         >
@@ -85,23 +91,26 @@ export function OutletSelector({ className = '', allowCreate = true }: OutletSel
   const selectedOutlet = outlets.find((o) => o._id === selectedOutletId);
 
   return (
-    <div ref={ref} className={`relative ${className}`}>
+    <div ref={ref} className={`relative max-w-full ${className}`}>
       <button
         type="button"
+        title={selectedOutlet?.name ?? 'Select outlet'}
         onClick={() => setOpen((o) => !o)}
-        className="flex h-10 min-w-[180px] items-center gap-2 rounded-xl border border-emerald-200 bg-white px-4 text-sm font-medium text-emerald-800 shadow-sm transition-all duration-200 hover:border-emerald-300 hover:bg-emerald-50/50 focus:border-emerald-500 focus:outline-none focus:ring-2 focus:ring-emerald-500/20"
+        className="flex h-9 w-full max-w-full items-center gap-1.5 rounded-xl border border-emerald-200 bg-white px-2 text-sm font-medium text-emerald-800 shadow-sm transition-all duration-200 hover:border-emerald-300 hover:bg-emerald-50/50 focus:border-emerald-500 focus:outline-none focus:ring-2 focus:ring-emerald-500/20 sm:h-10 sm:gap-2 sm:px-3"
       >
-        <Store className="h-4 w-4 text-emerald-600 shrink-0" />
-        <span className="truncate flex-1 text-left">{selectedOutlet?.name ?? 'Select outlet'}</span>
+        <Store className="h-4 w-4 shrink-0 text-emerald-600" />
+        <span className="hidden min-w-0 flex-1 truncate text-left md:inline">
+          {selectedOutlet?.name ?? 'Select outlet'}
+        </span>
         <ChevronDown
-          className={`h-4 w-4 text-emerald-600 shrink-0 transition-transform duration-300 ease-out ${
+          className={`h-4 w-4 shrink-0 text-emerald-600 transition-transform duration-300 ease-out ${
             open ? 'rotate-180' : ''
           }`}
         />
       </button>
 
       <div
-        className={`absolute left-0 right-0 top-full mt-1.5 z-50 overflow-hidden rounded-xl border border-emerald-100 bg-white shadow-lg shadow-emerald-900/10 transition-all duration-200 ease-out origin-top ${
+        className={`absolute left-0 right-0 top-full z-[60] mt-1.5 overflow-hidden rounded-xl border border-emerald-100 bg-white shadow-lg shadow-emerald-900/10 transition-all duration-200 ease-out origin-top ${
           open
             ? 'opacity-100 scale-y-100 translate-y-0'
             : 'opacity-0 scale-y-95 -translate-y-1 pointer-events-none'

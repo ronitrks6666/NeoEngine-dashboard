@@ -17,49 +17,60 @@ function resolveLogoSrc(url: string | null | undefined): string | null {
   return `${base}${trimmed.startsWith('/') ? '' : '/'}${trimmed}`;
 }
 
+function NeoEngineWordmark({ className = '' }: { className?: string }) {
+  return (
+    <span className={`whitespace-nowrap font-extrabold tracking-tight ${className}`}>
+      <span className="text-slate-900">neo</span>
+      <span className="text-primary">Engine</span>
+    </span>
+  );
+}
+
 export function CoBrandMark({ brand, className = '', logoSize = 28, variant = 'sidebar' }: Props) {
   const partnerName = brand?.displayName?.trim() || null;
   const partnerLogo = resolveLogoSrc(brand?.logoUrl);
   const showPartner = Boolean(partnerName || partnerLogo);
   const isHeader = variant === 'header';
 
+  if (isHeader) {
+    return (
+      <div className={`flex max-w-[min(100%,22rem)] items-center gap-1.5 sm:gap-2 ${className}`}>
+        {/* Full wordmark whenever header brand is shown; NE only on very narrow */}
+        <NeoEngineLogo size={logoSize} className="shrink-0 lg:hidden" />
+        <NeoEngineWordmark className="hidden text-base lg:inline lg:text-lg" />
+        {showPartner ? (
+          <>
+            <span className="shrink-0 font-bold text-slate-400">|</span>
+            {partnerLogo ? (
+              <img
+                src={partnerLogo}
+                alt=""
+                className="h-7 w-7 shrink-0 rounded-md object-contain sm:h-8 sm:w-8"
+              />
+            ) : null}
+            {partnerName ? (
+              <span className="max-w-[7rem] truncate text-sm font-extrabold tracking-tight text-slate-900 sm:max-w-[9rem] lg:text-base">
+                {partnerName}
+              </span>
+            ) : null}
+          </>
+        ) : null}
+      </div>
+    );
+  }
+
   return (
-    <div className={`flex items-center min-w-0 ${isHeader ? 'gap-2' : 'gap-2'} ${className}`}>
-      {isHeader ? (
-        <span className="shrink-0 whitespace-nowrap text-base font-extrabold tracking-tight text-emerald-800 sm:text-lg">
-          neoEngine
-        </span>
-      ) : (
-        <>
-          <NeoEngineLogo size={logoSize} className="shrink-0" />
-          <span className="truncate text-lg font-extrabold tracking-tight text-emerald-50">neoEngine</span>
-        </>
-      )}
+    <div className={`flex min-w-0 items-center gap-2 ${className}`}>
+      <NeoEngineLogo size={logoSize} className="shrink-0" />
+      <span className="truncate text-lg font-extrabold tracking-tight text-emerald-50">neoEngine</span>
       {showPartner ? (
         <>
-          <span
-            className={
-              isHeader ? 'shrink-0 text-base font-bold text-slate-400 sm:text-lg' : 'font-bold text-emerald-200/90'
-            }
-          >
-            |
-          </span>
+          <span className="font-bold text-emerald-200/90">|</span>
           {partnerLogo ? (
-            <img
-              src={partnerLogo}
-              alt=""
-              className={`shrink-0 object-contain ${isHeader ? 'rounded-md' : 'h-8 w-8 rounded-lg'}`}
-              style={isHeader ? { width: logoSize, height: logoSize } : undefined}
-            />
+            <img src={partnerLogo} alt="" className="h-8 w-8 shrink-0 rounded-lg object-contain" />
           ) : null}
           {partnerName ? (
-            <span
-              className={`truncate font-extrabold tracking-tight ${
-                isHeader ? 'max-w-[10rem] text-base text-slate-900 sm:max-w-xs sm:text-lg' : 'text-base text-white'
-              }`}
-            >
-              {partnerName}
-            </span>
+            <span className="truncate text-base font-extrabold tracking-tight text-white">{partnerName}</span>
           ) : null}
         </>
       ) : null}

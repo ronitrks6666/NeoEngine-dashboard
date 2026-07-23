@@ -8,7 +8,7 @@ import { ownerApi, type Outlet } from '@/api/owner';
 import { getApiErrorMessage } from '@/api/auth';
 import { LoadingSpinner } from '@/components/LoadingSpinner';
 import { AddressSearchInput } from '@/components/AddressSearchInput';
-import { Store, Phone, Locate, X, Pencil, Trash2 } from 'lucide-react';
+import { Store, Phone, Locate, X, Pencil, Trash2, ChevronDown, ChevronRight, Plus } from 'lucide-react';
 import { zPhone10 } from '@/lib/phoneValidation';
 import { useDebouncedValue } from '@/hooks/useDebouncedValue';
 import { ListSearchBar } from '@/components/ListSearchBar';
@@ -47,6 +47,80 @@ function sanitizePositiveDecimalTyping(raw: string): string {
     if (c >= '0' && c <= '9') out += c;
   }
   return out;
+}
+
+const GST_REGEX = /^[0-9]{2}[A-Z]{5}[0-9]{4}[A-Z]{1}[1-9A-Z]{1}Z[0-9A-Z]{1}$/;
+
+function normalizeGstInput(value: string) {
+  return value.toUpperCase().replace(/\s+/g, '');
+}
+
+function validateGstOptional(raw: string): { value: string; ok: boolean; message?: string } {
+  const value = normalizeGstInput(raw || '');
+  if (!value) return { value, ok: true };
+  if (GST_REGEX.test(value)) return { value, ok: true };
+  return { value, ok: false, message: 'Invalid GST format. Example: 29ABCDE1234F1Z5' };
+}
+
+const WEEKDAYS = [
+  'Sunday',
+  'Monday',
+  'Tuesday',
+  'Wednesday',
+  'Thursday',
+  'Friday',
+  'Saturday',
+] as const;
+
+type OpeningHourDay = {
+  day: string;
+  closed: boolean;
+  openTime: string;
+  closeTime: string;
+};
+
+type EditShift = { _id?: string; name: string; startTime: string; endTime: string };
+
+const DEFAULT_SHIFTS: EditShift[] = [
+  { name: 'Shift 1', startTime: '06:00', endTime: '14:00' },
+  { name: 'Shift 2', startTime: '14:00', endTime: '22:00' },
+];
+
+function createDefaultOpeningHours(): OpeningHourDay[] {
+  return WEEKDAYS.map((day) => ({
+    day,
+    closed: false,
+    openTime: '09:00',
+    closeTime: '22:00',
+  }));
+}
+
+function normalizeOpeningHoursFromOutlet(raw: unknown): OpeningHourDay[] {
+  const defaults = createDefaultOpeningHours();
+  if (!Array.isArray(raw) || raw.length === 0) return defaults;
+  const byDay = new Map<string, OpeningHourDay>();
+  for (const row of raw) {
+    if (!row || typeof row !== 'object') continue;
+    const day = String((row as { day?: string }).day || '');
+    if (!WEEKDAYS.includes(day as (typeof WEEKDAYS)[number])) continue;
+    const r = row as OpeningHourDay;
+    byDay.set(day, {
+      day,
+      closed: !!r.closed,
+      openTime: String(r.openTime || '09:00'),
+      closeTime: String(r.closeTime || '22:00'),
+    });
+  }
+  return defaults.map((d) => byDay.get(d.day) || d);
+}
+
+function parseGeofence(state: CreateOutletState) {
+  if (!state.geofenceLat || !state.geofenceLng || !state.geofenceRadius) return undefined;
+  const latitude = parseFloat(state.geofenceLat);
+  const longitude = parseFloat(state.geofenceLng);
+  const radius = parseFloat(state.geofenceRadius);
+  if (Number.isNaN(latitude) || Number.isNaN(longitude) || Number.isNaN(radius)) return undefined;
+  return { latitude, longitude, radius };
 }
 
 function UseCurrentLocationButton({ onLocation }: { onLocation: (lat: number, lng: number) => void }) {
@@ -93,12 +167,74 @@ const createSchema = z.object({
 });
 
 type CreateForm = z.infer<typeof createSchema>;
-type EditForm = CreateForm & { geofence?: { latitude: number; longitude: number; radius: number } };
+type EditForm = CreateForm;
 
 interface CreateOutletState {
   geofenceLat: string;
   geofenceLng: string;
   geofenceRadius: string;
+}
+
+async function syncOutletShifts(
+  outletId: string,
+  current: EditShift[],
+  initial: EditShift[]
+) {
+  const normalized = current
+    .map((s) => ({
+      _id: s._id,
+      name: s.name.trim(),
+      startTime: s.startTime.trim(),
+      endTime: s.endTime.trim(),
+    }))
+    .filter((s) => s.name.length > 0);
+
+  if (normalized.length === 0) {
+    throw new Error('Add at least one shift with a name');
+  }
+  if (
+    normalized.some(
+      (s) => !/^\d{1,2}:\d{2}$/.test(s.startTime) || !/^\d{1,2}:\d{2}$/.test(s.endTime)
+    )
+  ) {
+    throw new Error('Shift times must use HH:mm format');
+  }
+  const namesLower = normalized.map((s) => s.name.toLowerCase());
+  if (new Set(namesLower).size !== namesLower.length) {
+    throw new Error('Shift names must be unique');
+  }
+
+  const initialById = new Map(
+    initial
+      .filter((s) => !!s._id)
+      .map((s) => [s._id as string, { name: s.name, startTime: s.startTime, endTime: s.endTime }])
+  );
+  const currentById = new Map(
+    normalized
+      .filter((s) => !!s._id)
+      .map((s) => [s._id as string, { name: s.name, startTime: s.startTime, endTime: s.endTime }])
+  );
+
+  for (const shiftId of initialById.keys()) {
+    if (!currentById.has(shiftId)) {
+      await ownerApi.deleteShift(shiftId);
+    }
+  }
+
+  for (const [shiftId, cur] of currentById.entries()) {
+    const prev = initialById.get(shiftId);
+    if (!prev) continue;
+    if (cur.name !== prev.name || cur.startTime !== prev.startTime || cur.endTime !== prev.endTime) {
+      await ownerApi.updateShift(shiftId, cur);
+    }
+  }
+
+  const created = normalized
+    .filter((s) => !s._id)
+    .map((s) => ({ name: s.name, startTime: s.startTime, endTime: s.endTime }));
+  if (created.length > 0) {
+    await ownerApi.createShifts(outletId, created);
+  }
 }
 
 export function OwnerOutletsPage() {
@@ -129,6 +265,15 @@ export function OwnerOutletsPage() {
     geofenceLng: '',
     geofenceRadius: '100',
   });
+  const [editGst, setEditGst] = useState('');
+  const [editPunchInTime, setEditPunchInTime] = useState('09:00');
+  const [editOpeningHours, setEditOpeningHours] = useState<OpeningHourDay[]>(createDefaultOpeningHours);
+  const [editShifts, setEditShifts] = useState<EditShift[]>(DEFAULT_SHIFTS.map((s) => ({ ...s })));
+  const [initialEditShifts, setInitialEditShifts] = useState<EditShift[]>([]);
+  const [expandedShiftKey, setExpandedShiftKey] = useState<string | null>(null);
+  const [expandedHoursDay, setExpandedHoursDay] = useState<string | null>(null);
+  const [editLoadingExtras, setEditLoadingExtras] = useState(false);
+  const [editFormError, setEditFormError] = useState<string | null>(null);
   const queryClient = useQueryClient();
 
   const { data: outlets = [], isLoading } = useQuery({
@@ -137,7 +282,26 @@ export function OwnerOutletsPage() {
   });
 
   const createMutation = useMutation({
-    mutationFn: ownerApi.createOutlet,
+    mutationFn: async (payload: {
+      name: string;
+      address: string;
+      phone: string;
+      geofence?: { latitude: number; longitude: number; radius: number };
+    }) => {
+      const res = await ownerApi.createOutlet(payload);
+      const id = res?.data?.outlet?.id || res?.data?.outlet?._id;
+      if (id) {
+        await ownerApi.createShifts(
+          String(id),
+          DEFAULT_SHIFTS.map((s) => ({
+            name: s.name,
+            startTime: s.startTime,
+            endTime: s.endTime,
+          }))
+        );
+      }
+      return res;
+    },
     onSuccess: async () => {
       await queryClient.invalidateQueries({ queryKey: ['owner-outlets'] });
       setShowCreate(false);
@@ -147,11 +311,25 @@ export function OwnerOutletsPage() {
   });
 
   const updateMutation = useMutation({
-    mutationFn: ({ id, data }: { id: string; data: Partial<EditForm> }) => ownerApi.updateOutlet(id, data),
+    mutationFn: async ({
+      id,
+      data,
+      shifts,
+      initialShifts,
+    }: {
+      id: string;
+      data: Parameters<typeof ownerApi.updateOutlet>[1];
+      shifts: EditShift[];
+      initialShifts: EditShift[];
+    }) => {
+      await ownerApi.updateOutlet(id, data);
+      await syncOutletShifts(id, shifts, initialShifts);
+    },
     onSuccess: async () => {
       await queryClient.invalidateQueries({ queryKey: ['owner-outlets'] });
       setEditing(null);
       editForm.reset();
+      setEditFormError(null);
     },
   });
 
@@ -173,8 +351,9 @@ export function OwnerOutletsPage() {
     defaultValues: { name: '', address: '', phone: '' },
   });
 
-  const openEdit = (o: Outlet) => {
+  const openEdit = async (o: Outlet) => {
     setEditing(o);
+    setEditFormError(null);
     editForm.reset({ name: o.name, address: o.address ?? '', phone: o.phone ?? '' });
     const g = o.geofence;
     setEditGeofence({
@@ -182,7 +361,38 @@ export function OwnerOutletsPage() {
       geofenceLng: g?.longitude?.toString() ?? '',
       geofenceRadius: g?.radius?.toString() ?? '100',
     });
+    setEditGst(String(o.gstNumber || ''));
+    setEditPunchInTime(o.punchInTime || '09:00');
+    setEditOpeningHours(normalizeOpeningHoursFromOutlet(o.openingHours));
+    setExpandedShiftKey(null);
+    setExpandedHoursDay(null);
+    setEditLoadingExtras(true);
+    try {
+      const fetched = await ownerApi.getShifts(o._id);
+      const mapped: EditShift[] = (fetched || [])
+        .filter((s) => s && s.name)
+        .map((s) => ({
+          _id: String(s._id),
+          name: String(s.name || ''),
+          startTime: String(s.startTime || '09:00'),
+          endTime: String(s.endTime || '17:00'),
+        }));
+      if (mapped.length > 0) {
+        setEditShifts(mapped);
+        setInitialEditShifts(mapped);
+      } else {
+        setEditShifts([{ name: '', startTime: '09:00', endTime: '17:00' }]);
+        setInitialEditShifts([]);
+      }
+    } catch {
+      setEditShifts(DEFAULT_SHIFTS.map((s) => ({ ...s })));
+      setInitialEditShifts([]);
+    } finally {
+      setEditLoadingExtras(false);
+    }
   };
+
+  const gstCheck = validateGstOptional(editGst);
 
   return (
     <div className="p-6 max-w-6xl mx-auto animate-fade-in">
@@ -290,7 +500,7 @@ export function OwnerOutletsPage() {
                 </div>
                 <div>
                   <h2 className="text-xl font-bold text-white">Create outlet</h2>
-                  <p className="text-teal-100 text-sm mt-0.5">Add a new location with map search</p>
+                  <p className="text-teal-100 text-sm mt-0.5">Adds Shift 1 & Shift 2 by default</p>
                 </div>
               </div>
             </div>
@@ -300,20 +510,7 @@ export function OwnerOutletsPage() {
               )}
               <form
                 onSubmit={createForm.handleSubmit((d) => {
-                  const geofence =
-                    createGeofence.geofenceLat &&
-                    createGeofence.geofenceLng &&
-                    createGeofence.geofenceRadius &&
-                    !isNaN(parseFloat(createGeofence.geofenceLat)) &&
-                    !isNaN(parseFloat(createGeofence.geofenceLng)) &&
-                    !isNaN(parseFloat(createGeofence.geofenceRadius))
-                      ? {
-                          latitude: parseFloat(createGeofence.geofenceLat),
-                          longitude: parseFloat(createGeofence.geofenceLng),
-                          radius: parseFloat(createGeofence.geofenceRadius),
-                        }
-                      : undefined;
-                  createMutation.mutate({ ...d, geofence });
+                  createMutation.mutate({ ...d, geofence: parseGeofence(createGeofence) });
                 })}
                 className="space-y-5"
               >
@@ -412,152 +609,403 @@ export function OwnerOutletsPage() {
       {/* Edit modal */}
       {editing && (
         <div className="fixed inset-0 bg-black/50 backdrop-blur-sm flex items-center justify-center z-50 animate-fade-in p-4">
-          <div className="bg-white rounded-2xl shadow-2xl w-full max-w-lg mx-auto animate-slide-up overflow-hidden border border-gray-100 relative">
+          <div className="bg-white rounded-2xl shadow-2xl w-full max-w-2xl mx-auto animate-slide-up overflow-hidden border border-gray-100 relative">
             <button type="button" onClick={() => setEditing(null)} className="absolute top-4 right-4 p-2 rounded-lg text-white/90 hover:text-white hover:bg-white/20 transition-colors z-10" aria-label="Close"><X className="h-5 w-5" /></button>
             <div className="bg-gradient-to-br from-teal-600 to-teal-700 px-6 py-5">
               <h2 className="text-xl font-bold text-white">Edit outlet</h2>
               <p className="text-teal-100 text-sm mt-0.5">{editing.name}</p>
             </div>
-            <div className="p-6 max-h-[70vh] overflow-y-auto">
-              {updateMutation.isError && (
-                <p className="mb-4 p-3 rounded-xl bg-red-50 text-red-600 text-sm border border-red-100">{getApiErrorMessage(updateMutation.error)}</p>
+            <div className="p-6 max-h-[75vh] overflow-y-auto">
+              {(updateMutation.isError || editFormError) && (
+                <p className="mb-4 p-3 rounded-xl bg-red-50 text-red-600 text-sm border border-red-100">
+                  {editFormError || getApiErrorMessage(updateMutation.error)}
+                </p>
               )}
-              <form
-                onSubmit={editForm.handleSubmit((d) => {
-                  const geofence =
-                    editGeofence.geofenceLat &&
-                    editGeofence.geofenceLng &&
-                    editGeofence.geofenceRadius &&
-                    !isNaN(parseFloat(editGeofence.geofenceLat)) &&
-                    !isNaN(parseFloat(editGeofence.geofenceLng)) &&
-                    !isNaN(parseFloat(editGeofence.geofenceRadius))
-                      ? {
-                          latitude: parseFloat(editGeofence.geofenceLat),
-                          longitude: parseFloat(editGeofence.geofenceLng),
-                          radius: parseFloat(editGeofence.geofenceRadius),
-                        }
-                      : undefined;
-                  updateMutation.mutate({ id: editing._id, data: { ...d, geofence } });
-                })}
-                className="space-y-5"
-              >
-                <div>
-                  <label className="block text-sm font-semibold text-gray-700 mb-2">Name</label>
-                  <div className="relative">
-                    <Store className="absolute left-4 top-1/2 -translate-y-1/2 h-5 w-5 text-gray-400" />
-                    <input {...editForm.register('name')} className="w-full pl-12 pr-4 py-3 rounded-xl border border-gray-200 bg-gray-50/50 focus:ring-2 focus:ring-teal-500/20 focus:border-teal-500 focus:bg-white" />
-                  </div>
-                  {editForm.formState.errors.name && <p className="text-red-600 text-sm mt-1">{editForm.formState.errors.name.message}</p>}
-                </div>
-                <div>
-                  <label className="block text-sm font-semibold text-gray-700 mb-2">Address</label>
-                  <AddressSearchInput
-                    value={editForm.watch('address')}
-                    onChange={(v) => editForm.setValue('address', v, { shouldValidate: true })}
-                    onPlaceSelect={(details) => {
-                      editForm.setValue('address', details.address, { shouldValidate: true });
-                      if (details.name) editForm.setValue('name', details.name, { shouldValidate: true });
-                      setEditGeofence((prev) => ({
-                        ...prev,
-                        geofenceLat: details.lat.toFixed(6),
-                        geofenceLng: details.lng.toFixed(6),
-                        geofenceRadius: prev.geofenceRadius || '100',
-                      }));
-                    }}
-                    placeholder="Search address or place..."
-                    error={editForm.formState.errors.address?.message}
-                  />
-                </div>
-                <div className="rounded-xl border border-teal-100 bg-teal-50/40 p-4 space-y-3">
+              {editLoadingExtras ? (
+                <LoadingSpinner className="py-10" />
+              ) : (
+                <form
+                  onSubmit={editForm.handleSubmit((d) => {
+                    setEditFormError(null);
+                    if (!gstCheck.ok) {
+                      setEditFormError(gstCheck.message || 'Invalid GST number');
+                      return;
+                    }
+                    if (!/^\d{1,2}:\d{2}$/.test(editPunchInTime.trim())) {
+                      setEditFormError('Punch-in time must use HH:mm format');
+                      return;
+                    }
+                    const openDayInvalid = editOpeningHours.some(
+                      (h) =>
+                        !h.closed &&
+                        (!/^\d{1,2}:\d{2}$/.test(h.openTime.trim()) ||
+                          !/^\d{1,2}:\d{2}$/.test(h.closeTime.trim()))
+                    );
+                    if (openDayInvalid) {
+                      setEditFormError('Opening hours must use HH:mm format for each open day');
+                      return;
+                    }
+                    const geofence = parseGeofence(editGeofence);
+                    updateMutation.mutate({
+                      id: editing._id,
+                      data: {
+                        ...d,
+                        geofence,
+                        gstNumber: gstCheck.value || undefined,
+                        punchInTime: editPunchInTime.trim(),
+                        openingHours: editOpeningHours.map((h) => ({
+                          day: h.day,
+                          closed: h.closed,
+                          openTime: h.openTime.trim(),
+                          closeTime: h.closeTime.trim(),
+                        })),
+                      },
+                      shifts: editShifts,
+                      initialShifts: initialEditShifts,
+                    });
+                  })}
+                  className="space-y-5"
+                >
                   <div>
-                    <label className="block text-sm font-semibold text-gray-800 mb-1">Outlet location (geofence)</label>
-                    <p className="text-xs text-gray-600 mb-2">
-                      Punch-in uses this area. Set coordinates manually or use your device&apos;s current position (latitude / longitude).
-                    </p>
-                    <div className="grid grid-cols-1 sm:grid-cols-3 gap-2">
-                      <div>
-                        <label className="text-xs text-gray-500">Latitude</label>
-                        <input
-                          type="text"
-                          inputMode="decimal"
-                          value={editGeofence.geofenceLat}
-                          onChange={(e) =>
-                            setEditGeofence((p) => ({ ...p, geofenceLat: sanitizeCoordTyping(e.target.value) }))
-                          }
-                          className="w-full mt-0.5 px-3 py-2 rounded-lg border border-teal-200 text-sm"
-                          placeholder="e.g. 12.9716"
-                        />
-                      </div>
-                      <div>
-                        <label className="text-xs text-gray-500">Longitude</label>
-                        <input
-                          type="text"
-                          inputMode="decimal"
-                          value={editGeofence.geofenceLng}
-                          onChange={(e) =>
-                            setEditGeofence((p) => ({ ...p, geofenceLng: sanitizeCoordTyping(e.target.value) }))
-                          }
-                          className="w-full mt-0.5 px-3 py-2 rounded-lg border border-teal-200 text-sm"
-                          placeholder="e.g. 77.5946"
-                        />
-                      </div>
-                      <div>
-                        <label className="text-xs text-gray-500">Radius (m)</label>
-                        <input
-                          type="text"
-                          inputMode="numeric"
-                          value={editGeofence.geofenceRadius}
-                          onChange={(e) =>
-                            setEditGeofence((p) => ({
-                              ...p,
-                              geofenceRadius: sanitizePositiveDecimalTyping(e.target.value),
-                            }))
-                          }
-                          className="w-full mt-0.5 px-3 py-2 rounded-lg border border-teal-200 text-sm"
-                          placeholder="100"
-                        />
-                      </div>
+                    <label className="block text-sm font-semibold text-gray-700 mb-2">Name</label>
+                    <div className="relative">
+                      <Store className="absolute left-4 top-1/2 -translate-y-1/2 h-5 w-5 text-gray-400" />
+                      <input {...editForm.register('name')} className="w-full pl-12 pr-4 py-3 rounded-xl border border-gray-200 bg-gray-50/50 focus:ring-2 focus:ring-teal-500/20 focus:border-teal-500 focus:bg-white" />
                     </div>
-                    <UseCurrentLocationButton
-                      onLocation={(lat, lng) =>
+                    {editForm.formState.errors.name && <p className="text-red-600 text-sm mt-1">{editForm.formState.errors.name.message}</p>}
+                  </div>
+                  <div>
+                    <label className="block text-sm font-semibold text-gray-700 mb-2">Address</label>
+                    <AddressSearchInput
+                      value={editForm.watch('address')}
+                      onChange={(v) => editForm.setValue('address', v, { shouldValidate: true })}
+                      onPlaceSelect={(details) => {
+                        editForm.setValue('address', details.address, { shouldValidate: true });
+                        if (details.name) editForm.setValue('name', details.name, { shouldValidate: true });
                         setEditGeofence((prev) => ({
                           ...prev,
-                          geofenceLat: lat.toFixed(6),
-                          geofenceLng: lng.toFixed(6),
+                          geofenceLat: details.lat.toFixed(6),
+                          geofenceLng: details.lng.toFixed(6),
                           geofenceRadius: prev.geofenceRadius || '100',
-                        }))
-                      }
+                        }));
+                      }}
+                      placeholder="Search address or place..."
+                      error={editForm.formState.errors.address?.message}
                     />
                   </div>
-                </div>
-                <div>
-                  <label className="block text-sm font-semibold text-gray-700 mb-2">Phone</label>
-                  <div className="relative">
-                    <Phone className="absolute left-4 top-1/2 -translate-y-1/2 h-5 w-5 text-gray-400 pointer-events-none" aria-hidden />
-                    <Controller
-                      name="phone"
-                      control={editForm.control}
-                      render={({ field }) => (
-                        <input
-                          {...field}
-                          type="tel"
-                          inputMode="numeric"
-                          autoComplete="tel"
-                          maxLength={10}
-                          onChange={(e) => field.onChange(e.target.value.replace(/\D/g, '').slice(0, 10))}
-                          className="w-full pl-12 pr-4 py-3 rounded-xl border border-gray-200 bg-gray-50/50 focus:ring-2 focus:ring-teal-500/20 focus:border-teal-500 focus:bg-white tracking-wide"
-                          placeholder="10-digit contact number"
-                        />
-                      )}
+                  <div className="rounded-xl border border-teal-100 bg-teal-50/40 p-4 space-y-3">
+                    <div>
+                      <label className="block text-sm font-semibold text-gray-800 mb-1">Outlet location (geofence)</label>
+                      <p className="text-xs text-gray-600 mb-2">
+                        Punch-in uses this area. Set coordinates manually or use your device&apos;s current position.
+                      </p>
+                      <div className="grid grid-cols-1 sm:grid-cols-3 gap-2">
+                        <div>
+                          <label className="text-xs text-gray-500">Latitude</label>
+                          <input
+                            type="text"
+                            inputMode="decimal"
+                            value={editGeofence.geofenceLat}
+                            onChange={(e) =>
+                              setEditGeofence((p) => ({ ...p, geofenceLat: sanitizeCoordTyping(e.target.value) }))
+                            }
+                            className="w-full mt-0.5 px-3 py-2 rounded-lg border border-teal-200 text-sm"
+                            placeholder="e.g. 12.9716"
+                          />
+                        </div>
+                        <div>
+                          <label className="text-xs text-gray-500">Longitude</label>
+                          <input
+                            type="text"
+                            inputMode="decimal"
+                            value={editGeofence.geofenceLng}
+                            onChange={(e) =>
+                              setEditGeofence((p) => ({ ...p, geofenceLng: sanitizeCoordTyping(e.target.value) }))
+                            }
+                            className="w-full mt-0.5 px-3 py-2 rounded-lg border border-teal-200 text-sm"
+                            placeholder="e.g. 77.5946"
+                          />
+                        </div>
+                        <div>
+                          <label className="text-xs text-gray-500">Radius (m)</label>
+                          <input
+                            type="text"
+                            inputMode="numeric"
+                            value={editGeofence.geofenceRadius}
+                            onChange={(e) =>
+                              setEditGeofence((p) => ({
+                                ...p,
+                                geofenceRadius: sanitizePositiveDecimalTyping(e.target.value),
+                              }))
+                            }
+                            className="w-full mt-0.5 px-3 py-2 rounded-lg border border-teal-200 text-sm"
+                            placeholder="100"
+                          />
+                        </div>
+                      </div>
+                      <UseCurrentLocationButton
+                        onLocation={(lat, lng) =>
+                          setEditGeofence((prev) => ({
+                            ...prev,
+                            geofenceLat: lat.toFixed(6),
+                            geofenceLng: lng.toFixed(6),
+                            geofenceRadius: prev.geofenceRadius || '100',
+                          }))
+                        }
+                      />
+                    </div>
+                  </div>
+                  <div>
+                    <label className="block text-sm font-semibold text-gray-700 mb-2">Phone</label>
+                    <div className="relative">
+                      <Phone className="absolute left-4 top-1/2 -translate-y-1/2 h-5 w-5 text-gray-400 pointer-events-none" aria-hidden />
+                      <Controller
+                        name="phone"
+                        control={editForm.control}
+                        render={({ field }) => (
+                          <input
+                            {...field}
+                            type="tel"
+                            inputMode="numeric"
+                            autoComplete="tel"
+                            maxLength={10}
+                            onChange={(e) => field.onChange(e.target.value.replace(/\D/g, '').slice(0, 10))}
+                            className="w-full pl-12 pr-4 py-3 rounded-xl border border-gray-200 bg-gray-50/50 focus:ring-2 focus:ring-teal-500/20 focus:border-teal-500 focus:bg-white tracking-wide"
+                            placeholder="10-digit contact number"
+                          />
+                        )}
+                      />
+                    </div>
+                    {editForm.formState.errors.phone && <p className="text-red-600 text-sm mt-1">{editForm.formState.errors.phone.message}</p>}
+                  </div>
+
+                  <div>
+                    <label className="block text-sm font-semibold text-gray-700 mb-2">GST Number</label>
+                    <input
+                      type="text"
+                      value={editGst}
+                      onChange={(e) => setEditGst(normalizeGstInput(e.target.value).slice(0, 15))}
+                      maxLength={15}
+                      className="w-full px-4 py-3 rounded-xl border border-gray-200 bg-gray-50/50 focus:ring-2 focus:ring-teal-500/20 focus:border-teal-500 focus:bg-white uppercase tracking-wide"
+                      placeholder="29ABCDE1234F1Z5"
+                    />
+                    {!gstCheck.ok && gstCheck.message ? (
+                      <p className="text-red-600 text-sm mt-1">{gstCheck.message}</p>
+                    ) : (
+                      <p className="text-xs text-gray-500 mt-1">Optional. 15-character GSTIN.</p>
+                    )}
+                  </div>
+
+                  <div>
+                    <label className="block text-sm font-semibold text-gray-700 mb-2">Default punch-in time</label>
+                    <input
+                      type="time"
+                      value={editPunchInTime}
+                      onChange={(e) => setEditPunchInTime(e.target.value)}
+                      className="w-full max-w-[12rem] px-4 py-3 rounded-xl border border-gray-200 bg-gray-50/50 focus:ring-2 focus:ring-teal-500/20 focus:border-teal-500 focus:bg-white"
                     />
                   </div>
-                  {editForm.formState.errors.phone && <p className="text-red-600 text-sm mt-1">{editForm.formState.errors.phone.message}</p>}
-                </div>
-                <div className="flex gap-3 pt-2">
-                  <button type="submit" disabled={updateMutation.isPending} className="flex-1 px-5 py-3 bg-teal-600 text-white rounded-xl font-semibold hover:bg-teal-700 disabled:opacity-50">Save</button>
-                  <button type="button" onClick={() => setEditing(null)} className="px-5 py-3 border border-gray-200 rounded-xl font-medium hover:bg-gray-50">Cancel</button>
-                </div>
-              </form>
+
+                  <div className="rounded-xl border border-gray-200 p-4 space-y-3">
+                    <div>
+                      <p className="text-sm font-semibold text-gray-800">Shifts (IST)</p>
+                      <p className="text-xs text-gray-500 mt-0.5">Edit names and times. Defaults are Shift 1 and Shift 2.</p>
+                    </div>
+                    {editShifts.map((s, i) => {
+                      const rowKey = s._id || `new-${i}`;
+                      const expanded = expandedShiftKey === rowKey;
+                      return (
+                        <div key={rowKey} className="rounded-xl border border-gray-200 overflow-hidden bg-gray-50/40">
+                          <div className="flex items-center">
+                            <button
+                              type="button"
+                              onClick={() => setExpandedShiftKey(expanded ? null : rowKey)}
+                              className="flex-1 flex items-center gap-2 px-3 py-3 text-left hover:bg-gray-50"
+                            >
+                              {expanded ? (
+                                <ChevronDown className="h-4 w-4 text-gray-400 shrink-0" />
+                              ) : (
+                                <ChevronRight className="h-4 w-4 text-gray-400 shrink-0" />
+                              )}
+                              <div className="min-w-0">
+                                <p className="text-sm font-medium text-gray-900 truncate">
+                                  {s.name.trim() || 'Shift'}
+                                </p>
+                                <p className="text-xs text-gray-500">
+                                  {s.startTime || '--:--'} – {s.endTime || '--:--'}
+                                </p>
+                              </div>
+                            </button>
+                            {editShifts.length > 1 ? (
+                              <button
+                                type="button"
+                                onClick={() => setEditShifts((prev) => prev.filter((_, idx) => idx !== i))}
+                                className="p-3 text-gray-400 hover:text-red-600"
+                                aria-label="Remove shift"
+                              >
+                                <Trash2 className="h-4 w-4" />
+                              </button>
+                            ) : null}
+                          </div>
+                          {expanded ? (
+                            <div className="px-3 pb-3 pt-1 border-t border-gray-200 space-y-3">
+                              <div>
+                                <label className="text-xs text-gray-500">Shift name</label>
+                                <input
+                                  type="text"
+                                  value={s.name}
+                                  onChange={(e) =>
+                                    setEditShifts((prev) =>
+                                      prev.map((row, idx) => (idx === i ? { ...row, name: e.target.value } : row))
+                                    )
+                                  }
+                                  className="w-full mt-0.5 px-3 py-2 rounded-lg border border-gray-200 text-sm"
+                                  placeholder="e.g. Shift 1"
+                                />
+                              </div>
+                              <div className="grid grid-cols-2 gap-2">
+                                <div>
+                                  <label className="text-xs text-gray-500">Start</label>
+                                  <input
+                                    type="time"
+                                    value={s.startTime}
+                                    onChange={(e) =>
+                                      setEditShifts((prev) =>
+                                        prev.map((row, idx) =>
+                                          idx === i ? { ...row, startTime: e.target.value } : row
+                                        )
+                                      )
+                                    }
+                                    className="w-full mt-0.5 px-3 py-2 rounded-lg border border-gray-200 text-sm"
+                                  />
+                                </div>
+                                <div>
+                                  <label className="text-xs text-gray-500">End</label>
+                                  <input
+                                    type="time"
+                                    value={s.endTime}
+                                    onChange={(e) =>
+                                      setEditShifts((prev) =>
+                                        prev.map((row, idx) =>
+                                          idx === i ? { ...row, endTime: e.target.value } : row
+                                        )
+                                      )
+                                    }
+                                    className="w-full mt-0.5 px-3 py-2 rounded-lg border border-gray-200 text-sm"
+                                  />
+                                </div>
+                              </div>
+                            </div>
+                          ) : null}
+                        </div>
+                      );
+                    })}
+                    <button
+                      type="button"
+                      onClick={() => {
+                        const next = [...editShifts, { name: '', startTime: '09:00', endTime: '17:00' }];
+                        setEditShifts(next);
+                        setExpandedShiftKey(`new-${next.length - 1}`);
+                      }}
+                      className="inline-flex items-center gap-1.5 text-sm font-medium text-teal-600 hover:text-teal-700"
+                    >
+                      <Plus className="h-4 w-4" />
+                      Add shift
+                    </button>
+                  </div>
+
+                  <div className="rounded-xl border border-gray-200 p-4 space-y-2">
+                    <div>
+                      <p className="text-sm font-semibold text-gray-800">Opening hours</p>
+                      <p className="text-xs text-gray-500 mt-0.5">Set open/close times per day, or mark closed.</p>
+                    </div>
+                    {editOpeningHours.map((row, i) => {
+                      const expanded = expandedHoursDay === row.day;
+                      return (
+                        <div key={row.day} className="rounded-xl border border-gray-200 overflow-hidden bg-gray-50/40">
+                          <button
+                            type="button"
+                            onClick={() => setExpandedHoursDay(expanded ? null : row.day)}
+                            className="w-full flex items-center gap-2 px-3 py-3 text-left hover:bg-gray-50"
+                          >
+                            {expanded ? (
+                              <ChevronDown className="h-4 w-4 text-gray-400 shrink-0" />
+                            ) : (
+                              <ChevronRight className="h-4 w-4 text-gray-400 shrink-0" />
+                            )}
+                            <div className="min-w-0 flex-1">
+                              <p className="text-sm font-medium text-gray-900">{row.day}</p>
+                              <p className={`text-xs ${row.closed ? 'text-gray-400 italic' : 'text-gray-500'}`}>
+                                {row.closed ? 'Closed all day' : `${row.openTime} – ${row.closeTime}`}
+                              </p>
+                            </div>
+                          </button>
+                          {expanded ? (
+                            <div className="px-3 pb-3 pt-1 border-t border-gray-200 space-y-3">
+                              <label className="inline-flex items-center gap-2 text-sm text-gray-700">
+                                <input
+                                  type="checkbox"
+                                  checked={row.closed}
+                                  onChange={(e) =>
+                                    setEditOpeningHours((prev) =>
+                                      prev.map((h, idx) =>
+                                        idx === i ? { ...h, closed: e.target.checked } : h
+                                      )
+                                    )
+                                  }
+                                  className="rounded border-gray-300 text-teal-600 focus:ring-teal-500"
+                                />
+                                Closed all day
+                              </label>
+                              {!row.closed ? (
+                                <div className="grid grid-cols-2 gap-2">
+                                  <div>
+                                    <label className="text-xs text-gray-500">Opens</label>
+                                    <input
+                                      type="time"
+                                      value={row.openTime}
+                                      onChange={(e) =>
+                                        setEditOpeningHours((prev) =>
+                                          prev.map((h, idx) =>
+                                            idx === i ? { ...h, openTime: e.target.value } : h
+                                          )
+                                        )
+                                      }
+                                      className="w-full mt-0.5 px-3 py-2 rounded-lg border border-gray-200 text-sm"
+                                    />
+                                  </div>
+                                  <div>
+                                    <label className="text-xs text-gray-500">Closes</label>
+                                    <input
+                                      type="time"
+                                      value={row.closeTime}
+                                      onChange={(e) =>
+                                        setEditOpeningHours((prev) =>
+                                          prev.map((h, idx) =>
+                                            idx === i ? { ...h, closeTime: e.target.value } : h
+                                          )
+                                        )
+                                      }
+                                      className="w-full mt-0.5 px-3 py-2 rounded-lg border border-gray-200 text-sm"
+                                    />
+                                  </div>
+                                </div>
+                              ) : null}
+                            </div>
+                          ) : null}
+                        </div>
+                      );
+                    })}
+                  </div>
+
+                  <div className="flex gap-3 pt-2">
+                    <button type="submit" disabled={updateMutation.isPending} className="flex-1 px-5 py-3 bg-teal-600 text-white rounded-xl font-semibold hover:bg-teal-700 disabled:opacity-50">
+                      {updateMutation.isPending ? 'Saving...' : 'Save'}
+                    </button>
+                    <button type="button" onClick={() => setEditing(null)} className="px-5 py-3 border border-gray-200 rounded-xl font-medium hover:bg-gray-50">Cancel</button>
+                  </div>
+                </form>
+              )}
             </div>
           </div>
         </div>

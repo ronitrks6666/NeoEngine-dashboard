@@ -55,7 +55,7 @@ const OCCURRENCE_OPTIONS: { value: OccurrenceType; label: string; hint: string }
   { value: 'every-n-days', label: 'Every N days', hint: 'e.g. every 10 days' },
   { value: 'specific-days', label: 'Weekdays', hint: 'Sun–Sat pick' },
   { value: 'specific-date-of-month', label: 'Month dates', hint: 'e.g. 1st & 15th' },
-  { value: 'onetime', label: 'One time', hint: 'Single calendar date' },
+  { value: 'onetime', label: 'On a specific date', hint: 'Runs once — pick a date' },
 ];
 
 const DAY_NAMES = ['Sun', 'Mon', 'Tue', 'Wed', 'Thu', 'Fri', 'Sat'];
@@ -75,7 +75,7 @@ function scheduleSummary(g: SopGroup): string {
     case 'specific-date-of-month':
       return (g.specificDatesOfMonth ?? []).map((d) => `${d}${d === 1 ? 'st' : d === 2 ? 'nd' : d === 3 ? 'rd' : 'th'}`).join(', ') || 'Month dates';
     case 'onetime':
-      return g.specificDate ? `Once · ${toYmd(g.specificDate)}` : 'One time';
+      return g.specificDate ? `On ${toYmd(g.specificDate)}` : 'On a specific date';
     default:
       return 'Daily';
   }

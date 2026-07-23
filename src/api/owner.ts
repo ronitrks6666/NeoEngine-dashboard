@@ -65,12 +65,26 @@ export interface Outlet {
   gstNumber?: string;
   timezone?: string;
   punchInTime?: string;
+  openingHours?: {
+    day: string;
+    closed: boolean;
+    openTime: string;
+    closeTime: string;
+  }[];
   payCycleType?: 'every_x_days' | 'specific_day_of_month';
   leaveAllowanceDaysPerMonth?: number;
   rulesAndRegulations?: string;
   payrollSettings?: PayrollSettings;
   postShiftEnforcement?: PostShiftEnforcement;
 }
+
+export type OutletShift = {
+  _id: string;
+  name: string;
+  startTime: string;
+  endTime: string;
+  outletId?: string;
+};
 
 export const ownerApi = {
   getOutlets: async (params?: { search?: string }) => {
@@ -88,7 +102,13 @@ export const ownerApi = {
     return data.data.outlet;
   },
 
-  createOutlet: async (payload: { name: string; address: string; phone: string; geofence?: object }) => {
+  createOutlet: async (payload: {
+    name: string;
+    address: string;
+    phone: string;
+    geofence?: object;
+    gstNumber?: string;
+  }) => {
     const { data } = await api.post('/owner/create-outlet', payload);
     return data;
   },
@@ -102,6 +122,12 @@ export const ownerApi = {
     gstNumber?: string;
     timezone?: string;
     punchInTime?: string;
+    openingHours?: {
+      day: string;
+      closed: boolean;
+      openTime: string;
+      closeTime: string;
+    }[];
     payCycleType?: string;
     leaveAllowanceDaysPerMonth?: number;
     rulesAndRegulations?: string;
@@ -114,6 +140,34 @@ export const ownerApi = {
 
   deleteOutlet: async (outletId: string) => {
     const { data } = await api.delete(`/owner/outlets/${outletId}`);
+    return data;
+  },
+
+  getShifts: async (outletId: string) => {
+    const { data } = await api.get<{ success?: boolean; data?: { shifts?: OutletShift[] }; shifts?: OutletShift[] }>(
+      `/shift/outlet/${outletId}`
+    );
+    return data?.data?.shifts || data?.shifts || [];
+  },
+
+  createShifts: async (
+    outletId: string,
+    shifts: { name: string; startTime: string; endTime: string }[]
+  ) => {
+    const { data } = await api.post(`/shift/outlet/${outletId}/bulk`, { shifts });
+    return data;
+  },
+
+  updateShift: async (
+    shiftId: string,
+    payload: { name?: string; startTime?: string; endTime?: string }
+  ) => {
+    const { data } = await api.put(`/shift/${shiftId}`, payload);
+    return data;
+  },
+
+  deleteShift: async (shiftId: string) => {
+    const { data } = await api.delete(`/shift/${shiftId}`);
     return data;
   },
 

@@ -67,7 +67,7 @@ const taskSchema = z.object({
   if (data.taskType === 'onetime' && !data.specificDate?.trim()) {
     ctx.addIssue({
       code: z.ZodIssueCode.custom,
-      message: 'Date is required for one-time tasks',
+      message: 'Date is required for tasks on a specific date',
       path: ['specificDate'],
     });
   }
@@ -180,6 +180,7 @@ export function TasksPage() {
     parentRoleId?: { _id?: string; name?: string };
     shiftType?: string;
   } | null>(null);
+  const [pendingEditSave, setPendingEditSave] = useState<TaskForm | null>(null);
   const [confirmDelete, setConfirmDelete] = useState<{ _id: string; title?: string } | null>(null);
   const [duplicateTarget, setDuplicateTarget] = useState<DuplicateToOutletTarget | null>(null);
   const [batchTransferTargets, setBatchTransferTargets] = useState<DuplicateToOutletTarget[] | null>(
@@ -296,11 +297,20 @@ export function TasksPage() {
   });
 
   const updateMutation = useMutation({
-    mutationFn: async ({ id, data }: { id: string; data: TaskForm }) => {
+    mutationFn: async ({
+      id,
+      data,
+      applyTo,
+    }: {
+      id: string;
+      data: TaskForm;
+      applyTo?: 'current' | 'all' | 'future';
+    }) => {
       const assignToType = data.assignToType ?? 'role';
       const payload: any = {
         ...data,
         imageUrl: imageUrl || undefined,
+        applyTo: applyTo ?? 'all',
         hourlyFrequency:
           data.multipleTimesPerDay && data.intervalMinutes
             ? Math.max(1, Math.floor(60 / (Number(data.intervalMinutes) || 60)))
@@ -391,6 +401,7 @@ export function TasksPage() {
           : null,
       });
       setEditing(null);
+      setPendingEditSave(null);
       editForm.reset();
       setEditStaffIds([]);
       setEditRoleIds([]);
@@ -1318,7 +1329,10 @@ export function TasksPage() {
               </div>
               <button
                 type="button"
-                onClick={() => setEditing(null)}
+                onClick={() => {
+                  setEditing(null);
+                  setPendingEditSave(null);
+                }}
                 className="flex h-10 w-10 items-center justify-center rounded-xl text-gray-400 hover:bg-gray-100 hover:text-gray-700 transition-colors"
                 aria-label="Close"
               >
@@ -1358,7 +1372,12 @@ export function TasksPage() {
                   editForm.clearErrors('assignToEmployeeId');
                   editForm.clearErrors('parentRoleId');
                   editForm.setValue('parentRoleId', editRoleIds[0] || '');
-                  updateMutation.mutate({ id: editing._id, data: d });
+                  const isRepeating = d.taskType === 'daily' || d.taskType === 'specific-days';
+                  if (isRepeating) {
+                    setPendingEditSave(d);
+                    return;
+                  }
+                  updateMutation.mutate({ id: editing._id, data: d, applyTo: 'all' });
                 })}
                 className="space-y-5"
               >
@@ -1638,6 +1657,50 @@ export function TasksPage() {
                   </button>
                 </div>
               </form>
+            </div>
+          </div>
+        </div>
+      )}
+
+      {/* Apply scope for repeating task edits */}
+      {pendingEditSave && editing && (
+        <div className="fixed inset-0 z-[60] flex items-end justify-center bg-black/40 p-4 backdrop-blur-sm sm:items-center animate-fade-in">
+          <div className="w-full max-w-md rounded-2xl bg-white p-6 shadow-xl animate-slide-up">
+            <h3 className="text-lg font-semibold text-gray-900">Apply changes to</h3>
+            <p className="mt-1 text-sm text-gray-500">
+              This task only updates today. Future options change the repeating schedule going forward.
+            </p>
+            <div className="mt-4 space-y-2">
+              {(
+                [
+                  { key: 'current' as const, label: 'Edit this task only' },
+                  { key: 'all' as const, label: 'Edit this and future tasks' },
+                  { key: 'future' as const, label: 'Edit just the future tasks' },
+                ] as const
+              ).map((opt) => (
+                <button
+                  key={opt.key}
+                  type="button"
+                  disabled={updateMutation.isPending}
+                  onClick={() =>
+                    updateMutation.mutate({
+                      id: editing._id,
+                      data: pendingEditSave,
+                      applyTo: opt.key,
+                    })
+                  }
+                  className="w-full rounded-xl border border-emerald-200 px-4 py-3 text-sm font-semibold text-emerald-900 transition-colors hover:bg-emerald-50 disabled:opacity-50"
+                >
+                  {opt.label}
+                </button>
+              ))}
+              <button
+                type="button"
+                onClick={() => setPendingEditSave(null)}
+                className="w-full rounded-xl px-4 py-3 text-sm font-medium text-gray-500 hover:bg-gray-50"
+              >
+                Cancel
+              </button>
             </div>
           </div>
         </div>

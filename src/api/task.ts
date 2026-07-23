@@ -74,6 +74,7 @@ export interface TaskTemplatePayload {
   escalationEnabled?: boolean;
   mandatoryProofOfCompletion?: boolean;
   checklistItems?: ChecklistItem[];
+  applyTo?: 'current' | 'all' | 'future';
 }
 
 export const taskApi = {

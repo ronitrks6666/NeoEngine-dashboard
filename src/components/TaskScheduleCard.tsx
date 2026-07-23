@@ -19,8 +19,8 @@ const DAY_NAMES = ['Sun', 'Mon', 'Tue', 'Wed', 'Thu', 'Fri', 'Sat'];
 
 const REPEAT_OPTIONS = [
   { value: 'daily', label: 'Every day', subtitle: 'Repeats daily' },
-  { value: 'specific-days', label: 'Specific weekdays', subtitle: 'Pick Sun–Sat' },
-  { value: 'onetime', label: 'One time only', subtitle: 'Single calendar date' },
+  { value: 'specific-days', label: 'Specific Weekdays', subtitle: 'Pick Sun–Sat' },
+  { value: 'onetime', label: 'On a specific date', subtitle: 'Runs once — pick a date' },
 ];
 
 const SHIFT_OPTIONS = [

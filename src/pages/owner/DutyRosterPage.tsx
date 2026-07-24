@@ -1,7 +1,7 @@
 import { useCallback, useEffect, useMemo, useState } from 'react';
 import { useQuery, useMutation, useQueryClient } from '@tanstack/react-query';
 import { useOutletStore } from '@/stores/outletStore';
-import { employeeApi, type DutyRosterRow } from '@/api/employee';
+import { employeeApi, type DutyRosterRow, type DutyRosterRoleSchedule } from '@/api/employee';
 import { getApiErrorMessage } from '@/api/auth';
 import { LoadingSpinner } from '@/components/LoadingSpinner';
 import { ListSearchBar } from '@/components/ListSearchBar';
@@ -12,7 +12,7 @@ import {
   parseFlexibleTimeDigits,
   parseHHmm,
 } from '@/utils/taskScheduleUtils';
-import { CalendarClock, ChevronDown, Pencil, Sparkles, Users, X } from 'lucide-react';
+import { Briefcase, CalendarClock, ChevronDown, Pencil, Sparkles, Users, X } from 'lucide-react';
 
 const WEEKDAYS = [
   'Monday',
@@ -109,6 +109,14 @@ export function DutyRosterPage() {
   const [bulkError, setBulkError] = useState<string | null>(null);
   const [bulkSuccess, setBulkSuccess] = useState<string | null>(null);
   const [bulkConfirmMode, setBulkConfirmMode] = useState<BulkApplyMode | null>(null);
+  const [rolePanelOpen, setRolePanelOpen] = useState(true);
+  const [expandedRoleId, setExpandedRoleId] = useState<string | null>(null);
+  const [roleDrafts, setRoleDrafts] = useState<
+    Record<string, { punchInTime: string; minHoursPerDay: string }>
+  >({});
+  const [roleError, setRoleError] = useState<string | null>(null);
+  const [roleSuccess, setRoleSuccess] = useState<string | null>(null);
+  const [savingRoleId, setSavingRoleId] = useState<string | null>(null);
 
   const { data, isLoading, isFetching } = useQuery({
     queryKey: ['duty-roster', selectedOutletId, debouncedSearch],
@@ -120,6 +128,7 @@ export function DutyRosterPage() {
       const payload = res?.data ?? res;
       return {
         roster: (payload?.roster ?? []) as DutyRosterRow[],
+        roleSchedules: (payload?.roleSchedules ?? []) as DutyRosterRoleSchedule[],
         outletDefaults: payload?.outletDefaults as
           | { punchInTime: string; minHoursPerDay: number }
           | undefined,
@@ -173,6 +182,43 @@ export function DutyRosterPage() {
       setBulkError(getApiErrorMessage(e));
     },
   });
+
+  const roleScheduleMutation = useMutation({
+    mutationFn: (payload: {
+      outletId: string;
+      parentRoleId: string;
+      punchInTime: string;
+      minHoursPerDay: number;
+    }) => employeeApi.applyDutyRosterRoleSchedule(payload),
+    onSuccess: (_data, variables) => {
+      setRoleError(null);
+      setSavingRoleId(null);
+      const name =
+        data?.roleSchedules?.find((r) => r.parentRoleId === variables.parentRoleId)
+          ?.parentRoleName || 'Role';
+      setRoleSuccess(
+        `${name}: clock-in ${formatRosterTime(variables.punchInTime)} · ${variables.minHoursPerDay}h saved for all staff in this role (custom staff overrides kept).`
+      );
+      setRoleDrafts((prev) => {
+        const next = { ...prev };
+        delete next[variables.parentRoleId];
+        return next;
+      });
+      queryClient.invalidateQueries({ queryKey: ['duty-roster', selectedOutletId] });
+    },
+    onError: (e) => {
+      setSavingRoleId(null);
+      setRoleError(getApiErrorMessage(e));
+    },
+  });
+
+  // Clear drafts when switching outlets so role times reload cleanly
+  useEffect(() => {
+    setRoleDrafts({});
+    setExpandedRoleId(null);
+    setRoleError(null);
+    setRoleSuccess(null);
+  }, [selectedOutletId]);
 
   const closeModal = useCallback(() => {
     setEditModal(null);
@@ -260,6 +306,7 @@ export function DutyRosterPage() {
   };
 
   const roster = data?.roster ?? [];
+  const roleSchedules = data?.roleSchedules ?? [];
   const outletDefaults = data?.outletDefaults;
 
   useEffect(() => {
@@ -267,6 +314,46 @@ export function DutyRosterPage() {
     setBulkPunch(outletDefaults.punchInTime);
     setBulkHours(String(outletDefaults.minHoursPerDay));
   }, [outletDefaults]);
+
+  useEffect(() => {
+    if (!roleSchedules.length || !outletDefaults) return;
+    setRoleDrafts((prev) => {
+      const next = { ...prev };
+      for (const role of roleSchedules) {
+        if (next[role.parentRoleId]) continue;
+        next[role.parentRoleId] = {
+          punchInTime: role.punchInTime || outletDefaults.punchInTime,
+          minHoursPerDay: String(role.minHoursPerDay ?? outletDefaults.minHoursPerDay),
+        };
+      }
+      return next;
+    });
+  }, [roleSchedules, outletDefaults]);
+
+  const saveRoleSchedule = (parentRoleId: string) => {
+    if (!selectedOutletId) return;
+    setRoleSuccess(null);
+    const draft = roleDrafts[parentRoleId];
+    if (!draft) return;
+    const hours = draft.minHoursPerDay.trim() ? parseInt(draft.minHoursPerDay, 10) : NaN;
+    if (!draft.minHoursPerDay.trim() || isNaN(hours) || hours < 1 || hours > 24) {
+      setRoleError('Duty hours must be between 1 and 24');
+      return;
+    }
+    const normalizedPunch = normalizePunchTime(draft.punchInTime);
+    if (!normalizedPunch) {
+      setRoleError('Enter a valid clock-in time (e.g. 06:00)');
+      return;
+    }
+    setRoleError(null);
+    setSavingRoleId(parentRoleId);
+    roleScheduleMutation.mutate({
+      outletId: selectedOutletId,
+      parentRoleId,
+      punchInTime: normalizedPunch,
+      minHoursPerDay: hours,
+    });
+  };
 
   const requestBulkApply = (mode: BulkApplyMode) => {
     setBulkSuccess(null);
@@ -347,9 +434,146 @@ export function DutyRosterPage() {
           Tap any white box in the table to change that value.
         </p>
         <p className="text-xs text-emerald-700/90 mt-1">
-          Coming time, min hours, master role, and weekly off are all editable.
+          Set role clock-in times above first. Staff inherit their role until you set a custom time on that person.
         </p>
       </div>
+
+      {roleSchedules.length > 0 ? (
+        <div className="mb-4 rounded-2xl border border-teal-200 bg-white shadow-sm overflow-hidden">
+          <button
+            type="button"
+            onClick={() => setRolePanelOpen((open) => !open)}
+            className="flex w-full items-center justify-between gap-4 px-5 py-4 text-left hover:bg-teal-50/40 transition-colors"
+          >
+            <div>
+              <p className="font-semibold text-gray-900 flex items-center gap-2">
+                <Briefcase className="h-4 w-4 text-teal-600" />
+                Role clock-in times
+              </p>
+              <p className="text-sm text-gray-500 mt-0.5">
+                Set coming time and duty hours per role. Everyone in that role uses it unless overridden below.
+              </p>
+            </div>
+            <ChevronDown
+              className={`h-5 w-5 shrink-0 text-gray-400 transition-transform ${
+                rolePanelOpen ? 'rotate-180' : ''
+              }`}
+            />
+          </button>
+
+          {rolePanelOpen ? (
+            <div className="border-t border-teal-100 px-4 py-4 space-y-3 bg-teal-50/20">
+              {roleSchedules.map((role) => {
+                const draft = roleDrafts[role.parentRoleId] ?? {
+                  punchInTime: role.punchInTime || outletDefaults?.punchInTime || '09:00',
+                  minHoursPerDay: String(
+                    role.minHoursPerDay ?? outletDefaults?.minHoursPerDay ?? 8
+                  ),
+                };
+                const expanded = expandedRoleId === role.parentRoleId;
+                const summaryTime = formatRosterTime(
+                  role.punchInTime || outletDefaults?.punchInTime
+                );
+                const summaryHours = role.minHoursPerDay ?? outletDefaults?.minHoursPerDay ?? 8;
+                const saving = savingRoleId === role.parentRoleId && roleScheduleMutation.isPending;
+                return (
+                  <div
+                    key={role.parentRoleId}
+                    className="rounded-xl border border-gray-200 bg-white overflow-hidden"
+                  >
+                    <button
+                      type="button"
+                      onClick={() =>
+                        setExpandedRoleId((id) =>
+                          id === role.parentRoleId ? null : role.parentRoleId
+                        )
+                      }
+                      className="flex w-full items-center justify-between gap-3 px-4 py-3 text-left hover:bg-gray-50"
+                    >
+                      <div className="min-w-0">
+                        <p className="font-semibold text-gray-900 truncate">{role.parentRoleName}</p>
+                        <p className="text-xs text-gray-500 mt-0.5">
+                          In {summaryTime} · {summaryHours}h duty
+                          {role.inheritsOutletPunch ? ' · using outlet default' : ''}
+                          {role.punchInMixed || role.hoursMixed ? ' · mixed slots' : ''}
+                          {' · '}
+                          {role.staffCount} staff
+                        </p>
+                      </div>
+                      <ChevronDown
+                        className={`h-4 w-4 shrink-0 text-gray-400 transition-transform ${
+                          expanded ? 'rotate-180' : ''
+                        }`}
+                      />
+                    </button>
+                    {expanded ? (
+                      <div className="border-t border-gray-100 px-4 py-4 space-y-3 bg-gray-50/50">
+                        <div className="grid gap-3 sm:grid-cols-2">
+                          <div>
+                            <label className="mb-1.5 block text-sm font-medium text-gray-700">
+                              Clock-in time
+                            </label>
+                            <SmartTimeInput
+                              value={draft.punchInTime}
+                              onChange={(v) =>
+                                setRoleDrafts((prev) => ({
+                                  ...prev,
+                                  [role.parentRoleId]: { ...draft, punchInTime: v },
+                                }))
+                              }
+                              placeholder={outletDefaults?.punchInTime || '09:00'}
+                              ariaLabel={`${role.parentRoleName} clock-in time`}
+                            />
+                          </div>
+                          <div>
+                            <label className="mb-1.5 block text-sm font-medium text-gray-700">
+                              Duty hours / day
+                            </label>
+                            <input
+                              type="number"
+                              min={1}
+                              max={24}
+                              value={draft.minHoursPerDay}
+                              onChange={(e) =>
+                                setRoleDrafts((prev) => ({
+                                  ...prev,
+                                  [role.parentRoleId]: {
+                                    ...draft,
+                                    minHoursPerDay: e.target.value.replace(/[^\d]/g, ''),
+                                  },
+                                }))
+                              }
+                              className="w-full px-4 py-2.5 rounded-xl border border-gray-200 text-lg font-semibold tabular-nums bg-white"
+                            />
+                          </div>
+                        </div>
+                        <button
+                          type="button"
+                          disabled={saving}
+                          onClick={() => saveRoleSchedule(role.parentRoleId)}
+                          className="w-full sm:w-auto px-5 py-2.5 rounded-xl bg-teal-600 text-white font-semibold hover:bg-teal-700 disabled:opacity-50"
+                        >
+                          {saving ? 'Saving…' : `Save for all ${role.parentRoleName}`}
+                        </button>
+                      </div>
+                    ) : null}
+                  </div>
+                );
+              })}
+              <p className="text-xs text-gray-500 leading-relaxed px-1">
+                Saving a role updates every outlet slot under that master role. Staff with a custom
+                coming time keep their override until you clear it on their row.
+              </p>
+              {roleError ? <p className="text-sm text-red-600 px-1">{roleError}</p> : null}
+              {roleSuccess ? (
+                <p className="text-sm text-teal-800 font-medium rounded-lg bg-teal-50 border border-teal-100 px-3 py-2">
+                  {roleSuccess}
+                </p>
+              ) : null}
+            </div>
+          ) : null}
+        </div>
+      ) : null}
 
       {outletDefaults ? (
         <div className="mb-6 rounded-2xl border border-gray-200 bg-white shadow-sm overflow-hidden">

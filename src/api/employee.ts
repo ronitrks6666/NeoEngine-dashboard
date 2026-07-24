@@ -236,6 +236,16 @@ export const employeeApi = {
     return data;
   },
 
+  applyDutyRosterRoleSchedule: async (payload: {
+    outletId: string;
+    parentRoleId: string;
+    punchInTime?: string | null;
+    minHoursPerDay?: number;
+  }) => {
+    const { data } = await api.put('/employee/duty-roster/role-schedule', payload);
+    return data;
+  },
+
   getStaffNotes: async (employeeId: string) => {
     const { data } = await api.get<{
       success?: boolean;
@@ -256,6 +266,18 @@ export type StaffNote = {
   kind?: 'general' | 'hold' | 'resume' | 'deactivate' | 'transfer';
   createdAt?: string;
   createdByName?: string;
+};
+
+export type DutyRosterRoleSchedule = {
+  parentRoleId: string;
+  parentRoleName: string;
+  punchInTime: string | null;
+  minHoursPerDay: number | null;
+  punchInMixed?: boolean;
+  hoursMixed?: boolean;
+  slotCount: number;
+  staffCount: number;
+  inheritsOutletPunch?: boolean;
 };
 
 export type DutyRosterRow = {

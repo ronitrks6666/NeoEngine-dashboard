@@ -41,18 +41,21 @@ export type NeoNotesFeedPayload = {
   sections: NeoNotesFeedSection[];
 };
 
+/** Prefer /owner/neo-notes — prod often runs a stale server.js without /api/neo-notes. */
+const NEO_NOTES_BASE = '/owner/neo-notes';
+
 export const neoNotesApi = {
   getDates: async (outletId: string) => {
     const { data } = await api.get<{
       success: boolean;
       data: { outletName: string; today: string; dates: string[] };
-    }>('/neo-notes/dates', { params: { outletId } });
+    }>(`${NEO_NOTES_BASE}/dates`, { params: { outletId } });
     return data.data;
   },
 
   getDay: async (outletId: string, noteDate?: string) => {
     const { data } = await api.get<{ success: boolean; data: NeoNotesDayPayload }>(
-      '/neo-notes/day',
+      `${NEO_NOTES_BASE}/day`,
       { params: { outletId, noteDate: noteDate || undefined } }
     );
     return data.data;
@@ -60,7 +63,7 @@ export const neoNotesApi = {
 
   getFeed: async (outletId: string) => {
     const { data } = await api.get<{ success: boolean; data: NeoNotesFeedPayload }>(
-      '/neo-notes/feed',
+      `${NEO_NOTES_BASE}/feed`,
       { params: { outletId } }
     );
     return data.data;
@@ -73,7 +76,7 @@ export const neoNotesApi = {
     isPublic?: boolean;
   }) => {
     const { data } = await api.post<{ success: boolean; data: { note: NeoNoteDto } }>(
-      '/neo-notes',
+      NEO_NOTES_BASE,
       input
     );
     return data.data.note;
@@ -81,14 +84,14 @@ export const neoNotesApi = {
 
   updateNote: async (noteId: string, input: { body?: string; isPublic?: boolean }) => {
     const { data } = await api.put<{ success: boolean; data: { note: NeoNoteDto } }>(
-      `/neo-notes/${noteId}`,
+      `${NEO_NOTES_BASE}/${noteId}`,
       input
     );
     return data.data.note;
   },
 
   deleteNote: async (noteId: string) => {
-    const { data } = await api.delete<{ success: boolean }>(`/neo-notes/${noteId}`);
+    const { data } = await api.delete<{ success: boolean }>(`${NEO_NOTES_BASE}/${noteId}`);
     return data;
   },
 };

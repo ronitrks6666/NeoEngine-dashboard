@@ -28,19 +28,30 @@ export const managerApi = {
     return data.data;
   },
 
-  getBriefingPool: async (outletId: string, params?: { search?: string; limit?: number; offset?: number; startDate?: string; endDate?: string }) => {
+  getBriefingPool: async (outletId: string, params?: { search?: string; limit?: number; offset?: number; dateRange?: string; startDate?: string; endDate?: string }) => {
     const q = new URLSearchParams({ outletId });
     if (params?.search) q.set('search', params.search);
     if (params?.limit) q.set('limit', String(params.limit));
     if (params?.offset) q.set('offset', String(params.offset));
+    if (params?.dateRange) q.set('dateRange', params.dateRange);
     if (params?.startDate) q.set('startDate', params.startDate);
     if (params?.endDate) q.set('endDate', params.endDate);
     const { data } = await api.get(`/manager/briefing-pool?${q.toString()}`);
     return data;
   },
 
-  getBriefingPoolEmployeeTasks: async (employeeId: string) => {
-    const { data } = await api.get(`/manager/briefing-pool/${employeeId}/tasks`);
+  getBriefingPoolEmployeeTasks: async (
+    employeeId: string,
+    params?: { dateRange?: string; startDate?: string; endDate?: string }
+  ) => {
+    const q = new URLSearchParams();
+    if (params?.dateRange) q.set('dateRange', params.dateRange);
+    if (params?.startDate) q.set('startDate', params.startDate);
+    if (params?.endDate) q.set('endDate', params.endDate);
+    const suffix = q.toString();
+    const { data } = await api.get(
+      `/manager/briefing-pool/${employeeId}/tasks${suffix ? `?${suffix}` : ''}`
+    );
     return data;
   },
 

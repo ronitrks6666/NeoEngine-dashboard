@@ -33,26 +33,16 @@ test.describe('Portal mutations (extended)', () => {
     await expect(page.getByText(eventName, { exact: false })).toBeVisible({ timeout: 20_000 });
   });
 
-  test('briefing pool — save outlet notes', async ({ page }) => {
-    const marker = `E2E notes ${Date.now()}`;
-
+  test('briefing pool — staff search empty state', async ({ page }) => {
     await page.goto('/owner/briefing-pool');
     await expect(page.getByRole('heading', { name: 'Briefing Pool', level: 1 })).toBeVisible({
       timeout: 30_000,
     });
 
-    const textarea = page.getByPlaceholder('Enter briefing notes for this outlet…');
-    await expect(textarea).toBeVisible({ timeout: 20_000 });
-    await textarea.fill(marker);
-
-    const saveResponse = page.waitForResponse(
-      (r) => r.url().includes('/briefing-pool') && r.request().method() === 'PUT' && r.ok(),
-      { timeout: 30_000 },
-    );
-    await page.getByRole('button', { name: /save notes/i }).click();
-    await saveResponse;
-
-    await expect(page.getByText('Unsaved changes')).toBeHidden({ timeout: 10_000 });
+    const search = page.getByPlaceholder('Search staff...');
+    await expect(search).toBeVisible({ timeout: 20_000 });
+    await search.fill(`zzz-no-match-${Date.now()}`);
+    await expect(page.getByText('No staff match your search.')).toBeVisible({ timeout: 20_000 });
   });
 
   test('rules & regulations — save outlet rules', async ({ page }) => {

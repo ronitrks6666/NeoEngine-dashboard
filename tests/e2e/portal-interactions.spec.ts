@@ -81,10 +81,10 @@ test.describe('Portal primary interactions', () => {
     await expect(page.getByRole('button', { name: 'upcoming' })).toBeVisible();
   });
 
-  test('briefing pool — search and notes', async ({ page }) => {
+  test('briefing pool — search and date filters', async ({ page }) => {
     await gotoAndHeading(page, '/owner/briefing-pool', 'Briefing Pool');
     await expect(page.getByPlaceholder('Search staff...')).toBeVisible();
-    await expect(page.getByText('Briefing notes')).toBeVisible();
+    await expect(page.getByRole('button', { name: 'Daily' })).toBeVisible();
   });
 
   test('analytics — export report modal', async ({ page }) => {

@@ -1,10 +1,11 @@
-import { useCallback, useEffect, useMemo, useState } from 'react';
+import { useCallback, useEffect, useMemo, useRef, useState } from 'react';
 import { useMutation, useQuery, useQueryClient } from '@tanstack/react-query';
 import { Link } from 'react-router-dom';
-import { Eye, EyeOff, Save, StickyNote } from 'lucide-react';
+import { Eye, EyeOff, Pencil, Save, StickyNote } from 'lucide-react';
 import {
   neoNotesApi,
   type NeoNoteDto,
+  type NeoNotesDayPayload,
   type NeoNotesFeedSection,
 } from '@/api/neoNotes';
 import { getApiErrorMessage } from '@/api/auth';
@@ -162,6 +163,9 @@ export function NeoNotesPanel({ outletId, compact = false, className = '' }: Pro
   const [todayBody, setTodayBody] = useState('');
   const [todayIsPublic, setTodayIsPublic] = useState(false);
   const [todayNoteId, setTodayNoteId] = useState<string | null>(null);
+  const [composerOpen, setComposerOpen] = useState(true);
+  const [saveMessage, setSaveMessage] = useState<string | null>(null);
+  const syncKeyRef = useRef('');
 
   const todayQuery = useQuery({
     queryKey: ['neo-notes-today', outletId],
@@ -175,15 +179,56 @@ export function NeoNotesPanel({ outletId, compact = false, className = '' }: Pro
     enabled: !!outletId,
   });
 
-  useEffect(() => {
-    const data = todayQuery.data;
+  const applyTodayPayload = useCallback((data: NeoNotesDayPayload | undefined, force = false) => {
     if (!data) return;
-    setTodayBody(data.myNote?.body || '');
-    setTodayIsPublic(!!data.myNote?.isPublic);
-    setTodayNoteId(data.myNote?.id || null);
-  }, [todayQuery.data]);
+    const syncKey = `${outletId}:${data.myNote?.id ?? 'none'}:${data.myNote?.updatedAt ?? ''}`;
+    if (!force && syncKeyRef.current === syncKey) return;
+    syncKeyRef.current = syncKey;
+
+    const myNote = data.myNote;
+    if (myNote?.id) {
+      setTodayNoteId(myNote.id);
+      setTodayBody(myNote.body || '');
+      setTodayIsPublic(!!myNote.isPublic);
+      setComposerOpen(false);
+    } else {
+      setTodayNoteId(null);
+      setTodayBody('');
+      setTodayIsPublic(false);
+      setComposerOpen(true);
+    }
+  }, [outletId]);
+
+  useEffect(() => {
+    applyTodayPayload(todayQuery.data);
+  }, [todayQuery.data, applyTodayPayload]);
+
+  useEffect(() => {
+    syncKeyRef.current = '';
+    setSaveMessage(null);
+  }, [outletId]);
 
   const todayYmd = todayQuery.data?.today ?? feedQuery.data?.today ?? new Date().toISOString().slice(0, 10);
+
+  const todaySavedNote = useMemo(() => {
+    if (!todayNoteId) return null;
+    const fromDay = todayQuery.data?.myNote;
+    if (fromDay?.id === todayNoteId) return fromDay;
+    const fromFeed = feedQuery.data?.sections
+      ?.flatMap((section) => section.notes)
+      .find((note) => note.id === todayNoteId);
+    return fromFeed ?? null;
+  }, [feedQuery.data?.sections, todayNoteId, todayQuery.data?.myNote]);
+
+  const patchTodayCache = useCallback(
+    (note: NeoNoteDto | null) => {
+      queryClient.setQueryData(['neo-notes-today', outletId], (prev: NeoNotesDayPayload | undefined) => {
+        if (!prev) return prev;
+        return { ...prev, myNote: note };
+      });
+    },
+    [outletId, queryClient]
+  );
 
   const invalidate = useCallback(() => {
     void queryClient.invalidateQueries({ queryKey: ['neo-notes-today', outletId] });
@@ -201,7 +246,16 @@ export function NeoNotesPanel({ outletId, compact = false, className = '' }: Pro
         isPublic: todayIsPublic,
       });
     },
-    onSuccess: () => invalidate(),
+    onSuccess: (note) => {
+      setTodayNoteId(note.id);
+      setTodayBody(note.body || '');
+      setTodayIsPublic(!!note.isPublic);
+      setComposerOpen(false);
+      setSaveMessage('Note saved.');
+      syncKeyRef.current = `${outletId}:${note.id}:${note.updatedAt}`;
+      patchTodayCache(note);
+      invalidate();
+    },
     onError: (err) => window.alert(getApiErrorMessage(err) || 'Could not save note'),
   });
 
@@ -211,13 +265,32 @@ export function NeoNotesPanel({ outletId, compact = false, className = '' }: Pro
         body: input.body,
         isPublic: input.isPublic,
       }),
-    onSuccess: () => invalidate(),
+    onSuccess: (note) => {
+      if (note.id === todayNoteId) {
+        setTodayBody(note.body || '');
+        setTodayIsPublic(!!note.isPublic);
+        patchTodayCache(note);
+        setSaveMessage('Note updated.');
+      }
+      invalidate();
+    },
     onError: (err) => window.alert(getApiErrorMessage(err) || 'Could not update note'),
   });
 
   const deleteMutation = useMutation({
     mutationFn: (noteId: string) => neoNotesApi.deleteNote(noteId),
-    onSuccess: () => invalidate(),
+    onSuccess: (_data, noteId) => {
+      if (noteId === todayNoteId) {
+        setTodayNoteId(null);
+        setTodayBody('');
+        setTodayIsPublic(false);
+        setComposerOpen(true);
+        patchTodayCache(null);
+        syncKeyRef.current = `${outletId}:none:`;
+      }
+      setSaveMessage(null);
+      invalidate();
+    },
     onError: (err) => window.alert(getApiErrorMessage(err) || 'Could not delete note'),
   });
 
@@ -226,10 +299,10 @@ export function NeoNotesPanel({ outletId, compact = false, className = '' }: Pro
     return sections
       .map((section) => ({
         ...section,
-        notes: notesForSection(section, todayYmd),
+        notes: notesForSection(section, todayYmd).filter((note) => note.id !== todayNoteId),
       }))
       .filter((section) => section.notes.length > 0);
-  }, [feedQuery.data?.sections, todayYmd]);
+  }, [feedQuery.data?.sections, todayNoteId, todayYmd]);
 
   const feedPreview = compact ? visibleFeedSections.slice(0, 2) : visibleFeedSections;
 
@@ -272,52 +345,112 @@ export function NeoNotesPanel({ outletId, compact = false, className = '' }: Pro
       </div>
 
       <div className="p-5 space-y-4">
-        <div>
-          <p className="text-sm font-semibold text-gray-800 mb-1">Write today&apos;s note</p>
-          <p className="text-xs text-gray-500 mb-3">
-            Use the toolbar for bold, lists, and more. Toggle public to share with everyone at this outlet.
+        {saveMessage ? (
+          <p className="text-sm font-medium text-emerald-700 bg-emerald-50 border border-emerald-100 rounded-xl px-3 py-2">
+            {saveMessage}
           </p>
-          <NeoNotesRichTextEditor
-            value={todayBody}
-            onChange={setTodayBody}
-            rows={compact ? 3 : 5}
-            placeholder="Handover points, priorities, reminders…"
-          />
-          <div className="flex flex-wrap items-center justify-between gap-2 mt-3">
-            <button
-              type="button"
-              onClick={() => {
-                const next = !todayIsPublic;
-                setTodayIsPublic(next);
-                if (todayNoteId && !isRichTextEmpty(todayBody)) {
-                  updateMutation.mutate({ noteId: todayNoteId, isPublic: next });
-                }
+        ) : null}
+
+        {composerOpen ? (
+          <div>
+            <p className="text-sm font-semibold text-gray-800 mb-1">Write today&apos;s note</p>
+            <p className="text-xs text-gray-500 mb-3">
+              Use the toolbar for bold, lists, and more. Toggle public to share with everyone at this outlet.
+            </p>
+            <NeoNotesRichTextEditor
+              value={todayBody}
+              onChange={(value) => {
+                setTodayBody(value);
+                setSaveMessage(null);
               }}
-              className="inline-flex items-center gap-1.5 px-3 py-1.5 rounded-full text-xs font-semibold bg-emerald-50 text-emerald-800 hover:bg-emerald-100"
-            >
-              {todayIsPublic ? <Eye className="h-3.5 w-3.5" /> : <EyeOff className="h-3.5 w-3.5" />}
-              {todayIsPublic ? 'Public' : 'Private'}
-            </button>
-            <button
-              type="button"
-              disabled={saveMutation.isPending}
-              onClick={() => {
-                if (isRichTextEmpty(todayBody) && todayNoteId) {
-                  if (window.confirm('Remove your note for today?')) {
-                    deleteMutation.mutate(todayNoteId);
-                    setTodayBody('');
+              rows={compact ? 3 : 5}
+              placeholder="Handover points, priorities, reminders…"
+            />
+            <div className="flex flex-wrap items-center justify-between gap-2 mt-3">
+              <button
+                type="button"
+                onClick={() => {
+                  const next = !todayIsPublic;
+                  setTodayIsPublic(next);
+                  if (todayNoteId && !isRichTextEmpty(todayBody)) {
+                    updateMutation.mutate({ noteId: todayNoteId, isPublic: next });
                   }
-                  return;
-                }
-                saveMutation.mutate();
-              }}
-              className="inline-flex items-center gap-1.5 px-4 py-2 rounded-lg bg-emerald-600 text-white text-sm font-semibold hover:bg-emerald-700 disabled:opacity-50"
-            >
-              <Save className="h-4 w-4" />
-              {saveMutation.isPending ? 'Saving…' : 'Save'}
-            </button>
+                }}
+                className="inline-flex items-center gap-1.5 px-3 py-1.5 rounded-full text-xs font-semibold bg-emerald-50 text-emerald-800 hover:bg-emerald-100"
+              >
+                {todayIsPublic ? <Eye className="h-3.5 w-3.5" /> : <EyeOff className="h-3.5 w-3.5" />}
+                {todayIsPublic ? 'Public' : 'Private'}
+              </button>
+              <div className="flex items-center gap-2">
+                {todayNoteId ? (
+                  <button
+                    type="button"
+                    onClick={() => {
+                      setComposerOpen(false);
+                      applyTodayPayload(todayQuery.data, true);
+                    }}
+                    className="px-3 py-2 rounded-lg text-sm font-medium text-gray-600 hover:bg-gray-50"
+                  >
+                    Cancel
+                  </button>
+                ) : null}
+                <button
+                  type="button"
+                  disabled={saveMutation.isPending}
+                  onClick={() => {
+                    if (isRichTextEmpty(todayBody) && todayNoteId) {
+                      if (window.confirm('Remove your note for today?')) {
+                        deleteMutation.mutate(todayNoteId);
+                      }
+                      return;
+                    }
+                    saveMutation.mutate();
+                  }}
+                  className="inline-flex items-center gap-1.5 px-4 py-2 rounded-lg bg-emerald-600 text-white text-sm font-semibold hover:bg-emerald-700 disabled:opacity-50"
+                >
+                  <Save className="h-4 w-4" />
+                  {saveMutation.isPending ? 'Saving…' : todayNoteId ? 'Update' : 'Save'}
+                </button>
+              </div>
+            </div>
           </div>
-        </div>
+        ) : null}
+
+        {todaySavedNote && !composerOpen ? (
+          <div className="space-y-2">
+            <div className="flex items-center justify-between gap-2">
+              <p className="text-sm font-semibold text-gray-800">Today&apos;s note</p>
+              <button
+                type="button"
+                onClick={() => {
+                  setTodayBody(todaySavedNote.body || '');
+                  setTodayIsPublic(!!todaySavedNote.isPublic);
+                  setComposerOpen(true);
+                }}
+                className="inline-flex items-center gap-1.5 px-3 py-1.5 rounded-lg text-xs font-semibold text-emerald-700 bg-emerald-50 hover:bg-emerald-100"
+              >
+                <Pencil className="h-3.5 w-3.5" />
+                Edit note
+              </button>
+            </div>
+            <NoteCard
+              note={todaySavedNote}
+              editable
+              onTogglePublic={() =>
+                updateMutation.mutate({
+                  noteId: todaySavedNote.id,
+                  isPublic: !todaySavedNote.isPublic,
+                })
+              }
+              onEdit={(body) => updateMutation.mutate({ noteId: todaySavedNote.id, body })}
+              onDelete={() => {
+                if (window.confirm('Delete this note permanently?')) {
+                  deleteMutation.mutate(todaySavedNote.id);
+                }
+              }}
+            />
+          </div>
+        ) : null}
 
         {feedQuery.isLoading ? (
           <LoadingSpinner className="py-6" />
@@ -353,9 +486,9 @@ export function NeoNotesPanel({ outletId, compact = false, className = '' }: Pro
               </div>
             ))}
           </div>
-        ) : (
+        ) : !todaySavedNote ? (
           <p className="text-sm text-gray-400 italic">No notes yet.</p>
-        )}
+        ) : null}
       </div>
     </div>
   );

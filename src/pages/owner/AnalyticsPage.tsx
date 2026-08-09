@@ -1,4 +1,4 @@
-import { useState, useRef, useEffect, useMemo } from 'react';
+import { useState, useRef, useEffect, useMemo, type ReactNode, type ComponentType } from 'react';
 import { useQuery } from '@tanstack/react-query';
 import { HighlightSection } from '@/components/HighlightSection';
 import { useOutletStore } from '@/stores/outletStore';
@@ -20,29 +20,78 @@ import {
   LabelList,
   ReferenceLine,
 } from 'recharts';
-import { CheckCircle, Clock, BarChart3, Users, Wallet, Download, Info } from 'lucide-react';
+import { CheckCircle, Clock, BarChart3, Users, Wallet, Download, Info, TrendingUp, Sparkles } from 'lucide-react';
 import { LoadingSpinner } from '@/components/LoadingSpinner';
 import { ListSearchBar } from '@/components/ListSearchBar';
 
-const PIE_COLORS = ['#0F766E', '#14B8A6', '#F59E0B', '#F97316', '#EF4444', '#8B5CF6'];
+const PIE_COLORS = ['#059669', '#10B981', '#14B8A6', '#F59E0B', '#F97316', '#8B5CF6'];
+
+const CARD_SHELL =
+  'rounded-2xl border border-gray-100/90 bg-white shadow-sm shadow-slate-900/[0.04] overflow-hidden';
+const CARD_HEADER = 'px-6 py-5 border-b border-gray-50 bg-gradient-to-r from-slate-50/90 via-white to-emerald-50/30';
+const CHART_BODY = 'p-5 sm:p-6';
 
 /** Leave trend: ~this many days fit in the viewport; scroll for the rest */
 const LEAVE_CHART_VISIBLE_DAYS = 10;
 
 // Custom tooltip for charts
-const CustomTooltip = ({ active, payload, label }: { active?: boolean; payload?: { name: string; value: number; color: string }[]; label?: string }) => {
+const CustomTooltip = ({
+  active,
+  payload,
+  label,
+}: {
+  active?: boolean;
+  payload?: { name: string; value: number; color: string }[];
+  label?: string;
+}) => {
   if (!active || !payload?.length) return null;
   return (
-    <div className="bg-white rounded-lg shadow-lg border border-gray-200 p-3 text-sm">
-      {label && <p className="font-medium text-gray-800 mb-1">{label}</p>}
-      {payload.map((p) => (
-        <p key={p.name} className="text-gray-600" style={{ color: p.color }}>
-          {p.name}: {typeof p.value === 'number' ? p.value.toFixed(1) : p.value}
-        </p>
-      ))}
+    <div className="rounded-xl border border-gray-100 bg-white/95 backdrop-blur-sm p-3.5 text-sm shadow-xl shadow-slate-900/10 ring-1 ring-black/5">
+      {label && <p className="font-semibold text-gray-900 mb-2">{label}</p>}
+      <div className="space-y-1">
+        {payload.map((p) => (
+          <p key={p.name} className="text-gray-600 flex items-center justify-between gap-4">
+            <span>{p.name}</span>
+            <span className="font-semibold tabular-nums" style={{ color: p.color }}>
+              {typeof p.value === 'number' ? p.value.toFixed(1) : p.value}
+            </span>
+          </p>
+        ))}
+      </div>
     </div>
   );
 };
+
+function ChartPanel({
+  id,
+  title,
+  subtitle,
+  action,
+  children,
+  bodyClassName = CHART_BODY,
+}: {
+  id: string;
+  title: string;
+  subtitle?: string;
+  action?: ReactNode;
+  children: ReactNode;
+  bodyClassName?: string;
+}) {
+  return (
+    <HighlightSection id={id}>
+      <div className={CARD_SHELL}>
+        <div className={`${CARD_HEADER} flex flex-col sm:flex-row sm:items-start sm:justify-between gap-3`}>
+          <div className="min-w-0">
+            <h2 className="text-base font-bold text-gray-900 tracking-tight">{title}</h2>
+            {subtitle ? <p className="text-sm text-gray-500 mt-1 leading-relaxed">{subtitle}</p> : null}
+          </div>
+          {action ? <div className="shrink-0">{action}</div> : null}
+        </div>
+        <div className={bodyClassName}>{children}</div>
+      </div>
+    </HighlightSection>
+  );
+}
 
 /** Shown inside the (i) tooltip for period-based KPIs */
 function periodScopeLabel(
@@ -99,14 +148,14 @@ function StatCard({
   value,
   infoText,
   icon: Icon,
-  accent = 'teal',
+  accent = 'emerald',
 }: {
   label: string;
   value: string | number;
   /** Shown when the (i) control is opened */
   infoText: string;
-  icon: React.ComponentType<{ className?: string }>;
-  accent?: 'teal' | 'amber' | 'emerald' | 'rose';
+  icon: ComponentType<{ className?: string }>;
+  accent?: 'emerald' | 'amber' | 'teal' | 'rose';
 }) {
   const [infoOpen, setInfoOpen] = useState(false);
   const wrapRef = useRef<HTMLDivElement>(null);
@@ -128,33 +177,45 @@ function StatCard({
     };
   }, [infoOpen]);
 
-  const stripe = {
-    teal: 'border-l-teal-600',
-    amber: 'border-l-amber-500',
-    emerald: 'border-l-emerald-600',
-    rose: 'border-l-rose-500',
-  };
-  const iconWrap = {
-    teal: 'bg-teal-50 text-teal-700',
-    amber: 'bg-amber-50 text-amber-800',
-    emerald: 'bg-emerald-50 text-emerald-800',
-    rose: 'bg-rose-50 text-rose-700',
-  };
+  const styles = {
+    emerald: {
+      bar: 'from-emerald-500 to-teal-400',
+      icon: 'bg-emerald-50 text-emerald-700 ring-emerald-100',
+      value: 'text-gray-900',
+    },
+    teal: {
+      bar: 'from-teal-500 to-cyan-400',
+      icon: 'bg-teal-50 text-teal-700 ring-teal-100',
+      value: 'text-gray-900',
+    },
+    amber: {
+      bar: 'from-amber-500 to-orange-400',
+      icon: 'bg-amber-50 text-amber-800 ring-amber-100',
+      value: 'text-gray-900',
+    },
+    rose: {
+      bar: 'from-rose-500 to-pink-400',
+      icon: 'bg-rose-50 text-rose-700 ring-rose-100',
+      value: 'text-gray-900',
+    },
+  }[accent];
+
   return (
-    <div
-      className={`bg-white rounded-xl border border-gray-200/90 shadow-sm border-l-[3px] ${stripe[accent]} px-4 py-3.5 flex flex-col gap-2 min-h-[100px] hover:shadow-md transition-shadow`}
-    >
-      <div className="flex items-start justify-between gap-2">
-        <h3 className="text-xs font-semibold text-gray-800 leading-snug pr-1">{label}</h3>
-        <div className="flex items-center gap-0.5 shrink-0">
-          <div className={`rounded-lg p-1.5 ${iconWrap[accent]}`} aria-hidden>
+    <div className="group relative overflow-hidden rounded-2xl border border-gray-100/90 bg-white p-5 shadow-sm shadow-slate-900/[0.04] hover:shadow-md hover:border-emerald-100/80 transition-all duration-200 min-h-[118px] flex flex-col">
+      <div className={`absolute inset-x-0 top-0 h-1 bg-gradient-to-r ${styles.bar} opacity-90`} />
+      <div className="flex items-start justify-between gap-3 mb-3">
+        <h3 className="text-[11px] font-bold uppercase tracking-[0.14em] text-gray-500 leading-snug pr-1">
+          {label}
+        </h3>
+        <div className="flex items-center gap-1 shrink-0">
+          <div className={`rounded-xl p-2 ring-1 ${styles.icon}`} aria-hidden>
             <Icon className="h-4 w-4" />
           </div>
           <div className="relative" ref={wrapRef}>
             <button
               type="button"
               onClick={() => setInfoOpen((o) => !o)}
-              className="rounded-full p-1.5 text-gray-400 hover:text-teal-700 hover:bg-teal-50 transition-colors focus:outline-none focus-visible:ring-2 focus-visible:ring-teal-500 focus-visible:ring-offset-1"
+              className="rounded-xl p-2 text-gray-400 hover:text-emerald-700 hover:bg-emerald-50 transition-colors focus:outline-none focus-visible:ring-2 focus-visible:ring-emerald-500/40"
               aria-label={`About ${label}`}
               aria-expanded={infoOpen}
             >
@@ -163,7 +224,7 @@ function StatCard({
             {infoOpen ? (
               <div
                 role="tooltip"
-                className="absolute right-0 top-full z-50 mt-1.5 w-[min(18rem,calc(100vw-2rem))] rounded-lg border border-gray-200 bg-white p-3 text-left text-xs leading-relaxed text-gray-600 shadow-lg"
+                className="absolute right-0 top-full z-50 mt-2 w-[min(18rem,calc(100vw-2rem))] rounded-xl border border-gray-100 bg-white p-3.5 text-left text-xs leading-relaxed text-gray-600 shadow-xl shadow-slate-900/10 ring-1 ring-black/5"
               >
                 <p className="whitespace-pre-line text-gray-700">{infoText}</p>
               </div>
@@ -171,7 +232,9 @@ function StatCard({
           </div>
         </div>
       </div>
-      <p className="text-2xl font-bold text-gray-900 tabular-nums tracking-tight">{value}</p>
+      <p className={`text-2xl sm:text-[1.65rem] font-black tabular-nums tracking-tight mt-auto ${styles.value}`}>
+        {value}
+      </p>
     </div>
   );
 }
@@ -201,6 +264,211 @@ type StaffAnalyticsRow = {
   dailyEarned?: number | null;
   salary?: number | null;
 };
+
+type EnrichedRoleRow = {
+  role: string;
+  hours: number;
+  pct: number;
+  staffCount: number;
+  avgHours: number;
+  color: string;
+  staff: StaffAnalyticsRow[];
+};
+
+function RoleHoursBreakdown({
+  roles,
+  totalRoleHours,
+  totalEmployees,
+  outletAvgPerPerson,
+}: {
+  roles: EnrichedRoleRow[];
+  totalRoleHours: number;
+  totalEmployees: number;
+  outletAvgPerPerson: number;
+}) {
+  const topRole = roles[0];
+  const largestTeam = roles.length ? [...roles].sort((a, b) => b.staffCount - a.staffCount)[0] : null;
+  const avgPerRole = roles.length > 0 ? totalRoleHours / roles.length : 0;
+
+  return (
+    <div className="space-y-6">
+      <div className="grid grid-cols-2 lg:grid-cols-4 gap-3">
+        <div className="rounded-2xl border border-gray-100 bg-gradient-to-br from-white to-slate-50 px-4 py-4 ring-1 ring-gray-100/80">
+          <p className="text-[10px] font-bold uppercase tracking-[0.14em] text-gray-500">Total labor hours</p>
+          <p className="mt-1.5 text-2xl font-black text-gray-900 tabular-nums">{totalRoleHours.toFixed(1)}h</p>
+          <p className="text-xs text-gray-500 mt-1">Across all roles</p>
+        </div>
+        <div className="rounded-2xl border border-emerald-100 bg-gradient-to-br from-emerald-50/80 to-white px-4 py-4 ring-1 ring-emerald-100/80">
+          <p className="text-[10px] font-bold uppercase tracking-[0.14em] text-emerald-700">Highest share</p>
+          <p className="mt-1.5 text-lg font-bold text-gray-900 truncate" title={topRole?.role}>
+            {topRole?.role ?? '—'}
+          </p>
+          <p className="text-xs text-emerald-800 font-semibold tabular-nums mt-1">
+            {topRole ? `${topRole.pct.toFixed(0)}% · ${topRole.hours.toFixed(1)}h` : '—'}
+          </p>
+        </div>
+        <div className="rounded-2xl border border-gray-100 bg-gradient-to-br from-white to-slate-50 px-4 py-4 ring-1 ring-gray-100/80">
+          <p className="text-[10px] font-bold uppercase tracking-[0.14em] text-gray-500">Roles active</p>
+          <p className="mt-1.5 text-2xl font-black text-gray-900 tabular-nums">{roles.length}</p>
+          <p className="text-xs text-gray-500 mt-1">{totalEmployees} staff total</p>
+        </div>
+        <div className="rounded-2xl border border-gray-100 bg-gradient-to-br from-white to-slate-50 px-4 py-4 ring-1 ring-gray-100/80">
+          <p className="text-[10px] font-bold uppercase tracking-[0.14em] text-gray-500">Avg per role</p>
+          <p className="mt-1.5 text-2xl font-black text-gray-900 tabular-nums">{avgPerRole.toFixed(1)}h</p>
+          <p className="text-xs text-gray-500 mt-1 truncate" title={largestTeam?.role ?? undefined}>
+            Largest: {largestTeam ? `${largestTeam.staffCount} in ${largestTeam.role}` : '—'}
+          </p>
+        </div>
+      </div>
+
+      <div className="rounded-2xl border border-gray-100 bg-slate-50/50 p-5 ring-1 ring-gray-100/80">
+        <div className="flex flex-wrap items-center justify-between gap-2 mb-4">
+          <div>
+            <p className="text-sm font-bold text-gray-900">Labor mix</p>
+            <p className="text-xs text-gray-500">How hours split across your outlet roles</p>
+          </div>
+          <p className="text-xs font-semibold text-gray-500 tabular-nums">{totalRoleHours.toFixed(1)}h total</p>
+        </div>
+        <div className="flex h-5 w-full overflow-hidden rounded-full bg-gray-200/80 shadow-inner ring-1 ring-gray-200/60">
+          {roles.map((r) => (
+            <div
+              key={r.role}
+              className="h-full transition-opacity hover:opacity-90"
+              style={{
+                width: `${Math.max(r.pct, r.pct > 0 ? 3 : 0)}%`,
+                backgroundColor: r.color,
+              }}
+              title={`${r.role}: ${r.hours.toFixed(1)}h (${r.pct.toFixed(1)}%)`}
+            />
+          ))}
+        </div>
+        <div className="mt-4 flex flex-wrap gap-2">
+          {roles.map((r) => (
+            <div
+              key={r.role}
+              className="inline-flex items-center gap-2 rounded-full border border-white bg-white px-3 py-1.5 text-xs shadow-sm ring-1 ring-gray-100"
+            >
+              <span className="h-2.5 w-2.5 shrink-0 rounded-full" style={{ backgroundColor: r.color }} aria-hidden />
+              <span className="font-semibold text-gray-800">{r.role}</span>
+              <span className="text-gray-400">·</span>
+              <span className="font-bold text-emerald-700 tabular-nums">{r.pct.toFixed(0)}%</span>
+              <span className="text-gray-400 tabular-nums">({r.hours.toFixed(0)}h)</span>
+            </div>
+          ))}
+        </div>
+      </div>
+
+      <div className="grid grid-cols-1 md:grid-cols-2 xl:grid-cols-3 gap-4">
+        {roles.map((r, index) => {
+          const vsOutletAvg =
+            outletAvgPerPerson > 0 ? ((r.avgHours - outletAvgPerPerson) / outletAvgPerPerson) * 100 : 0;
+          const topStaff = [...r.staff].sort((a, b) => (b.netHours ?? 0) - (a.netHours ?? 0));
+          const rankStyles =
+            index === 0
+              ? 'bg-amber-50 text-amber-800 ring-amber-200'
+              : index === 1
+                ? 'bg-slate-100 text-slate-700 ring-slate-200'
+                : index === 2
+                  ? 'bg-orange-50 text-orange-800 ring-orange-200'
+                  : 'bg-gray-50 text-gray-600 ring-gray-100';
+
+          return (
+            <div
+              key={r.role}
+              className="rounded-2xl border border-gray-100 bg-white p-5 shadow-sm shadow-slate-900/[0.03] hover:border-emerald-100 hover:shadow-md transition-all"
+            >
+              <div className="flex items-start justify-between gap-3 mb-4">
+                <div className="flex items-center gap-3 min-w-0">
+                  <span
+                    className={`flex h-10 w-10 shrink-0 items-center justify-center rounded-xl text-sm font-black ring-1 ${rankStyles}`}
+                  >
+                    #{index + 1}
+                  </span>
+                  <div className="min-w-0">
+                    <h3 className="text-base font-bold text-gray-900 truncate">{r.role}</h3>
+                    <p className="text-xs text-gray-500">
+                      {r.staffCount} staff · {r.avgHours.toFixed(1)}h avg each
+                    </p>
+                  </div>
+                </div>
+                <div className="text-right shrink-0">
+                  <p className="text-xl font-black text-gray-900 tabular-nums leading-none">{r.hours.toFixed(1)}h</p>
+                  <p className="text-xs font-bold text-emerald-700 tabular-nums mt-1">{r.pct.toFixed(1)}%</p>
+                </div>
+              </div>
+
+              <div className="mb-4">
+                <div className="flex justify-between text-[11px] font-medium text-gray-500 mb-1.5">
+                  <span>Share of outlet labor</span>
+                  <span className="tabular-nums">{r.pct.toFixed(0)}%</span>
+                </div>
+                <div className="h-2.5 w-full rounded-full bg-gray-100 overflow-hidden">
+                  <div
+                    className="h-full rounded-full"
+                    style={{ width: `${r.pct}%`, backgroundColor: r.color }}
+                  />
+                </div>
+              </div>
+
+              <div className="grid grid-cols-2 gap-2 mb-4">
+                <div className="rounded-xl bg-slate-50 px-3 py-2.5 ring-1 ring-slate-100/80">
+                  <p className="text-[10px] font-bold uppercase tracking-wide text-gray-500">Hours / person</p>
+                  <p className="text-sm font-bold text-gray-900 tabular-nums mt-0.5">{r.avgHours.toFixed(1)}h</p>
+                </div>
+                <div className="rounded-xl bg-slate-50 px-3 py-2.5 ring-1 ring-slate-100/80">
+                  <p className="text-[10px] font-bold uppercase tracking-wide text-gray-500">Vs outlet avg</p>
+                  <p
+                    className={`text-sm font-bold tabular-nums mt-0.5 ${
+                      vsOutletAvg > 5 ? 'text-amber-700' : vsOutletAvg < -5 ? 'text-emerald-700' : 'text-gray-700'
+                    }`}
+                  >
+                    {vsOutletAvg >= 0 ? '+' : ''}
+                    {vsOutletAvg.toFixed(0)}%
+                  </p>
+                </div>
+              </div>
+
+              {topStaff.length > 0 ? (
+                <div className="border-t border-gray-50 pt-3">
+                  <p className="text-[10px] font-bold uppercase tracking-[0.12em] text-gray-400 mb-2">Who logged time</p>
+                  <div className="space-y-1.5">
+                    {topStaff.slice(0, 5).map((s) => {
+                      const memberPct = r.hours > 0 ? ((s.netHours ?? 0) / r.hours) * 100 : 0;
+                      return (
+                        <div key={s.id ?? s.name} className="flex items-center gap-2">
+                          <span className="flex h-7 w-7 shrink-0 items-center justify-center rounded-lg bg-emerald-50 text-[10px] font-bold text-emerald-800 ring-1 ring-emerald-100">
+                            {(s.name ?? '?').charAt(0).toUpperCase()}
+                          </span>
+                          <div className="min-w-0 flex-1">
+                            <div className="flex items-center justify-between gap-2">
+                              <span className="text-xs font-semibold text-gray-800 truncate">{s.name}</span>
+                              <span className="text-xs font-bold text-gray-900 tabular-nums shrink-0">
+                                {(s.netHours ?? 0).toFixed(1)}h
+                              </span>
+                            </div>
+                            <div className="mt-1 h-1 rounded-full bg-gray-100 overflow-hidden">
+                              <div
+                                className="h-full rounded-full bg-emerald-400/80"
+                                style={{ width: `${Math.min(100, memberPct)}%` }}
+                              />
+                            </div>
+                          </div>
+                        </div>
+                      );
+                    })}
+                    {topStaff.length > 5 ? (
+                      <p className="text-[11px] text-gray-400 pl-9">+{topStaff.length - 5} more in this role</p>
+                    ) : null}
+                  </div>
+                </div>
+              ) : null}
+            </div>
+          );
+        })}
+      </div>
+    </div>
+  );
+}
 
 export function AnalyticsPage() {
   const { selectedOutletId } = useOutletStore();
@@ -474,7 +742,19 @@ export function AnalyticsPage() {
   }, [leaveChartData.length, selectedOutletId]);
 
   if (!selectedOutletId) {
-    return <div className="p-6 text-amber-600">Select an outlet first.</div>;
+    return (
+      <div className="p-6 max-w-3xl mx-auto">
+        <div className={`${CARD_SHELL} p-8 text-center`}>
+          <div className="mx-auto mb-4 flex h-14 w-14 items-center justify-center rounded-2xl bg-amber-50 ring-1 ring-amber-100">
+            <BarChart3 className="h-7 w-7 text-amber-600" />
+          </div>
+          <h2 className="text-lg font-bold text-gray-900">Select an outlet</h2>
+          <p className="mt-2 text-sm text-gray-500 max-w-sm mx-auto">
+            Choose an outlet in the header to view workforce analytics, labor costs, and compliance insights.
+          </p>
+        </div>
+      </div>
+    );
   }
 
   const staffAnalytics = d.employeeStats ?? [];
@@ -504,6 +784,32 @@ export function AnalyticsPage() {
         ? `${totalHours}h`
         : '—';
 
+  const totalRoleHours = roleBreakdown.reduce((sum: number, r: { hours?: number }) => sum + (r.hours ?? 0), 0);
+  const staffByRoleMap: Record<string, StaffAnalyticsRow[]> = {};
+  (staffAnalytics as StaffAnalyticsRow[]).forEach((s) => {
+    const role = s.role ?? 'Unassigned';
+    if (!staffByRoleMap[role]) staffByRoleMap[role] = [];
+    staffByRoleMap[role].push(s);
+  });
+  const enrichedRoles: EnrichedRoleRow[] = roleBreakdown
+    .map((r: { role?: string; hours?: number }, i: number) => {
+      const role = r.role ?? 'Unassigned';
+      const hours = r.hours ?? 0;
+      const staff = staffByRoleMap[role] ?? [];
+      const staffCount = staff.length;
+      return {
+        role,
+        hours,
+        pct: totalRoleHours > 0 ? (hours / totalRoleHours) * 100 : 0,
+        staffCount,
+        avgHours: staffCount > 0 ? hours / staffCount : 0,
+        color: PIE_COLORS[i % PIE_COLORS.length],
+        staff,
+      };
+    })
+    .sort((a, b) => b.hours - a.hours);
+  const outletAvgHoursPerPerson = staffInView > 0 ? totalRoleHours / staffInView : 0;
+
   const searchNote = analyticsSearch.trim()
     ? '\n\nStaff search filter is applied — KPIs use only matching people.'
     : '';
@@ -511,168 +817,190 @@ export function AnalyticsPage() {
   const scopeHelp = periodScopeLabel(period, period === 'custom' ? appliedCustom : null);
 
   return (
-    <div className="p-6 max-w-7xl mx-auto">
+    <div className="p-4 sm:p-6 max-w-7xl mx-auto space-y-8">
       {/* Header */}
-      <div className="flex flex-col gap-4 mb-8">
-        <div className="flex flex-col sm:flex-row sm:items-center sm:justify-between gap-4">
-          <div>
-            <h1 className="text-2xl font-bold text-gray-900">Outlet Analytics</h1>
-            <p className="text-gray-500">Insights for your restaurant or retail outlet</p>
-          </div>
-          <div className="flex flex-wrap items-center gap-2">
-            {(['daily', 'weekly', 'monthly'] as const).map((p) => (
-              <button
-                key={p}
-                type="button"
-                onClick={() => setPeriod(p)}
-                className={`px-4 py-2 rounded-lg text-sm font-medium transition-colors ${period === p ? 'bg-teal-600 text-white' : 'bg-gray-100 text-gray-600 hover:bg-gray-200'
-                  }`}
-              >
-                {p.charAt(0).toUpperCase() + p.slice(1)}
-              </button>
-            ))}
-            <button
-              type="button"
-              onClick={() => {
-                setPeriod('custom');
-                const d = defaultCustomRange();
-                setCustomStart(d.start);
-                setCustomEnd(d.end);
-                setAppliedCustom(d);
-              }}
-              className={`px-4 py-2 rounded-lg text-sm font-medium transition-colors ${period === 'custom' ? 'bg-teal-600 text-white' : 'bg-gray-100 text-gray-600 hover:bg-gray-200'
-                }`}
-            >
-              Custom
-            </button>
-            <button
-              onClick={handleExport}
-              disabled={isLoading || isExporting}
-              className="px-4 py-2.5 rounded-xl text-sm font-semibold bg-white border border-gray-200 text-gray-700 hover:bg-gray-50 hover:border-teal-500 hover:text-teal-600 transition-all shadow-sm flex items-center gap-2 disabled:opacity-50"
-            >
-              <Download className="h-4 w-4" /> {isExporting ? 'Exporting...' : 'Export Report'}
-            </button>
-          </div>
-        </div>
-
-        {period === 'custom' && (
-          <div className="flex flex-wrap items-end gap-3 sm:gap-4 rounded-xl border border-teal-100 bg-teal-50/30 px-4 py-3 mt-2 animate-fade-in">
-            <div className="flex flex-col gap-1">
-              <label htmlFor="analytics-custom-start" className="text-xs font-medium text-teal-700">
-                From
-              </label>
-              <input
-                id="analytics-custom-start"
-                type="date"
-                value={customStart}
-                onChange={(e) => setCustomStart(e.target.value)}
-                className="rounded-lg border border-teal-200 bg-white px-3 py-2 text-sm text-gray-900 shadow-sm focus:border-teal-500 focus:outline-none focus:ring-1 focus:ring-teal-500"
-              />
-            </div>
-            <div className="flex flex-col gap-1">
-              <label htmlFor="analytics-custom-end" className="text-xs font-medium text-teal-700">
-                To
-              </label>
-              <input
-                id="analytics-custom-end"
-                type="date"
-                value={customEnd}
-                onChange={(e) => setCustomEnd(e.target.value)}
-                className="rounded-lg border border-teal-200 bg-white px-3 py-2 text-sm text-gray-900 shadow-sm focus:border-teal-500 focus:outline-none focus:ring-1 focus:ring-teal-500"
-              />
-            </div>
-            <button
-              type="button"
-              disabled={!customStart || !customEnd || customStart > customEnd}
-              onClick={() => setAppliedCustom({ start: customStart, end: customEnd })}
-              className="rounded-lg bg-teal-600 px-4 py-2 text-sm font-medium text-white shadow-sm hover:bg-teal-700 disabled:cursor-not-allowed disabled:opacity-50 h-[38px]"
-            >
-              Apply range
-            </button>
-            <p className="text-xs text-teal-600/80 max-w-md pb-1">
-              Up to 366 days. IST dates used for clock-ins; hours exclude breaks.
-            </p>
-          </div>
-        )}
-        <div className="relative max-w-xl">
-          <ListSearchBar
-            value={analyticsSearch}
-            onChange={(val) => {
-              setAnalyticsSearch(val);
-              setShowSuggestions(true);
-              // If user clears the box, also clear the committed filter so data resets
-              if (!val) {
-                setSelectedStaffId('');
-                setCommittedSearch('');
-              }
-            }}
-            onFocus={() => setShowSuggestions(true)}
-            onBlur={() => setTimeout(() => setShowSuggestions(false), 150)}
-            placeholder="Search by staff name…"
-            className="w-full"
-            id="analytics-search"
-            aria-label="Filter analytics by staff"
-          />
-          {showSuggestions && analyticsSearch.trim().length >= 2 && !selectedStaffId && filteredSuggestions.length > 0 && (
-            <div className="absolute z-50 left-0 right-0 mt-1 bg-white border border-gray-200 rounded-xl shadow-xl overflow-hidden">
-              <div className="px-3 py-1.5 text-[10px] font-medium text-gray-400 uppercase tracking-wide border-b border-gray-100">
-                Select a staff member to filter
+      <div className={`${CARD_SHELL} overflow-visible`}>
+        <div className="relative px-6 py-6 sm:px-8 sm:py-7 bg-gradient-to-br from-slate-50 via-white to-emerald-50/40">
+          <div className="absolute inset-0 bg-[radial-gradient(ellipse_at_top_right,_var(--tw-gradient-stops))] from-emerald-100/30 via-transparent to-transparent pointer-events-none" />
+          <div className="relative flex flex-col gap-6">
+            <div className="flex flex-col lg:flex-row lg:items-start lg:justify-between gap-5">
+              <div className="min-w-0">
+                <div className="inline-flex items-center gap-2 rounded-full bg-emerald-50 px-3 py-1 text-xs font-semibold text-emerald-700 ring-1 ring-emerald-100 mb-3">
+                  <Sparkles className="h-3.5 w-3.5" />
+                  Workforce intelligence
+                </div>
+                <h1 className="text-2xl sm:text-3xl font-black text-gray-900 tracking-tight">Outlet Analytics</h1>
+                <p className="text-gray-500 mt-1.5 text-sm sm:text-base max-w-xl leading-relaxed">
+                  Track hours, attendance, tasks, and labor costs — all in one premium dashboard view.
+                </p>
               </div>
-              {filteredSuggestions.map((s: any) => (
+              <div className="flex flex-col sm:flex-row sm:items-center gap-3 shrink-0">
+                <div className="inline-flex p-1 rounded-xl bg-gray-100/80 ring-1 ring-gray-200/60">
+                  {(['daily', 'weekly', 'monthly'] as const).map((p) => (
+                    <button
+                      key={p}
+                      type="button"
+                      onClick={() => setPeriod(p)}
+                      className={`px-4 py-2 rounded-lg text-sm font-semibold transition-all duration-200 ${
+                        period === p
+                          ? 'bg-white text-emerald-700 shadow-sm ring-1 ring-gray-200/80'
+                          : 'text-gray-600 hover:text-gray-900'
+                      }`}
+                    >
+                      {p.charAt(0).toUpperCase() + p.slice(1)}
+                    </button>
+                  ))}
+                  <button
+                    type="button"
+                    onClick={() => {
+                      setPeriod('custom');
+                      const d = defaultCustomRange();
+                      setCustomStart(d.start);
+                      setCustomEnd(d.end);
+                      setAppliedCustom(d);
+                    }}
+                    className={`px-4 py-2 rounded-lg text-sm font-semibold transition-all duration-200 ${
+                      period === 'custom'
+                        ? 'bg-white text-emerald-700 shadow-sm ring-1 ring-gray-200/80'
+                        : 'text-gray-600 hover:text-gray-900'
+                    }`}
+                  >
+                    Custom
+                  </button>
+                </div>
                 <button
-                  key={s.id}
+                  onClick={handleExport}
+                  disabled={isLoading || isExporting}
+                  className="px-4 py-2.5 rounded-xl text-sm font-semibold bg-emerald-600 text-white hover:bg-emerald-700 transition-all shadow-sm shadow-emerald-900/10 flex items-center justify-center gap-2 disabled:opacity-50"
+                >
+                  <Download className="h-4 w-4" /> {isExporting ? 'Exporting…' : 'Export Report'}
+                </button>
+              </div>
+            </div>
+
+            {period === 'custom' && (
+              <div className="flex flex-wrap items-end gap-3 sm:gap-4 rounded-xl border border-emerald-100/80 bg-white/70 backdrop-blur-sm px-4 py-4 ring-1 ring-emerald-50 animate-fade-in">
+                <div className="flex flex-col gap-1">
+                  <label htmlFor="analytics-custom-start" className="text-xs font-semibold text-emerald-800">
+                    From
+                  </label>
+                  <input
+                    id="analytics-custom-start"
+                    type="date"
+                    value={customStart}
+                    onChange={(e) => setCustomStart(e.target.value)}
+                    className="rounded-lg border border-gray-200 bg-white px-3 py-2 text-sm text-gray-900 shadow-sm focus:border-emerald-500 focus:outline-none focus:ring-2 focus:ring-emerald-500/20"
+                  />
+                </div>
+                <div className="flex flex-col gap-1">
+                  <label htmlFor="analytics-custom-end" className="text-xs font-semibold text-emerald-800">
+                    To
+                  </label>
+                  <input
+                    id="analytics-custom-end"
+                    type="date"
+                    value={customEnd}
+                    onChange={(e) => setCustomEnd(e.target.value)}
+                    className="rounded-lg border border-gray-200 bg-white px-3 py-2 text-sm text-gray-900 shadow-sm focus:border-emerald-500 focus:outline-none focus:ring-2 focus:ring-emerald-500/20"
+                  />
+                </div>
+                <button
                   type="button"
-                  onMouseDown={(e) => {
-                    // mousedown fires before onBlur — keeps dropdown open long enough to register
-                    e.preventDefault();
-                    setAnalyticsSearch(s.name);
-                    setSelectedStaffId(s.id);
-                    setCommittedSearch(s.name); // ← triggers the API query
+                  disabled={!customStart || !customEnd || customStart > customEnd}
+                  onClick={() => setAppliedCustom({ start: customStart, end: customEnd })}
+                  className="rounded-lg bg-emerald-600 px-4 py-2 text-sm font-semibold text-white shadow-sm hover:bg-emerald-700 disabled:cursor-not-allowed disabled:opacity-50 h-[38px]"
+                >
+                  Apply range
+                </button>
+                <p className="text-xs text-gray-500 max-w-md pb-1">
+                  Up to 366 days. IST dates for clock-ins; hours exclude breaks.
+                </p>
+              </div>
+            )}
+
+            <div className="relative max-w-xl">
+              <ListSearchBar
+                value={analyticsSearch}
+                onChange={(val) => {
+                  setAnalyticsSearch(val);
+                  setShowSuggestions(true);
+                  if (!val) {
+                    setSelectedStaffId('');
+                    setCommittedSearch('');
+                  }
+                }}
+                onFocus={() => setShowSuggestions(true)}
+                onBlur={() => setTimeout(() => setShowSuggestions(false), 150)}
+                placeholder="Search by staff name…"
+                className="w-full"
+                id="analytics-search"
+                aria-label="Filter analytics by staff"
+              />
+              {showSuggestions && analyticsSearch.trim().length >= 2 && !selectedStaffId && filteredSuggestions.length > 0 && (
+                <div className="absolute z-50 left-0 right-0 mt-1.5 bg-white border border-gray-100 rounded-xl shadow-xl shadow-slate-900/10 overflow-hidden ring-1 ring-black/5">
+                  <div className="px-3 py-2 text-[10px] font-bold text-gray-400 uppercase tracking-wider border-b border-gray-50 bg-gray-50/50">
+                    Select a staff member to filter
+                  </div>
+                  {filteredSuggestions.map((s: any) => (
+                    <button
+                      key={s.id}
+                      type="button"
+                      onMouseDown={(e) => {
+                        e.preventDefault();
+                        setAnalyticsSearch(s.name);
+                        setSelectedStaffId(s.id);
+                        setCommittedSearch(s.name);
+                        setShowSuggestions(false);
+                      }}
+                      className="w-full px-4 py-2.5 text-left text-sm hover:bg-emerald-50/80 transition-colors flex justify-between items-center border-b border-gray-50 last:border-0"
+                    >
+                      <span className="font-medium text-gray-900">{s.name}</span>
+                      <span className="text-xs text-gray-400">{s.phone}</span>
+                    </button>
+                  ))}
+                </div>
+              )}
+              {analyticsSearch.trim().length >= 2 && !selectedStaffId && filteredSuggestions.length === 0 && showSuggestions && (
+                <div className="absolute z-50 left-0 right-0 mt-1.5 bg-white border border-gray-100 rounded-xl shadow-lg px-4 py-3 text-sm text-gray-400 ring-1 ring-black/5">
+                  No staff found matching &ldquo;{analyticsSearch}&rdquo;
+                </div>
+              )}
+              {selectedStaffId && analyticsSearch && (
+                <button
+                  type="button"
+                  onClick={() => {
+                    setAnalyticsSearch('');
+                    setSelectedStaffId('');
+                    setCommittedSearch('');
                     setShowSuggestions(false);
                   }}
-                  className="w-full px-4 py-2.5 text-left text-sm hover:bg-teal-50 transition-colors flex justify-between items-center border-b border-gray-50 last:border-0"
+                  className="absolute right-3 top-1/2 -translate-y-1/2 rounded-full p-1 text-gray-400 hover:text-gray-600 hover:bg-gray-100 transition-colors"
+                  title="Clear staff filter"
                 >
-                  <span className="font-medium text-gray-900">{s.name}</span>
-                  <span className="text-xs text-gray-400">{s.phone}</span>
+                  ✕
                 </button>
-              ))}
+              )}
             </div>
-          )}
-          {analyticsSearch.trim().length >= 2 && !selectedStaffId && filteredSuggestions.length === 0 && showSuggestions && (
-            <div className="absolute z-50 left-0 right-0 mt-1 bg-white border border-gray-200 rounded-xl shadow-sm px-4 py-3 text-sm text-gray-400">
-              No staff found matching "{analyticsSearch}"
-            </div>
-          )}
-          {/* Clear button — shown once a staff is committed/selected */}
-          {selectedStaffId && analyticsSearch && (
-            <button
-              type="button"
-              onClick={() => {
-                setAnalyticsSearch('');
-                setSelectedStaffId('');
-                setCommittedSearch(''); // ← resets the API query
-                setShowSuggestions(false);
-              }}
-              className="absolute right-3 top-1/2 -translate-y-1/2 text-gray-400 hover:text-gray-600 text-base leading-none"
-              title="Clear staff filter"
-            >
-              ✕
-            </button>
-          )}
+            <p className="text-xs text-gray-500 -mt-2">
+              {committedSearch
+                ? (
+                  <span className="inline-flex items-center gap-1.5 rounded-full bg-emerald-50 px-2.5 py-1 text-emerald-800 ring-1 ring-emerald-100">
+                    <Users className="h-3 w-3" />
+                    Showing data for: <strong>{committedSearch}</strong> — click ✕ to clear
+                  </span>
+                )
+                : 'Type a name and select from suggestions to filter by staff.'}
+            </p>
+          </div>
         </div>
-        <p className="text-xs text-gray-500">
-          {committedSearch
-            ? `Showing data for: ${committedSearch} — click ✕ to clear`
-            : 'Type a name and select from suggestions to filter by staff.'}
-        </p>
       </div>
 
       {isLoading ? (
-        <LoadingSpinner className="py-20" />
+        <LoadingSpinner className="py-24" />
       ) : (
-        <>
+        <div className="space-y-8">
           {/* KPI Cards */}
-          <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-3 xl:grid-cols-5 gap-4 mb-8">
+          <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-3 xl:grid-cols-5 gap-4">
             <StatCard
               label="Task completion rate"
               value={`${taskCompletionRate}%`}
@@ -717,478 +1045,494 @@ export function AnalyticsPage() {
           </div>
 
           {/* Charts Row 1 */}
-          <div className="grid grid-cols-1 lg:grid-cols-2 gap-6 mb-8">
+          <div className="grid grid-cols-1 lg:grid-cols-2 gap-6">
             {/* Daily hours */}
             <div className="lg:col-span-2">
-              <HighlightSection id="work-hours">
-                <div className="bg-white rounded-xl border border-gray-200 shadow-sm overflow-hidden">
-                  <div className="px-6 py-4 border-b border-gray-100 flex items-center justify-between">
-                    <div>
-                      <h2 className="text-lg font-semibold text-gray-900">Work hours trend</h2>
-                      <p className="text-sm text-gray-500">Total staff hours per day</p>
-                    </div>
-                    {dailyHours.length > 14 && (
-                      <p className="text-xs text-teal-600 font-medium">Scroll horizontally to see all {dailyHours.length} days</p>
+              <ChartPanel
+                id="work-hours"
+                title="Work hours trend"
+                subtitle="Total staff hours per day in the selected period"
+                action={
+                  dailyHours.length > 14 ? (
+                    <span className="inline-flex items-center gap-1.5 rounded-full bg-emerald-50 px-3 py-1 text-xs font-semibold text-emerald-700 ring-1 ring-emerald-100">
+                      <TrendingUp className="h-3.5 w-3.5" />
+                      Scroll for {dailyHours.length} days
+                    </span>
+                  ) : null
+                }
+              >
+                <div className="h-72 overflow-x-auto overflow-y-hidden [scrollbar-width:thin] rounded-xl bg-gradient-to-b from-slate-50/50 to-white ring-1 ring-gray-100">
+                  <div
+                    className="h-full"
+                    style={{ minWidth: dailyHours.length > 14 ? `${dailyHours.length * 50}px` : '100%' }}
+                  >
+                    {Array.isArray(dailyHours) && dailyHours.length > 0 ? (
+                      <ResponsiveContainer width="100%" height="100%">
+                        <BarChart data={dailyHours} margin={{ top: 20, right: 30, left: 0, bottom: 0 }}>
+                          <CartesianGrid strokeDasharray="3 3" stroke="#E5E7EB" vertical={false} />
+                          <XAxis
+                            dataKey="label"
+                            tick={{ fontSize: 11 }}
+                            stroke="#9CA3AF"
+                            interval={dailyHours.length > 20 ? 1 : 0}
+                          />
+                          <YAxis tick={{ fontSize: 11 }} stroke="#9CA3AF" />
+                          <Tooltip content={<CustomTooltip />} cursor={{ fill: 'rgba(16, 185, 129, 0.08)' }} />
+                          <ReferenceLine
+                            y={8}
+                            label={{ value: 'Min Hours', position: 'right', fill: '#EF4444', fontSize: 10 }}
+                            stroke="#EF4444"
+                            strokeDasharray="3 3"
+                          />
+                          <Bar
+                            dataKey="hours"
+                            fill="#059669"
+                            radius={[6, 6, 0, 0]}
+                            name="Hours"
+                            barSize={dailyHours.length > 15 ? 20 : 40}
+                          />
+                        </BarChart>
+                      </ResponsiveContainer>
+                    ) : (
+                      <div className="flex flex-col items-center justify-center h-full text-gray-400 gap-2">
+                        <BarChart3 className="h-8 w-8 text-gray-300" />
+                        <span className="text-sm">No data for this period</span>
+                      </div>
                     )}
                   </div>
-                  <div className="p-4">
-                    <div className="h-72 overflow-x-auto overflow-y-hidden [scrollbar-width:thin]">
-                      <div
-                        className="h-full"
-                        style={{ minWidth: dailyHours.length > 14 ? `${dailyHours.length * 50}px` : '100%' }}
-                      >
-                        {Array.isArray(dailyHours) && dailyHours.length > 0 ? (
-                          <ResponsiveContainer width="100%" height="100%">
-                            <BarChart data={dailyHours} margin={{ top: 20, right: 30, left: 0, bottom: 0 }}>
-                              <CartesianGrid strokeDasharray="3 3" stroke="#E5E7EB" vertical={false} />
-                              <XAxis
-                                dataKey="label"
-                                tick={{ fontSize: 11 }}
-                                stroke="#9CA3AF"
-                                interval={dailyHours.length > 20 ? 1 : 0}
-                              />
-                              <YAxis tick={{ fontSize: 11 }} stroke="#9CA3AF" />
-                              <Tooltip content={<CustomTooltip />} cursor={{ fill: '#F0FDFA' }} />
-                              <ReferenceLine
-                                y={8}
-                                label={{ value: 'Min Hours', position: 'right', fill: '#EF4444', fontSize: 10 }}
-                                stroke="#EF4444"
-                                strokeDasharray="3 3"
-                              />
-                              <Bar
-                                dataKey="hours"
-                                fill="#0F766E"
-                                radius={[4, 4, 0, 0]}
-                                name="Hours"
-                                barSize={dailyHours.length > 15 ? 20 : 40}
-                              />
-                            </BarChart>
-                          </ResponsiveContainer>
-                        ) : (
-                          <div className="flex items-center justify-center h-full text-gray-400">No data for this period</div>
-                        )}
-                      </div>
-                    </div>
-                  </div>
                 </div>
-              </HighlightSection>
+              </ChartPanel>
             </div>
 
-            {/* Per-staff: days present + hours per IST shift day (Moved here) */}
+            {/* Per-staff: days present + hours per IST shift day */}
             <div className="lg:col-span-2">
-              <HighlightSection id="attendance-by-day">
-                <div className="bg-white rounded-xl border border-gray-200 shadow-sm overflow-hidden">
-                  <div className="px-6 py-4 border-b border-gray-100">
-                    <h2 className="text-lg font-semibold text-gray-900">Attendance by day</h2>
-                    <p className="text-sm text-gray-500">
-                      Detailed day-by-day punch times and hours for each staff member in view.
-                    </p>
-                  </div>
-                  <div className="divide-y divide-gray-100 max-h-[500px] overflow-y-auto">
-                    {(staffAnalytics as StaffAnalyticsRow[]).length === 0 ? (
-                      <p className="p-6 text-center text-gray-400">No staff in view</p>
-                    ) : (
-                      (staffAnalytics as StaffAnalyticsRow[]).map((s) => {
-                        const rows = s.dailyAttendance ?? [];
-                        return (
-                          <div key={s.id} className="p-4">
-                            <div className="flex items-center justify-between mb-3">
-                              <div>
-                                <h3 className="font-semibold text-gray-900">{s.name}</h3>
+              <ChartPanel
+                id="attendance-by-day"
+                title="Attendance by day"
+                subtitle="Detailed day-by-day punch times and hours for each staff member in view."
+                bodyClassName="p-0"
+              >
+                <div className="divide-y divide-gray-50 max-h-[500px] overflow-y-auto">
+                  {(staffAnalytics as StaffAnalyticsRow[]).length === 0 ? (
+                    <p className="p-8 text-center text-gray-400 text-sm">No staff in view</p>
+                  ) : (
+                    (staffAnalytics as StaffAnalyticsRow[]).map((s) => {
+                      const rows = s.dailyAttendance ?? [];
+                      return (
+                        <div key={s.id} className="p-5 hover:bg-slate-50/50 transition-colors">
+                          <div className="flex items-center justify-between mb-4">
+                            <div className="flex items-center gap-3 min-w-0">
+                              <div className="flex h-10 w-10 shrink-0 items-center justify-center rounded-xl bg-emerald-50 text-emerald-700 font-bold text-sm ring-1 ring-emerald-100">
+                                {(s.name ?? '?').charAt(0).toUpperCase()}
+                              </div>
+                              <div className="min-w-0">
+                                <h3 className="font-semibold text-gray-900 truncate">{s.name}</h3>
                                 <p className="text-xs text-gray-500">{s.role}</p>
                               </div>
-                              <div className="text-right">
-                                <p className="text-sm font-medium text-teal-600">{s.netHours?.toFixed(1)} total hours</p>
-                                <p className="text-xs text-gray-400">{s.daysPresent} days present</p>
-                              </div>
                             </div>
-                            <div className="overflow-x-auto">
-                              <table className="w-full text-left text-xs border-collapse">
-                                <thead>
-                                  <tr className="bg-gray-50 text-gray-600">
-                                    <th className="px-2 py-1.5 font-medium border border-gray-100">Date (IST)</th>
-                                    <th className="px-2 py-1.5 font-medium border border-gray-100">Punch In</th>
-                                    <th className="px-2 py-1.5 font-medium border border-gray-100">Punch Out</th>
-                                    <th className="px-2 py-1.5 font-medium border border-gray-100 text-right">Net Hours</th>
-                                  </tr>
-                                </thead>
-                                <tbody>
-                                  {rows.length === 0 ? (
-                                    <tr>
-                                      <td colSpan={4} className="px-2 py-4 text-center text-gray-400">No attendance records in range</td>
-                                    </tr>
-                                  ) : (
-                                    rows.map((row) => (
-                                      <tr key={row.date} className="hover:bg-gray-50/50">
-                                        <td className="px-2 py-1.5 border border-gray-100 font-medium">{row.date}</td>
-                                        <td className="px-2 py-1.5 border border-gray-100 text-gray-500">{fmtIst(row.punchIn)}</td>
-                                        <td className="px-2 py-1.5 border border-gray-100 text-gray-500">{fmtIst(row.punchOut)}</td>
-                                        <td className="px-2 py-1.5 border border-gray-100 text-right font-medium text-teal-700">
-                                          {row.hours?.toFixed(1)}h
-                                        </td>
-                                      </tr>
-                                    ))
-                                  )}
-                                </tbody>
-                              </table>
+                            <div className="text-right shrink-0">
+                              <p className="text-sm font-bold text-emerald-700 tabular-nums">{s.netHours?.toFixed(1)}h</p>
+                              <p className="text-xs text-gray-400">{s.daysPresent} days present</p>
                             </div>
                           </div>
-                        );
-                      })
-                    )}
-                  </div>
+                          <div className="overflow-x-auto rounded-xl ring-1 ring-gray-100">
+                            <table className="w-full text-left text-xs">
+                              <thead>
+                                <tr className="bg-slate-50/80 text-gray-600">
+                                  <th className="px-3 py-2.5 font-semibold">Date (IST)</th>
+                                  <th className="px-3 py-2.5 font-semibold">Punch In</th>
+                                  <th className="px-3 py-2.5 font-semibold">Punch Out</th>
+                                  <th className="px-3 py-2.5 font-semibold text-right">Net Hours</th>
+                                </tr>
+                              </thead>
+                              <tbody className="divide-y divide-gray-50">
+                                {rows.length === 0 ? (
+                                  <tr>
+                                    <td colSpan={4} className="px-3 py-6 text-center text-gray-400">No attendance records in range</td>
+                                  </tr>
+                                ) : (
+                                  rows.map((row) => (
+                                    <tr key={row.date} className="hover:bg-emerald-50/30 transition-colors">
+                                      <td className="px-3 py-2 font-medium text-gray-800">{row.date}</td>
+                                      <td className="px-3 py-2 text-gray-500">{fmtIst(row.punchIn)}</td>
+                                      <td className="px-3 py-2 text-gray-500">{fmtIst(row.punchOut)}</td>
+                                      <td className="px-3 py-2 text-right font-semibold text-emerald-700 tabular-nums">
+                                        {row.hours?.toFixed(1)}h
+                                      </td>
+                                    </tr>
+                                  ))
+                                )}
+                              </tbody>
+                            </table>
+                          </div>
+                        </div>
+                      );
+                    })
+                  )}
                 </div>
-              </HighlightSection>
+              </ChartPanel>
             </div>
 
             {/* Role breakdown */}
-            <HighlightSection id="role-breakdown">
-              <div className="bg-white rounded-xl border border-gray-200 shadow-sm overflow-hidden">
-                <div className="px-6 py-4 border-b border-gray-100">
-                  <h2 className="text-lg font-semibold text-gray-900">Hours by role</h2>
-                  <p className="text-sm text-gray-500">Labor distribution across roles</p>
-                </div>
-                <div className="p-4 h-72">
-                  {roleBreakdown.length > 0 ? (
-                    <ResponsiveContainer width="100%" height="100%">
-                      <PieChart margin={{ top: 8, right: 8, bottom: 8, left: 8 }}>
-                        <Pie
-                          data={roleBreakdown}
-                          dataKey="hours"
-                          nameKey="role"
-                          cx="50%"
-                          cy="45%"
-                          outerRadius={85}
-                        >
-                          {roleBreakdown.map((_: unknown, i: number) => (
-                            <Cell key={i} fill={PIE_COLORS[i % PIE_COLORS.length]} />
-                          ))}
-                        </Pie>
-                        <Tooltip formatter={(v: number) => `${v}h`} />
-                        <Legend
-                          layout="vertical"
-                          align="right"
-                          verticalAlign="middle"
-                          formatter={(value, entry) => (
-                            <span className="text-sm text-gray-700">
-                              {value}: {(entry.payload as { hours?: number })?.hours ?? 0}h
-                            </span>
-                          )}
-                        />
-                      </PieChart>
-                    </ResponsiveContainer>
-                  ) : (
-                    <div className="flex items-center justify-center h-full text-gray-400">No role data</div>
-                  )}
-                </div>
-              </div>
-            </HighlightSection>
+            <div className="lg:col-span-2">
+              <ChartPanel
+                id="role-breakdown"
+                title="Hours by role"
+                subtitle="See where labor hours go — by role, team size, and individual staff contribution"
+              >
+                {enrichedRoles.length > 0 ? (
+                  <RoleHoursBreakdown
+                    roles={enrichedRoles}
+                    totalRoleHours={totalRoleHours}
+                    totalEmployees={totalEmployees}
+                    outletAvgPerPerson={outletAvgHoursPerPerson}
+                  />
+                ) : (
+                  <div className="flex flex-col items-center justify-center py-16 text-gray-400 gap-2">
+                    <Users className="h-8 w-8 text-gray-300" />
+                    <span className="text-sm">No role data for this period</span>
+                  </div>
+                )}
+              </ChartPanel>
+            </div>
           </div>
 
           {/* Charts Row 2 */}
-          <div className="grid grid-cols-1 lg:grid-cols-2 gap-6 mb-8">
-            {/* Shift distribution */}
-            <HighlightSection id="shift-distribution">
-              <div className="bg-white rounded-xl border border-gray-200 shadow-sm overflow-hidden">
-                <div className="px-6 py-4 border-b border-gray-100">
-                  <h2 className="text-lg font-semibold text-gray-900">Shift coverage</h2>
-                  <p className="text-sm text-gray-500">Day vs Night shift staff</p>
-                </div>
-                <div className="p-4 h-64">
-                  {shiftDistribution.length > 0 ? (
-                    <ResponsiveContainer width="100%" height="100%">
-                      <PieChart>
-                        <Pie
-                          data={shiftDistribution}
-                          dataKey="count"
-                          nameKey="shift"
-                          cx="50%"
-                          cy="50%"
-                          innerRadius={60}
-                          outerRadius={90}
-                          paddingAngle={2}
-                        >
-                          {shiftDistribution.map((_: unknown, i: number) => (
-                            <Cell key={i} fill={i === 0 ? '#0F766E' : '#F59E0B'} />
-                          ))}
-                        </Pie>
-                        <Tooltip formatter={(v: number) => `${v} staff`} />
-                        <Legend />
-                      </PieChart>
-                    </ResponsiveContainer>
-                  ) : (
-                    <div className="flex items-center justify-center h-full text-gray-400">No shift data</div>
-                  )}
-                </div>
+          <div className="grid grid-cols-1 lg:grid-cols-2 gap-6">
+            <ChartPanel id="shift-distribution" title="Shift coverage" subtitle="Day vs Night shift staff">
+              <div className="h-64">
+                {shiftDistribution.length > 0 ? (
+                  <ResponsiveContainer width="100%" height="100%">
+                    <PieChart>
+                      <Pie
+                        data={shiftDistribution}
+                        dataKey="count"
+                        nameKey="shift"
+                        cx="50%"
+                        cy="50%"
+                        innerRadius={60}
+                        outerRadius={90}
+                        paddingAngle={3}
+                        stroke="none"
+                      >
+                        {shiftDistribution.map((_: unknown, i: number) => (
+                          <Cell key={i} fill={i === 0 ? '#059669' : '#F59E0B'} />
+                        ))}
+                      </Pie>
+                      <Tooltip formatter={(v: number) => `${v} staff`} contentStyle={{ borderRadius: '12px' }} />
+                      <Legend />
+                    </PieChart>
+                  </ResponsiveContainer>
+                ) : (
+                  <div className="flex flex-col items-center justify-center h-full text-gray-400 gap-2">
+                    <Clock className="h-8 w-8 text-gray-300" />
+                    <span className="text-sm">No shift data</span>
+                  </div>
+                )}
               </div>
-            </HighlightSection>
+            </ChartPanel>
 
-            {/* Task completion by shift */}
-            <HighlightSection id="task-completion">
-              <div className="bg-white rounded-xl border border-gray-200 shadow-sm overflow-hidden">
-                <div className="px-6 py-4 border-b border-gray-100">
-                  <h2 className="text-lg font-semibold text-gray-900">Task completion by shift</h2>
-                  <p className="text-sm text-gray-500">Which shift is more productive</p>
-                </div>
-                <div className="p-4 h-64">
-                  {taskCompletionByShift.length > 0 ? (
-                    <ResponsiveContainer width="100%" height="100%">
-                      <BarChart data={taskCompletionByShift} layout="vertical" margin={{ left: 20, right: 40 }}>
-                        <CartesianGrid strokeDasharray="3 3" stroke="#E5E7EB" />
-                        <XAxis type="number" domain={[0, 100]} tick={{ fontSize: 11 }} stroke="#9CA3AF" unit="%" />
-                        <YAxis dataKey="shift" type="category" width={60} tick={{ fontSize: 11 }} stroke="#9CA3AF" />
-                        <Tooltip
-                          content={({ active, payload }) => {
-                            if (!active || !payload?.length) return null;
-                            const p = payload[0].payload as { shift?: string; rate?: number; completed?: number; total?: number };
-                            return (
-                              <div className="bg-white rounded-lg shadow-lg border border-gray-200 p-3 text-sm">
-                                <p className="font-medium text-gray-800">{p.shift} shift</p>
-                                <p className="text-teal-600">{(p.rate ?? 0).toFixed(1)}% completion</p>
-                                <p className="text-gray-500 text-xs mt-1">{p.completed ?? 0} of {p.total ?? 0} tasks</p>
-                              </div>
-                            );
-                          }}
-                        />
-                        <Bar dataKey="rate" name="Completion %" fill="#0F766E" radius={[0, 4, 4, 0]} minPointSize={8}>
-                          <LabelList dataKey="rate" position="right" formatter={(v: number) => `${v}%`} />
-                        </Bar>
-                      </BarChart>
-                    </ResponsiveContainer>
-                  ) : (
-                    <div className="flex items-center justify-center h-full text-gray-400">No task data</div>
-                  )}
-                </div>
+            <ChartPanel id="task-completion" title="Task completion by shift" subtitle="Which shift is more productive">
+              <div className="h-64">
+                {taskCompletionByShift.length > 0 ? (
+                  <ResponsiveContainer width="100%" height="100%">
+                    <BarChart data={taskCompletionByShift} layout="vertical" margin={{ left: 20, right: 40 }}>
+                      <CartesianGrid strokeDasharray="3 3" stroke="#E5E7EB" horizontal={false} />
+                      <XAxis type="number" domain={[0, 100]} tick={{ fontSize: 11 }} stroke="#9CA3AF" unit="%" />
+                      <YAxis dataKey="shift" type="category" width={60} tick={{ fontSize: 11 }} stroke="#9CA3AF" />
+                      <Tooltip
+                        content={({ active, payload }) => {
+                          if (!active || !payload?.length) return null;
+                          const p = payload[0].payload as { shift?: string; rate?: number; completed?: number; total?: number };
+                          return (
+                            <div className="rounded-xl border border-gray-100 bg-white/95 backdrop-blur-sm p-3.5 text-sm shadow-xl ring-1 ring-black/5">
+                              <p className="font-semibold text-gray-900">{p.shift} shift</p>
+                              <p className="text-emerald-600 font-medium">{(p.rate ?? 0).toFixed(1)}% completion</p>
+                              <p className="text-gray-500 text-xs mt-1">{p.completed ?? 0} of {p.total ?? 0} tasks</p>
+                            </div>
+                          );
+                        }}
+                      />
+                      <Bar dataKey="rate" name="Completion %" fill="#059669" radius={[0, 6, 6, 0]} minPointSize={8}>
+                        <LabelList dataKey="rate" position="right" formatter={(v: number) => `${v}%`} />
+                      </Bar>
+                    </BarChart>
+                  </ResponsiveContainer>
+                ) : (
+                  <div className="flex flex-col items-center justify-center h-full text-gray-400 gap-2">
+                    <CheckCircle className="h-8 w-8 text-gray-300" />
+                    <span className="text-sm">No task data</span>
+                  </div>
+                )}
               </div>
-            </HighlightSection>
+            </ChartPanel>
           </div>
 
-          {/* Leave trend — backend fills every day in the selected period (zeros when no requests) */}
-          <HighlightSection id="leave-trend">
-            {leaveChartData.length > 0 ? (
-              <div className="bg-white rounded-xl border border-gray-200 shadow-sm overflow-hidden mb-8">
-                <div className="px-6 py-4 border-b border-gray-100">
-                  <h2 className="text-lg font-semibold text-gray-900">Leave trend</h2>
-                  <p className="text-sm text-gray-500">
-                    Approved, rejected, and pending counts for each day in your selected period (daily / weekly / monthly / custom / pay cycle).
-                  </p>
-                  {leaveChartData.length > LEAVE_CHART_VISIBLE_DAYS && (
-                    <p className="text-xs text-teal-700/90 mt-2">
-                      About {LEAVE_CHART_VISIBLE_DAYS} days visible at once — drag the scrollbar or use your mouse wheel / trackpad (scroll up-down) over the chart to move along the timeline.
-                    </p>
-                  )}
-                </div>
-                <div className="p-4 pb-3">
-                  <div
-                    ref={leaveScrollRef}
-                    className="w-full h-72 overflow-x-auto overflow-y-hidden rounded-lg border border-gray-100 bg-gray-50/40 scroll-smooth [scrollbar-width:thin]"
-                  >
-                    <div
-                      className="h-full min-w-full"
-                      style={{
-                        width:
-                          leaveChartData.length <= LEAVE_CHART_VISIBLE_DAYS
-                            ? '100%'
-                            : `${(leaveChartData.length / LEAVE_CHART_VISIBLE_DAYS) * 100}%`,
-                      }}
+          {/* Leave trend */}
+          {leaveChartData.length > 0 ? (
+            <ChartPanel
+              id="leave-trend"
+              title="Leave trend"
+              subtitle="Approved, rejected, and pending counts for each day in your selected period."
+              action={
+                leaveChartData.length > LEAVE_CHART_VISIBLE_DAYS ? (
+                  <span className="text-xs text-emerald-700 font-medium max-w-[14rem] text-right leading-snug">
+                    ~{LEAVE_CHART_VISIBLE_DAYS} days visible — scroll to explore timeline
+                  </span>
+                ) : null
+              }
+            >
+              <div
+                ref={leaveScrollRef}
+                className="w-full h-72 overflow-x-auto overflow-y-hidden rounded-xl bg-gradient-to-b from-slate-50/50 to-white ring-1 ring-gray-100 scroll-smooth [scrollbar-width:thin]"
+              >
+                <div
+                  className="h-full min-w-full"
+                  style={{
+                    width:
+                      leaveChartData.length <= LEAVE_CHART_VISIBLE_DAYS
+                        ? '100%'
+                        : `${(leaveChartData.length / LEAVE_CHART_VISIBLE_DAYS) * 100}%`,
+                  }}
+                >
+                  <ResponsiveContainer width="100%" height="100%">
+                    <BarChart
+                      data={leaveChartData}
+                      margin={{ bottom: 40, left: 4, right: 12, top: 8 }}
+                      barCategoryGap="18%"
                     >
-                      <ResponsiveContainer width="100%" height="100%">
-                        <BarChart
-                          data={leaveChartData}
-                          margin={{ bottom: 40, left: 4, right: 12, top: 8 }}
-                          barCategoryGap="18%"
+                      <CartesianGrid strokeDasharray="3 3" stroke="#E5E7EB" vertical={false} />
+                      <XAxis
+                        dataKey="label"
+                        tick={{ fontSize: 10 }}
+                        stroke="#9CA3AF"
+                        interval={0}
+                        angle={leaveChartData.length > LEAVE_CHART_VISIBLE_DAYS ? -28 : 0}
+                        textAnchor={leaveChartData.length > LEAVE_CHART_VISIBLE_DAYS ? 'end' : 'middle'}
+                        height={leaveChartData.length > LEAVE_CHART_VISIBLE_DAYS ? 52 : 28}
+                      />
+                      <YAxis tick={{ fontSize: 11 }} stroke="#9CA3AF" allowDecimals={false} width={40} />
+                      <Tooltip
+                        content={({ active, payload, label }) => {
+                          if (!active || !payload?.length) return null;
+                          const row = payload[0].payload as {
+                            date?: string;
+                            label?: string;
+                            approved?: number;
+                            rejected?: number;
+                            pending?: number;
+                          };
+                          return (
+                            <div className="rounded-xl border border-gray-100 bg-white/95 backdrop-blur-sm p-3.5 text-sm min-w-[10rem] shadow-xl ring-1 ring-black/5">
+                              <p className="font-semibold text-gray-900">{row.date ?? label}</p>
+                              <p className="text-xs text-gray-500 mb-2">{row.label}</p>
+                              <p className="text-emerald-700 font-medium">Approved: {row.approved ?? 0}</p>
+                              <p className="text-red-600 font-medium">Rejected: {row.rejected ?? 0}</p>
+                              <p className="text-amber-600 font-medium">Pending: {row.pending ?? 0}</p>
+                            </div>
+                          );
+                        }}
+                      />
+                      <Bar dataKey="approved" stackId="a" fill="#10B981" name="Approved" radius={[0, 0, 0, 0]} />
+                      <Bar dataKey="rejected" stackId="a" fill="#EF4444" name="Rejected" />
+                      <Bar dataKey="pending" stackId="a" fill="#F59E0B" name="Pending" radius={[4, 4, 0, 0]} />
+                    </BarChart>
+                  </ResponsiveContainer>
+                </div>
+              </div>
+              <div className="flex flex-wrap justify-center gap-x-6 gap-y-2 pt-4 text-xs font-medium text-gray-600">
+                <span className="inline-flex items-center gap-2">
+                  <span className="inline-block size-2.5 rounded-full bg-emerald-500" aria-hidden />
+                  Approved
+                </span>
+                <span className="inline-flex items-center gap-2">
+                  <span className="inline-block size-2.5 rounded-full bg-red-500" aria-hidden />
+                  Rejected
+                </span>
+                <span className="inline-flex items-center gap-2">
+                  <span className="inline-block size-2.5 rounded-full bg-amber-500" aria-hidden />
+                  Pending
+                </span>
+              </div>
+            </ChartPanel>
+          ) : (
+            <ChartPanel id="leave-trend" title="Leave trend" subtitle="No leave data for the selected period">
+              <div className="flex flex-col items-center justify-center py-12 text-gray-400 gap-2">
+                <Clock className="h-8 w-8 text-gray-300" />
+                <span className="text-sm">No days in range for leave trend</span>
+              </div>
+            </ChartPanel>
+          )}
+
+          {/* Staff compliance & labor cost */}
+          <div className="grid grid-cols-1 lg:grid-cols-2 gap-6">
+            <ChartPanel id="staff-compliance" title="Staff compliance" subtitle="Net hours logged vs minimum required for each team member">
+              <div className="max-h-[28rem] overflow-y-auto pr-1 space-y-3">
+                {staffAnalytics.length > 0 ? (
+                  (staffAnalytics as StaffAnalyticsRow[])
+                    .slice()
+                    .sort((a, b) => (b.compliancePct ?? 0) - (a.compliancePct ?? 0))
+                    .map((s) => {
+                      const pct = Math.min(100, Math.max(0, s.compliancePct ?? 0));
+                      const net = s.netHours ?? 0;
+                      const min = s.minHoursRequired ?? 0;
+                      const status = s.status ?? 'met';
+                      const statusStyles =
+                        status === 'overtime'
+                          ? { bar: 'bg-amber-500', badge: 'bg-amber-50 text-amber-800 ring-amber-100', label: 'Over target' }
+                          : status === 'under'
+                            ? { bar: 'bg-rose-500', badge: 'bg-rose-50 text-rose-800 ring-rose-100', label: 'Below target' }
+                            : { bar: 'bg-emerald-500', badge: 'bg-emerald-50 text-emerald-800 ring-emerald-100', label: 'On target' };
+                      return (
+                        <div
+                          key={s.id ?? s.name}
+                          className="rounded-xl border border-gray-100 bg-white p-4 shadow-sm hover:border-emerald-100/80 transition-colors"
                         >
-                          <CartesianGrid strokeDasharray="3 3" stroke="#E5E7EB" />
-                          <XAxis
-                            dataKey="label"
-                            tick={{ fontSize: 10 }}
-                            stroke="#9CA3AF"
-                            interval={0}
-                            angle={leaveChartData.length > LEAVE_CHART_VISIBLE_DAYS ? -28 : 0}
-                            textAnchor={leaveChartData.length > LEAVE_CHART_VISIBLE_DAYS ? 'end' : 'middle'}
-                            height={leaveChartData.length > LEAVE_CHART_VISIBLE_DAYS ? 52 : 28}
-                          />
-                          <YAxis tick={{ fontSize: 11 }} stroke="#9CA3AF" allowDecimals={false} width={40} />
-                          <Tooltip
-                            content={({ active, payload, label }) => {
-                              if (!active || !payload?.length) return null;
-                              const row = payload[0].payload as {
-                                date?: string;
-                                label?: string;
-                                approved?: number;
-                                rejected?: number;
-                                pending?: number;
-                              };
-                              return (
-                                <div className="bg-white rounded-lg shadow-lg border border-gray-200 p-3 text-sm min-w-[10rem]">
-                                  <p className="font-medium text-gray-900">{row.date ?? label}</p>
-                                  <p className="text-xs text-gray-500 mb-2">{row.label}</p>
-                                  <p className="text-emerald-700">Approved: {row.approved ?? 0}</p>
-                                  <p className="text-red-600">Rejected: {row.rejected ?? 0}</p>
-                                  <p className="text-amber-600">Pending: {row.pending ?? 0}</p>
-                                </div>
-                              );
-                            }}
-                          />
-                          <Bar dataKey="approved" stackId="a" fill="#10B981" name="Approved" />
-                          <Bar dataKey="rejected" stackId="a" fill="#EF4444" name="Rejected" />
-                          <Bar dataKey="pending" stackId="a" fill="#F59E0B" name="Pending" />
-                        </BarChart>
-                      </ResponsiveContainer>
-                    </div>
-                  </div>
-                  <div className="flex flex-wrap justify-center gap-x-5 gap-y-1 pt-3 text-xs text-gray-600">
-                    <span className="inline-flex items-center gap-1.5">
-                      <span className="inline-block size-2.5 rounded-sm bg-[#10B981]" aria-hidden />
-                      Approved
-                    </span>
-                    <span className="inline-flex items-center gap-1.5">
-                      <span className="inline-block size-2.5 rounded-sm bg-[#EF4444]" aria-hidden />
-                      Rejected
-                    </span>
-                    <span className="inline-flex items-center gap-1.5">
-                      <span className="inline-block size-2.5 rounded-sm bg-[#F59E0B]" aria-hidden />
-                      Pending
-                    </span>
-                  </div>
-                </div>
-              </div>
-            ) : (
-              <div className="bg-white rounded-xl border border-gray-200 shadow-sm overflow-hidden mb-8 p-8 text-center text-gray-400">
-                No days in range for leave trend
-              </div>
-            )}
-          </HighlightSection>
-
-          {/* Web-only: Staff compliance & labor cost */}
-          <div className="grid grid-cols-1 lg:grid-cols-2 gap-6 mb-8">
-            <HighlightSection id="staff-compliance">
-              <div className="bg-white rounded-xl border border-gray-200 shadow-sm overflow-hidden">
-                <div className="px-6 py-4 border-b border-gray-100">
-                  <h2 className="text-lg font-semibold text-gray-900">Staff compliance</h2>
-                  <p className="text-sm text-gray-500">Hours vs target (min hours required)</p>
-                </div>
-                <div className="p-4 h-80 overflow-y-auto">
-                  {staffAnalytics.length > 0 ? (
-                    <ResponsiveContainer width="100%" height={Math.max(300, staffAnalytics.length * 36)}>
-                      <BarChart data={staffAnalytics} layout="vertical" margin={{ left: 80, right: 20 }}>
-                        <CartesianGrid strokeDasharray="3 3" stroke="#E5E7EB" />
-                        <XAxis type="number" tick={{ fontSize: 10 }} stroke="#9CA3AF" />
-                        <YAxis dataKey="name" type="category" width={70} tick={{ fontSize: 10 }} stroke="#9CA3AF" />
-                        <Tooltip
-                          content={({ active, payload }) => {
-                            if (!active || !payload?.length) return null;
-                            const p = payload[0].payload;
-                            return (
-                              <div className="bg-white rounded-lg shadow-lg border p-3 text-sm">
-                                <p className="font-medium">{p.name}</p>
-                                <p>Net: {p.netHours}h | Break: {p.breakHours}h</p>
-                                <p>Status: {p.status}</p>
-                                <p>Compliance: {p.compliancePct}%</p>
+                          <div className="flex flex-wrap items-start justify-between gap-3 mb-3">
+                            <div className="flex items-center gap-3 min-w-0">
+                              <div className="flex h-10 w-10 shrink-0 items-center justify-center rounded-xl bg-slate-50 text-slate-700 font-bold text-sm ring-1 ring-slate-100">
+                                {(s.name ?? '?').charAt(0).toUpperCase()}
                               </div>
-                            );
-                          }}
-                        />
-                        <Bar dataKey="netHours" name="Net hours" fill="#0F766E" radius={[0, 4, 4, 0]} />
-                      </BarChart>
-                    </ResponsiveContainer>
-                  ) : (
-                    <div className="flex items-center justify-center h-full text-gray-400">No staff data</div>
-                  )}
-                </div>
+                              <div className="min-w-0">
+                                <p className="font-semibold text-gray-900 truncate">{s.name}</p>
+                                <p className="text-xs text-gray-500 truncate">{s.role}</p>
+                              </div>
+                            </div>
+                            <div className="flex items-center gap-2 shrink-0">
+                              <span className={`rounded-full px-2.5 py-1 text-[11px] font-bold ring-1 ${statusStyles.badge}`}>
+                                {statusStyles.label}
+                              </span>
+                              <span className="text-lg font-black text-gray-900 tabular-nums">{pct}%</span>
+                            </div>
+                          </div>
+                          <div className="h-2.5 w-full rounded-full bg-gray-100 overflow-hidden mb-2">
+                            <div
+                              className={`h-full rounded-full transition-all ${statusStyles.bar}`}
+                              style={{ width: `${pct}%` }}
+                            />
+                          </div>
+                          <div className="flex flex-wrap items-center justify-between gap-2 text-xs text-gray-500">
+                            <span>
+                              <span className="font-semibold text-gray-700 tabular-nums">{net.toFixed(1)}h</span> net logged
+                            </span>
+                            <span>
+                              Target: <span className="font-semibold text-gray-700 tabular-nums">{min.toFixed(1)}h</span>
+                            </span>
+                            {status === 'overtime' && (s.overtimeHours ?? 0) > 0 ? (
+                              <span className="text-amber-700 font-medium tabular-nums">+{(s.overtimeHours ?? 0).toFixed(1)}h over</span>
+                            ) : null}
+                            {status === 'under' && (s.underHours ?? 0) > 0 ? (
+                              <span className="text-rose-700 font-medium tabular-nums">−{(s.underHours ?? 0).toFixed(1)}h short</span>
+                            ) : null}
+                          </div>
+                        </div>
+                      );
+                    })
+                ) : (
+                  <div className="flex flex-col items-center justify-center py-16 text-gray-400 gap-2">
+                    <BarChart3 className="h-8 w-8 text-gray-300" />
+                    <span className="text-sm">No staff data</span>
+                  </div>
+                )}
               </div>
-            </HighlightSection>
+            </ChartPanel>
 
-            {/* Labor cost breakdown */}
-            <HighlightSection id="labor-cost">
-              <div className="bg-white rounded-xl border border-gray-200 shadow-sm overflow-hidden">
-                <div className="px-6 py-4 border-b border-gray-100">
-                  <h2 className="text-lg font-semibold text-gray-900">Labor cost estimate</h2>
-                  <p className="text-sm text-gray-500">Daily earned per staff (this period)</p>
-                </div>
-                <div className="p-4 max-h-80 overflow-y-auto">
-                  {staffAnalytics.filter((s: { dailyEarned?: number }) => (s.dailyEarned ?? 0) > 0).length > 0 ? (
-                    <div className="space-y-2">
-                      {staffAnalytics
-                        .filter((s: { dailyEarned?: number }) => (s.dailyEarned ?? 0) > 0)
-                        .sort((a: { dailyEarned?: number }, b: { dailyEarned?: number }) => (b.dailyEarned ?? 0) - (a.dailyEarned ?? 0))
-                        .map((s: { id?: string; name?: string; dailyEarned?: number; role?: string }) => (
-                          <div key={s.id} className="flex justify-between items-center py-2 border-b border-gray-100 last:border-0">
-                            <div>
-                              <p className="font-medium text-gray-800">{s.name}</p>
+            <ChartPanel id="labor-cost" title="Labor cost estimate" subtitle="Daily earned per staff (this period)">
+              <div className="max-h-80 overflow-y-auto">
+                {staffAnalytics.filter((s: { dailyEarned?: number }) => (s.dailyEarned ?? 0) > 0).length > 0 ? (
+                  <div className="space-y-1">
+                    {staffAnalytics
+                      .filter((s: { dailyEarned?: number }) => (s.dailyEarned ?? 0) > 0)
+                      .sort((a: { dailyEarned?: number }, b: { dailyEarned?: number }) => (b.dailyEarned ?? 0) - (a.dailyEarned ?? 0))
+                      .map((s: { id?: string; name?: string; dailyEarned?: number; role?: string }) => (
+                        <div
+                          key={s.id}
+                          className="flex justify-between items-center py-3 px-3 rounded-xl hover:bg-slate-50 transition-colors"
+                        >
+                          <div className="flex items-center gap-3 min-w-0">
+                            <div className="flex h-9 w-9 shrink-0 items-center justify-center rounded-lg bg-amber-50 text-amber-700 font-bold text-xs ring-1 ring-amber-100">
+                              {(s.name ?? '?').charAt(0).toUpperCase()}
+                            </div>
+                            <div className="min-w-0">
+                              <p className="font-semibold text-gray-800 truncate">{s.name}</p>
                               <p className="text-xs text-gray-500">{s.role}</p>
                             </div>
-                            <p className="font-semibold text-teal-600">₹{(s.dailyEarned ?? 0).toLocaleString()}</p>
                           </div>
-                        ))}
-                      <div className="pt-4 mt-4 border-t-2 border-gray-200 flex justify-between font-bold">
-                        <span>Total</span>
-                        <span className="text-teal-600">₹{laborCostEstimate.toLocaleString()}</span>
-                      </div>
+                          <p className="font-bold text-emerald-700 tabular-nums shrink-0 ml-3">
+                            ₹{(s.dailyEarned ?? 0).toLocaleString()}
+                          </p>
+                        </div>
+                      ))}
+                    <div className="pt-4 mt-3 border-t border-gray-100 flex justify-between items-center px-3 py-2 rounded-xl bg-emerald-50/50 ring-1 ring-emerald-100">
+                      <span className="font-bold text-gray-900">Total</span>
+                      <span className="text-lg font-black text-emerald-700 tabular-nums">₹{laborCostEstimate.toLocaleString()}</span>
                     </div>
-                  ) : (
-                    <div className="flex items-center justify-center h-48 text-gray-400">No salary data</div>
-                  )}
-                </div>
+                  </div>
+                ) : (
+                  <div className="flex flex-col items-center justify-center h-48 text-gray-400 gap-2">
+                    <Wallet className="h-8 w-8 text-gray-300" />
+                    <span className="text-sm">No salary data</span>
+                  </div>
+                )}
               </div>
-            </HighlightSection>
+            </ChartPanel>
           </div>
 
           {/* Export Range Modal */}
           {showExportModal && (
-            <div className="fixed inset-0 bg-black/40 backdrop-blur-sm flex items-center justify-center z-50 p-4 animate-fade-in">
-              <div className="bg-white rounded-2xl shadow-xl w-full max-w-md overflow-hidden animate-slide-up">
-                <div className="p-6 border-b border-gray-100">
+            <div className="fixed inset-0 bg-black/50 backdrop-blur-sm flex items-center justify-center z-50 p-4 animate-fade-in">
+              <div className="bg-white rounded-2xl shadow-2xl shadow-slate-900/20 w-full max-w-md overflow-hidden animate-slide-up ring-1 ring-black/5">
+                <div className="p-6 border-b border-gray-50 bg-gradient-to-r from-slate-50 to-emerald-50/30">
                   <h3 className="text-lg font-bold text-gray-900">Export Analytics Report</h3>
-                  <p className="text-sm text-gray-500">Choose the time range for your export</p>
+                  <p className="text-sm text-gray-500 mt-1">Choose the time range for your export</p>
                 </div>
                 <div className="p-6 space-y-3">
                   <button
                     onClick={() => void performExport('current')}
-                    className="w-full flex items-center justify-between p-4 rounded-xl border border-gray-200 hover:border-teal-500 hover:bg-teal-50 transition-all text-left"
+                    className="w-full flex items-center justify-between p-4 rounded-xl border border-gray-100 hover:border-emerald-200 hover:bg-emerald-50/50 transition-all text-left group"
                     disabled={isExporting}
                   >
                     <div>
                       <p className="font-semibold text-gray-900 text-sm">Current Filter</p>
-                      <p className="text-xs text-gray-500">Export exactly what you see on screen</p>
+                      <p className="text-xs text-gray-500 mt-0.5">Export exactly what you see on screen</p>
                     </div>
-                    <div className="w-8 h-8 rounded-full bg-teal-100 flex items-center justify-center text-teal-600">
-                      <BarChart3 className="h-4 w-4" />
+                    <div className="w-10 h-10 rounded-xl bg-emerald-100 flex items-center justify-center text-emerald-600 group-hover:scale-105 transition-transform">
+                      <BarChart3 className="h-5 w-5" />
                     </div>
                   </button>
 
                   <button
                     onClick={() => void performExport('30days')}
-                    className="w-full flex items-center justify-between p-4 rounded-xl border border-gray-200 hover:border-teal-500 hover:bg-teal-50 transition-all text-left"
+                    className="w-full flex items-center justify-between p-4 rounded-xl border border-gray-100 hover:border-blue-200 hover:bg-blue-50/50 transition-all text-left group"
                     disabled={isExporting}
                   >
                     <div>
                       <p className="font-semibold text-gray-900 text-sm">Last 30 Days</p>
-                      <p className="text-xs text-gray-500">Full month report regardless of filters</p>
+                      <p className="text-xs text-gray-500 mt-0.5">Full month report regardless of filters</p>
                     </div>
-                    <div className="w-8 h-8 rounded-full bg-blue-100 flex items-center justify-center text-blue-600">
-                      <Clock className="h-4 w-4" />
+                    <div className="w-10 h-10 rounded-xl bg-blue-100 flex items-center justify-center text-blue-600 group-hover:scale-105 transition-transform">
+                      <Clock className="h-5 w-5" />
                     </div>
                   </button>
 
                   <button
                     onClick={() => void performExport('custom')}
-                    className="w-full flex items-center justify-between p-4 rounded-xl border border-gray-200 hover:border-teal-500 hover:bg-teal-50 transition-all text-left"
+                    className="w-full flex items-center justify-between p-4 rounded-xl border border-gray-100 hover:border-amber-200 hover:bg-amber-50/50 transition-all text-left group"
                     disabled={isExporting}
                   >
                     <div>
                       <p className="font-semibold text-gray-900 text-sm">Custom Range</p>
-                      <p className="text-xs text-gray-500">Select specific start and end dates</p>
+                      <p className="text-xs text-gray-500 mt-0.5">Select specific start and end dates</p>
                     </div>
-                    <div className="w-8 h-8 rounded-full bg-amber-100 flex items-center justify-center text-amber-600">
-                      <Download className="h-4 w-4" />
+                    <div className="w-10 h-10 rounded-xl bg-amber-100 flex items-center justify-center text-amber-600 group-hover:scale-105 transition-transform">
+                      <Download className="h-5 w-5" />
                     </div>
                   </button>
                 </div>
-                <div className="p-4 bg-gray-50 border-t border-gray-100 flex justify-end">
+                <div className="p-4 bg-gray-50/80 border-t border-gray-100 flex justify-end">
                   <button
                     onClick={() => setShowExportModal(false)}
-                    className="px-4 py-2 text-sm font-medium text-gray-600 hover:text-gray-900 transition-colors"
+                    className="px-4 py-2 text-sm font-semibold text-gray-600 hover:text-gray-900 transition-colors rounded-lg hover:bg-gray-100"
                   >
                     Cancel
                   </button>
@@ -1197,110 +1541,117 @@ export function AnalyticsPage() {
             </div>
           )}
 
-          {/* Per-staff: days present + hours per IST shift day */}
-          <HighlightSection id="attendance-by-day">
-            <div className="bg-white rounded-xl border border-gray-200 shadow-sm overflow-hidden mb-8">
-              <div className="px-6 py-4 border-b border-gray-100">
-                <h2 className="text-lg font-semibold text-gray-900">Attendance by day</h2>
-                <p className="text-sm text-gray-500">
-                  For each staff member: number of IST calendar days with a clock-in, total net hours in the selected
-                  period, and a day-by-day table (punch in / punch out in IST, hours after breaks). Uses the same period
-                  and search filter as the rest of this page.
-                </p>
-              </div>
-              <div className="divide-y divide-gray-100">
-                {(staffAnalytics as StaffAnalyticsRow[]).length === 0 ? (
-                  <p className="p-6 text-center text-gray-400">No staff in view</p>
-                ) : (
-                  (staffAnalytics as StaffAnalyticsRow[]).map((s) => {
-                    const rows = s.dailyAttendance ?? [];
-                    const daysPresent = s.daysPresent ?? 0;
-                    return (
-                      <details key={String(s.id ?? s.name)} className="group px-4 sm:px-6 py-2">
-                        <summary className="flex cursor-pointer list-none flex-wrap items-center justify-between gap-3 py-3 [&::-webkit-details-marker]:hidden">
-                          <div className="flex min-w-0 flex-1 flex-col gap-0.5 sm:flex-row sm:items-center sm:gap-3">
-                            <span className="font-medium text-gray-900 truncate">{s.name ?? '—'}</span>
-                            <span className="text-sm text-gray-500 truncate">{s.role ?? ''}</span>
+          {/* Per-staff attendance accordion */}
+          <ChartPanel
+            id="attendance-by-day-detail"
+            title="Attendance by day"
+            subtitle="For each staff member: IST calendar days with clock-in, total net hours, and day-by-day punch table. Uses the same period and search filter as the rest of this page."
+            bodyClassName="p-0"
+          >
+            <div className="divide-y divide-gray-50">
+              {(staffAnalytics as StaffAnalyticsRow[]).length === 0 ? (
+                <p className="p-8 text-center text-gray-400 text-sm">No staff in view</p>
+              ) : (
+                (staffAnalytics as StaffAnalyticsRow[]).map((s) => {
+                  const rows = s.dailyAttendance ?? [];
+                  const daysPresent = s.daysPresent ?? 0;
+                  return (
+                    <details key={String(s.id ?? s.name)} className="group px-4 sm:px-6 py-1">
+                      <summary className="flex cursor-pointer list-none flex-wrap items-center justify-between gap-3 py-4 rounded-xl hover:bg-slate-50/80 transition-colors [&::-webkit-details-marker]:hidden">
+                        <div className="flex min-w-0 flex-1 items-center gap-3">
+                          <div className="flex h-10 w-10 shrink-0 items-center justify-center rounded-xl bg-emerald-50 text-emerald-700 font-bold text-sm ring-1 ring-emerald-100">
+                            {(s.name ?? '?').charAt(0).toUpperCase()}
                           </div>
-                          <div className="flex shrink-0 items-center gap-3 text-sm">
-                            <span className="tabular-nums text-gray-700">
-                              <span className="font-semibold text-teal-800">{daysPresent}</span> day
-                              {daysPresent === 1 ? '' : 's'} present
-                            </span>
-                            <span className="tabular-nums font-medium text-gray-900">
-                              {(s.netHours ?? 0).toFixed(1)}h net
-                            </span>
-                            <span className="rounded border border-gray-200 bg-gray-50 px-2 py-0.5 text-xs text-gray-600 group-open:bg-teal-50 group-open:border-teal-200 group-open:text-teal-800">
-                              Details
-                            </span>
+                          <div className="min-w-0">
+                            <span className="font-semibold text-gray-900 truncate block">{s.name ?? '—'}</span>
+                            <span className="text-sm text-gray-500 truncate block">{s.role ?? ''}</span>
                           </div>
-                        </summary>
-                        <div className="pb-4 pt-0 overflow-x-auto">
-                          {rows.length === 0 ? (
-                            <p className="text-sm text-gray-500 py-2">No punch data in this period.</p>
-                          ) : (
-                            <table className="w-full min-w-[520px] text-sm border border-gray-100 rounded-lg overflow-hidden">
-                              <thead className="bg-gray-50 text-left text-xs font-semibold uppercase tracking-wide text-gray-600">
-                                <tr>
-                                  <th className="px-3 py-2">Shift date (IST)</th>
-                                  <th className="px-3 py-2">Punch in</th>
-                                  <th className="px-3 py-2">Punch out</th>
-                                  <th className="px-3 py-2 text-right">Net hours</th>
-                                </tr>
-                              </thead>
-                              <tbody className="divide-y divide-gray-100">
-                                {rows.map((r) => (
-                                  <tr key={r.date} className="bg-white hover:bg-gray-50/80">
-                                    <td className="px-3 py-2 font-medium text-gray-800 tabular-nums">{r.date}</td>
-                                    <td className="px-3 py-2 text-gray-700">{fmtIst(r.punchIn)}</td>
-                                    <td className="px-3 py-2 text-gray-700">{fmtIst(r.punchOut)}</td>
-                                    <td className="px-3 py-2 text-right tabular-nums font-medium text-gray-900">
-                                      {r.hours.toFixed(2)}
-                                    </td>
-                                  </tr>
-                                ))}
-                              </tbody>
-                            </table>
-                          )}
                         </div>
-                      </details>
-                    );
-                  })
-                )}
-              </div>
+                        <div className="flex shrink-0 items-center gap-3 text-sm">
+                          <span className="tabular-nums text-gray-600 hidden sm:inline">
+                            <span className="font-bold text-emerald-800">{daysPresent}</span> day{daysPresent === 1 ? '' : 's'}
+                          </span>
+                          <span className="tabular-nums font-bold text-gray-900">
+                            {(s.netHours ?? 0).toFixed(1)}h net
+                          </span>
+                          <span className="rounded-lg border border-gray-200 bg-white px-2.5 py-1 text-xs font-semibold text-gray-600 group-open:bg-emerald-50 group-open:border-emerald-200 group-open:text-emerald-800 transition-colors">
+                            Details
+                          </span>
+                        </div>
+                      </summary>
+                      <div className="pb-5 pt-0 overflow-x-auto">
+                        {rows.length === 0 ? (
+                          <p className="text-sm text-gray-500 py-2 px-1">No punch data in this period.</p>
+                        ) : (
+                          <table className="w-full min-w-[520px] text-sm rounded-xl overflow-hidden ring-1 ring-gray-100">
+                            <thead className="bg-slate-50/80 text-left text-xs font-bold uppercase tracking-wide text-gray-600">
+                              <tr>
+                                <th className="px-4 py-2.5">Shift date (IST)</th>
+                                <th className="px-4 py-2.5">Punch in</th>
+                                <th className="px-4 py-2.5">Punch out</th>
+                                <th className="px-4 py-2.5 text-right">Net hours</th>
+                              </tr>
+                            </thead>
+                            <tbody className="divide-y divide-gray-50">
+                              {rows.map((r) => (
+                                <tr key={r.date} className="bg-white hover:bg-emerald-50/30 transition-colors">
+                                  <td className="px-4 py-2.5 font-medium text-gray-800 tabular-nums">{r.date}</td>
+                                  <td className="px-4 py-2.5 text-gray-600">{fmtIst(r.punchIn)}</td>
+                                  <td className="px-4 py-2.5 text-gray-600">{fmtIst(r.punchOut)}</td>
+                                  <td className="px-4 py-2.5 text-right tabular-nums font-semibold text-emerald-700">
+                                    {r.hours.toFixed(2)}
+                                  </td>
+                                </tr>
+                              ))}
+                            </tbody>
+                          </table>
+                        )}
+                      </div>
+                    </details>
+                  );
+                })
+              )}
             </div>
-          </HighlightSection>
+          </ChartPanel>
 
-          {/* Web-only: Quick insights */}
-          <div className="bg-gradient-to-r from-teal-50 to-cyan-50 rounded-xl border border-teal-100 p-6">
-            <h2 className="text-lg font-semibold text-gray-900 mb-4">Insights for owners</h2>
-            <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-4 gap-4">
-              <div className="bg-white/80 rounded-lg p-4">
-                <p className="text-sm font-medium text-teal-800">Shift coverage</p>
-                <p className="text-sm text-gray-600 mt-1">
-                  {shiftDistribution.find((s: { shift: string }) => s.shift === 'Day')?.count ?? 0} day staff,{' '}
-                  {shiftDistribution.find((s: { shift: string }) => s.shift === 'Night')?.count ?? 0} night staff
-                </p>
+          {/* Quick insights */}
+          <div className={`${CARD_SHELL} overflow-hidden`}>
+            <div className="relative px-6 py-6 sm:px-8 bg-gradient-to-br from-emerald-600 via-emerald-700 to-teal-800 text-white">
+              <div className="absolute inset-0 bg-[radial-gradient(ellipse_at_bottom_left,_var(--tw-gradient-stops))] from-white/10 via-transparent to-transparent pointer-events-none" />
+              <div className="relative flex items-center gap-3 mb-5">
+                <div className="flex h-10 w-10 items-center justify-center rounded-xl bg-white/15 ring-1 ring-white/20">
+                  <Sparkles className="h-5 w-5" />
+                </div>
+                <h2 className="text-lg font-bold tracking-tight">Insights for owners</h2>
               </div>
-              <div className="bg-white/80 rounded-lg p-4">
-                <p className="text-sm font-medium text-teal-800">Overtime</p>
-                <p className="text-sm text-gray-600 mt-1">
-                  {staffAnalytics.filter((s: { status?: string }) => s.status === 'overtime').length} staff over target hours
-                </p>
-              </div>
-              <div className="bg-white/80 rounded-lg p-4">
-                <p className="text-sm font-medium text-teal-800">Under hours</p>
-                <p className="text-sm text-gray-600 mt-1">
-                  {staffAnalytics.filter((s: { status?: string }) => s.status === 'under').length} staff below target
-                </p>
-              </div>
-              <div className="bg-white/80 rounded-lg p-4">
-                <p className="text-sm font-medium text-teal-800">Export</p>
-                <p className="text-sm text-gray-600 mt-1">Download CSV for accounting or payroll</p>
+              <div className="relative grid grid-cols-1 md:grid-cols-2 lg:grid-cols-4 gap-4">
+                <div className="rounded-xl bg-white/10 backdrop-blur-sm p-4 ring-1 ring-white/15 hover:bg-white/15 transition-colors">
+                  <p className="text-sm font-bold text-emerald-100">Shift coverage</p>
+                  <p className="text-sm text-white/90 mt-1.5 leading-relaxed">
+                    {shiftDistribution.find((s: { shift: string }) => s.shift === 'Day')?.count ?? 0} day staff,{' '}
+                    {shiftDistribution.find((s: { shift: string }) => s.shift === 'Night')?.count ?? 0} night staff
+                  </p>
+                </div>
+                <div className="rounded-xl bg-white/10 backdrop-blur-sm p-4 ring-1 ring-white/15 hover:bg-white/15 transition-colors">
+                  <p className="text-sm font-bold text-emerald-100">Overtime</p>
+                  <p className="text-sm text-white/90 mt-1.5 leading-relaxed">
+                    {staffAnalytics.filter((s: { status?: string }) => s.status === 'overtime').length} staff over target hours
+                  </p>
+                </div>
+                <div className="rounded-xl bg-white/10 backdrop-blur-sm p-4 ring-1 ring-white/15 hover:bg-white/15 transition-colors">
+                  <p className="text-sm font-bold text-emerald-100">Under hours</p>
+                  <p className="text-sm text-white/90 mt-1.5 leading-relaxed">
+                    {staffAnalytics.filter((s: { status?: string }) => s.status === 'under').length} staff below target
+                  </p>
+                </div>
+                <div className="rounded-xl bg-white/10 backdrop-blur-sm p-4 ring-1 ring-white/15 hover:bg-white/15 transition-colors">
+                  <p className="text-sm font-bold text-emerald-100">Export</p>
+                  <p className="text-sm text-white/90 mt-1.5 leading-relaxed">Download CSV for accounting or payroll</p>
+                </div>
               </div>
             </div>
           </div>
-        </>
+        </div>
       )}
     </div>
   );

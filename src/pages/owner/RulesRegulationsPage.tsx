@@ -109,8 +109,8 @@ export function RulesRegulationsPage() {
         <div className="space-y-4">
           <div className="rounded-2xl border border-gray-200 bg-gray-50/80 px-4 py-3">
             <p className="text-sm text-gray-600">
-              Write clear, outlet-specific rules (dress code, break policy, safety, etc.). Use bold, lists, and
-              underline — staff see formatted text in the mobile app.
+              Write clear, outlet-specific rules (dress code, break policy, safety, etc.). Use headings (H1–H5),
+              bold, links, strikethrough, and lists — click the same heading again to return to normal text.
             </p>
           </div>
           <RichTextEditor

@@ -148,6 +148,11 @@ export const employeeApi = {
     return data;
   },
 
+  migrateOutlet: async (employeeId: string, newOutletId: string) => {
+    const { data } = await api.post(`/employee/staff/${employeeId}/migrate-outlet`, { newOutletId });
+    return data;
+  },
+
   getDocuments: async (employeeId: string) => {
     const { data } = await api.get(`/employee/${employeeId}/documents`);
     return data;

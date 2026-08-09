@@ -17,7 +17,7 @@ import { SearchableSelect, type SearchableSelectOption } from '@/components/Sear
 import { TimePickerField } from '@/components/TimePickerField';
 import { zPhone10 } from '@/lib/phoneValidation';
 import { useDebouncedValue } from '@/hooks/useDebouncedValue';
-import { UserPlus, Pencil, Trash2, FileText, ExternalLink, Plus, Shield, Briefcase, X, Loader2, Info, Building2 } from 'lucide-react';
+import { UserPlus, Pencil, Trash2, FileText, ExternalLink, Plus, Shield, Briefcase, X, Loader2, Info, Building2, ArrowRightLeft } from 'lucide-react';
 import { StaffNotesPanel } from '@/components/StaffNotesPanel';
 import { StaffMultiOutletSection } from '@/components/StaffMultiOutletSection';
 
@@ -201,6 +201,8 @@ export function StaffPage() {
     enabled: boolean;
     ids: string[];
   }>({ enabled: false, ids: [] });
+  const [transferOutletId, setTransferOutletId] = useState('');
+  const [transferError, setTransferError] = useState<string | null>(null);
   const [editMultiOutletError, setEditMultiOutletError] = useState<string | null>(null);
   const [editActiveTab, setEditActiveTab] = useState<'basic' | 'personal' | 'financial' | 'medical' | 'notes'>('basic');
   const [showEditPassword, setShowEditPassword] = useState(false);
@@ -321,6 +323,26 @@ export function StaffPage() {
     },
     onError: (err) => {
       console.error('[updateMutation] failed:', err);
+    },
+  });
+
+  const transferMutation = useMutation({
+    mutationFn: ({ employeeId, newOutletId }: { employeeId: string; newOutletId: string }) =>
+      employeeApi.migrateOutlet(employeeId, newOutletId),
+    onSuccess: async () => {
+      await Promise.all([
+        queryClient.invalidateQueries({ queryKey: ['my-employees'] }),
+        queryClient.invalidateQueries({ queryKey: ['hierarchy'] }),
+        queryClient.invalidateQueries({ queryKey: ['available-roles'] }),
+        queryClient.invalidateQueries({ queryKey: ['my-employees-suggestions'] }),
+      ]);
+      setTransferOutletId('');
+      setTransferError(null);
+      setEditing(null);
+      editForm.reset();
+    },
+    onError: (err) => {
+      setTransferError(getApiErrorMessage(err) || 'Could not transfer staff to the selected outlet.');
     },
   });
 
@@ -573,6 +595,8 @@ export function StaffPage() {
       enabled: multiEnabled,
       ids: multiIds.length > 0 ? multiIds : [String(primaryOutletId)],
     });
+    setTransferOutletId('');
+    setTransferError(null);
     editForm.reset({
       name: e.name,
       // Always normalise to last 10 digits — backend may store with country code prefix
@@ -1175,8 +1199,82 @@ export function StaffPage() {
                   permissionMode={multiOutletPermMode}
                   onPermissionModeChange={setMultiOutletPermMode}
                   showPermissionChoice={multiOutletChanged}
-                  disabled={updateMutation.isPending}
+                  disabled={updateMutation.isPending || transferMutation.isPending}
                 />
+
+                <section className="rounded-xl border border-amber-100 bg-amber-50/40 p-4">
+                  <h3 className="text-sm font-semibold text-gray-800 mb-1 flex items-center gap-2">
+                    <ArrowRightLeft className="h-4 w-4 text-amber-600" />
+                    Transfer to another outlet
+                  </h3>
+                  <p className="text-xs text-gray-500 mb-3">
+                    Moves this staff member&apos;s primary outlet. Their role is reassigned at the new outlet,
+                    reports-to is cleared, and today&apos;s tasks are recreated there.
+                  </p>
+                  {transferError ? (
+                    <p className="mb-3 text-sm text-red-600 bg-red-50 border border-red-100 rounded-lg px-3 py-2">
+                      {transferError}
+                    </p>
+                  ) : null}
+                  <div className="flex flex-col sm:flex-row gap-3">
+                    <select
+                      value={transferOutletId}
+                      onChange={(e) => {
+                        setTransferOutletId(e.target.value);
+                        setTransferError(null);
+                      }}
+                      disabled={transferMutation.isPending}
+                      className="flex-1 px-4 py-2.5 rounded-xl border border-amber-200 bg-white focus:ring-2 focus:ring-amber-500/20 focus:border-amber-400 text-sm"
+                    >
+                      <option value="">Select destination outlet…</option>
+                      {(ownerOutlets as { _id: string; name: string }[])
+                        .filter((outlet) => String(outlet._id) !== String(editingPrimaryOutletId))
+                        .map((outlet) => (
+                          <option key={outlet._id} value={outlet._id}>
+                            {outlet.name}
+                          </option>
+                        ))}
+                    </select>
+                    <button
+                      type="button"
+                      disabled={!transferOutletId || transferMutation.isPending}
+                      onClick={() => {
+                        const currentName =
+                          (ownerOutlets as { _id: string; name: string }[]).find(
+                            (o) => String(o._id) === String(editingPrimaryOutletId)
+                          )?.name || 'current outlet';
+                        const nextName =
+                          (ownerOutlets as { _id: string; name: string }[]).find(
+                            (o) => String(o._id) === transferOutletId
+                          )?.name || 'the selected outlet';
+                        if (
+                          !window.confirm(
+                            `Transfer ${editing.name} from ${currentName} to ${nextName}? This changes their primary outlet.`
+                          )
+                        ) {
+                          return;
+                        }
+                        transferMutation.mutate({
+                          employeeId: editing._id,
+                          newOutletId: transferOutletId,
+                        });
+                      }}
+                      className="inline-flex items-center justify-center gap-2 px-4 py-2.5 rounded-xl bg-amber-600 text-white text-sm font-semibold hover:bg-amber-700 disabled:opacity-50 whitespace-nowrap"
+                    >
+                      {transferMutation.isPending ? (
+                        <>
+                          <Loader2 className="h-4 w-4 animate-spin" />
+                          Transferring…
+                        </>
+                      ) : (
+                        <>
+                          <ArrowRightLeft className="h-4 w-4" />
+                          Transfer staff
+                        </>
+                      )}
+                    </button>
+                  </div>
+                </section>
 
                 <section>
                   <h3 className="text-sm font-semibold text-gray-700 mb-3 flex items-center gap-2">

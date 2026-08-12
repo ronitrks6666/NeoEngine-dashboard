@@ -235,6 +235,8 @@ export const employeeApi = {
     outletId: string;
     punchInTime?: string;
     minHoursPerDay?: number;
+    breakStartTime?: string | null;
+    breakEndTime?: string | null;
     applyMode?: 'set_all_staff' | 'outlet_default_only';
   }) => {
     const { data } = await api.put('/employee/duty-roster/bulk', payload);
@@ -246,6 +248,8 @@ export const employeeApi = {
     parentRoleId: string;
     punchInTime?: string | null;
     minHoursPerDay?: number;
+    breakStartTime?: string | null;
+    breakEndTime?: string | null;
   }) => {
     const { data } = await api.put('/employee/duty-roster/role-schedule', payload);
     return data;
@@ -278,6 +282,10 @@ export type DutyRosterRoleSchedule = {
   parentRoleName: string;
   punchInTime: string | null;
   minHoursPerDay: number | null;
+  breakStartTime?: string | null;
+  breakEndTime?: string | null;
+  breakStartMixed?: boolean;
+  breakEndMixed?: boolean;
   punchInMixed?: boolean;
   hoursMixed?: boolean;
   slotCount: number;
@@ -295,6 +303,11 @@ export type DutyRosterRow = {
   punchInTime: string | null;
   minHoursPerDay: number | null;
   weeklyOffDays: string[];
+  breakStartTime?: string | null;
+  breakEndTime?: string | null;
+  effectiveBreakStartTime?: string | null;
+  effectiveBreakEndTime?: string | null;
+  breakSource?: 'employee' | 'role' | 'outlet' | 'none';
   effectivePunchInTime: string;
   effectiveMinHoursPerDay: number;
   punchInSource: 'employee' | 'role' | 'outlet';

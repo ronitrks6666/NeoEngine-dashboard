@@ -26,7 +26,7 @@ const WEEKDAYS = [
 
 const MAX_WEEKLY_OFF = 3;
 
-type EditModal = 'time' | 'hours' | 'role' | 'weeklyOff' | null;
+type EditModal = 'time' | 'hours' | 'break' | 'role' | 'weeklyOff' | null;
 type BulkApplyMode = 'set_all_staff' | 'outlet_default_only';
 
 function normalizePunchTime(raw: string): string | null {
@@ -35,6 +35,18 @@ function normalizePunchTime(raw: string): string | null {
 
 function sortWeekdays(days: string[]) {
   return WEEKDAYS.filter((d) => days.includes(d));
+}
+
+function breakSourceLabel(source?: DutyRosterRow['breakSource']) {
+  if (source === 'role') return 'From role default';
+  if (source === 'outlet') return 'From outlet default';
+  if (source === 'employee') return 'Custom for this staff';
+  return 'Not configured';
+}
+
+function formatBreakWindow(start?: string | null, end?: string | null) {
+  if (!start || !end) return 'Not set';
+  return `${formatRosterTime(start)} – ${formatRosterTime(end)}`;
 }
 
 function sourceLabel(source: 'employee' | 'role' | 'outlet') {
@@ -101,18 +113,23 @@ export function DutyRosterPage() {
   const [timeUsesDefault, setTimeUsesDefault] = useState(true);
   const [hoursDraft, setHoursDraft] = useState('');
   const [hoursUsesDefault, setHoursUsesDefault] = useState(true);
+  const [breakUsesDefault, setBreakUsesDefault] = useState(true);
+  const [breakStartDraft, setBreakStartDraft] = useState('');
+  const [breakEndDraft, setBreakEndDraft] = useState('');
   const [weeklyOffDraft, setWeeklyOffDraft] = useState<string[]>([]);
   const [saveError, setSaveError] = useState<string | null>(null);
   const [bulkPanelOpen, setBulkPanelOpen] = useState(false);
   const [bulkPunch, setBulkPunch] = useState('');
   const [bulkHours, setBulkHours] = useState('');
+  const [bulkBreakStart, setBulkBreakStart] = useState('');
+  const [bulkBreakEnd, setBulkBreakEnd] = useState('');
   const [bulkError, setBulkError] = useState<string | null>(null);
   const [bulkSuccess, setBulkSuccess] = useState<string | null>(null);
   const [bulkConfirmMode, setBulkConfirmMode] = useState<BulkApplyMode | null>(null);
   const [rolePanelOpen, setRolePanelOpen] = useState(true);
   const [expandedRoleId, setExpandedRoleId] = useState<string | null>(null);
   const [roleDrafts, setRoleDrafts] = useState<
-    Record<string, { punchInTime: string; minHoursPerDay: string }>
+    Record<string, { punchInTime: string; minHoursPerDay: string; breakStartTime: string; breakEndTime: string }>
   >({});
   const [roleError, setRoleError] = useState<string | null>(null);
   const [roleSuccess, setRoleSuccess] = useState<string | null>(null);
@@ -130,7 +147,12 @@ export function DutyRosterPage() {
         roster: (payload?.roster ?? []) as DutyRosterRow[],
         roleSchedules: (payload?.roleSchedules ?? []) as DutyRosterRoleSchedule[],
         outletDefaults: payload?.outletDefaults as
-          | { punchInTime: string; minHoursPerDay: number }
+          | {
+              punchInTime: string;
+              minHoursPerDay: number;
+              breakStartTime?: string | null;
+              breakEndTime?: string | null;
+            }
           | undefined,
         outletName: payload?.outletName as string | undefined,
       };
@@ -165,6 +187,8 @@ export function DutyRosterPage() {
       outletId: string;
       punchInTime: string;
       minHoursPerDay: number;
+      breakStartTime?: string | null;
+      breakEndTime?: string | null;
       applyMode: BulkApplyMode;
     }) => employeeApi.applyDutyRosterBulk(payload),
     onSuccess: (_data, variables) => {
@@ -189,6 +213,8 @@ export function DutyRosterPage() {
       parentRoleId: string;
       punchInTime: string;
       minHoursPerDay: number;
+      breakStartTime?: string | null;
+      breakEndTime?: string | null;
     }) => employeeApi.applyDutyRosterRoleSchedule(payload),
     onSuccess: (_data, variables) => {
       setRoleError(null);
@@ -244,6 +270,18 @@ export function DutyRosterPage() {
     setSaveError(null);
   };
 
+  const openBreakModal = (row: DutyRosterRow) => {
+    const usesDefault = row.breakStartTime == null && row.breakEndTime == null;
+    setEditRow(row);
+    setBreakUsesDefault(usesDefault);
+    setBreakStartDraft(
+      usesDefault ? row.effectiveBreakStartTime || '' : row.breakStartTime || ''
+    );
+    setBreakEndDraft(usesDefault ? row.effectiveBreakEndTime || '' : row.breakEndTime || '');
+    setEditModal('break');
+    setSaveError(null);
+  };
+
   const openRoleModal = (row: DutyRosterRow) => {
     setEditRow(row);
     setEditModal('role');
@@ -280,6 +318,27 @@ export function DutyRosterPage() {
     });
   };
 
+  const saveBreak = () => {
+    if (!editRow) return;
+    if (breakUsesDefault) {
+      updateMutation.mutate({
+        id: editRow.id,
+        payload: { breakStartTime: null, breakEndTime: null },
+      });
+      return;
+    }
+    const start = normalizePunchTime(breakStartDraft);
+    const end = normalizePunchTime(breakEndDraft);
+    if (!start || !end) {
+      setSaveError('Enter valid break-in and break-out times (HH:mm)');
+      return;
+    }
+    updateMutation.mutate({
+      id: editRow.id,
+      payload: { breakStartTime: start, breakEndTime: end },
+    });
+  };
+
   const saveRole = (parentRoleId: string) => {
     if (!editRow) return;
     if (String(parentRoleId) === String(editRow.parentRoleId ?? '')) {
@@ -313,6 +372,8 @@ export function DutyRosterPage() {
     if (!outletDefaults) return;
     setBulkPunch(outletDefaults.punchInTime);
     setBulkHours(String(outletDefaults.minHoursPerDay));
+    setBulkBreakStart(outletDefaults.breakStartTime || '');
+    setBulkBreakEnd(outletDefaults.breakEndTime || '');
   }, [outletDefaults]);
 
   useEffect(() => {
@@ -324,6 +385,8 @@ export function DutyRosterPage() {
         next[role.parentRoleId] = {
           punchInTime: role.punchInTime || outletDefaults.punchInTime,
           minHoursPerDay: String(role.minHoursPerDay ?? outletDefaults.minHoursPerDay),
+          breakStartTime: role.breakStartTime || outletDefaults.breakStartTime || '',
+          breakEndTime: role.breakEndTime || outletDefaults.breakEndTime || '',
         };
       }
       return next;
@@ -345,6 +408,17 @@ export function DutyRosterPage() {
       setRoleError('Enter a valid clock-in time (e.g. 06:00)');
       return;
     }
+    let normalizedBreakStart: string | null = null;
+    let normalizedBreakEnd: string | null = null;
+    const hasBreakDraft = draft.breakStartTime.trim() || draft.breakEndTime.trim();
+    if (hasBreakDraft) {
+      normalizedBreakStart = normalizePunchTime(draft.breakStartTime);
+      normalizedBreakEnd = normalizePunchTime(draft.breakEndTime);
+      if (!normalizedBreakStart || !normalizedBreakEnd) {
+        setRoleError('Enter valid break-in and break-out times, or leave both empty');
+        return;
+      }
+    }
     setRoleError(null);
     setSavingRoleId(parentRoleId);
     roleScheduleMutation.mutate({
@@ -352,6 +426,8 @@ export function DutyRosterPage() {
       parentRoleId,
       punchInTime: normalizedPunch,
       minHoursPerDay: hours,
+      breakStartTime: hasBreakDraft ? normalizedBreakStart : null,
+      breakEndTime: hasBreakDraft ? normalizedBreakEnd : null,
     });
   };
 
@@ -367,6 +443,17 @@ export function DutyRosterPage() {
       setBulkError('Enter a valid coming time (e.g. 07:15)');
       return;
     }
+    let normalizedBreakStart: string | null | undefined;
+    let normalizedBreakEnd: string | null | undefined;
+    const hasBreak = bulkBreakStart.trim() || bulkBreakEnd.trim();
+    if (hasBreak) {
+      normalizedBreakStart = normalizePunchTime(bulkBreakStart);
+      normalizedBreakEnd = normalizePunchTime(bulkBreakEnd);
+      if (!normalizedBreakStart || !normalizedBreakEnd) {
+        setBulkError('Enter valid break-in and break-out times, or leave both empty');
+        return;
+      }
+    }
     setBulkError(null);
     setBulkConfirmMode(mode);
   };
@@ -376,10 +463,14 @@ export function DutyRosterPage() {
     const hours = parseInt(bulkHours, 10);
     const normalizedPunch = normalizePunchTime(bulkPunch);
     if (!normalizedPunch || isNaN(hours)) return;
+    const hasBreak = bulkBreakStart.trim() || bulkBreakEnd.trim();
+    const breakStart = hasBreak ? normalizePunchTime(bulkBreakStart) : undefined;
+    const breakEnd = hasBreak ? normalizePunchTime(bulkBreakEnd) : undefined;
     bulkMutation.mutate({
       outletId: selectedOutletId,
       punchInTime: normalizedPunch,
       minHoursPerDay: hours,
+      ...(hasBreak ? { breakStartTime: breakStart, breakEndTime: breakEnd } : {}),
       applyMode: bulkConfirmMode,
     });
   };
@@ -408,12 +499,15 @@ export function DutyRosterPage() {
             Duty Roster
           </h1>
           <p className="text-gray-500 mt-1">
-            Staff shift times, hours, roles, and weekly off
+            Staff shift times, hours, break window, roles, and weekly off
             {outletDefaults ? (
               <span className="text-gray-400">
                 {' '}
                 · Outlet default: {formatRosterTime(outletDefaults.punchInTime)} ·{' '}
                 {outletDefaults.minHoursPerDay}h
+                {outletDefaults.breakStartTime && outletDefaults.breakEndTime
+                  ? ` · Break ${formatRosterTime(outletDefaults.breakStartTime)}–${formatRosterTime(outletDefaults.breakEndTime)}`
+                  : ''}
               </span>
             ) : null}
           </p>
@@ -434,7 +528,8 @@ export function DutyRosterPage() {
           Tap any white box in the table to change that value.
         </p>
         <p className="text-xs text-emerald-700/90 mt-1">
-          Set role clock-in times above first. Staff inherit their role until you set a custom time on that person.
+          Set role clock-in times above first. Staff inherit their role until you set a custom time on that person. Break reminders go to staff 10 minutes before break-in and break-out.
+          Break reminders go to staff 10 minutes before break-in and break-out (when punched in).
         </p>
       </div>
 
@@ -469,6 +564,8 @@ export function DutyRosterPage() {
                   minHoursPerDay: String(
                     role.minHoursPerDay ?? outletDefaults?.minHoursPerDay ?? 8
                   ),
+                  breakStartTime: role.breakStartTime || outletDefaults?.breakStartTime || '',
+                  breakEndTime: role.breakEndTime || outletDefaults?.breakEndTime || '',
                 };
                 const expanded = expandedRoleId === role.parentRoleId;
                 const summaryTime = formatRosterTime(
@@ -544,6 +641,38 @@ export function DutyRosterPage() {
                                 }))
                               }
                               className="w-full px-4 py-2.5 rounded-xl border border-gray-200 text-lg font-semibold tabular-nums bg-white"
+                            />
+                          </div>
+                          <div>
+                            <label className="mb-1.5 block text-sm font-medium text-gray-700">
+                              Break-in time
+                            </label>
+                            <SmartTimeInput
+                              value={draft.breakStartTime}
+                              onChange={(v) =>
+                                setRoleDrafts((prev) => ({
+                                  ...prev,
+                                  [role.parentRoleId]: { ...draft, breakStartTime: v },
+                                }))
+                              }
+                              placeholder="13:00"
+                              ariaLabel={`${role.parentRoleName} break start`}
+                            />
+                          </div>
+                          <div>
+                            <label className="mb-1.5 block text-sm font-medium text-gray-700">
+                              Break-out time
+                            </label>
+                            <SmartTimeInput
+                              value={draft.breakEndTime}
+                              onChange={(v) =>
+                                setRoleDrafts((prev) => ({
+                                  ...prev,
+                                  [role.parentRoleId]: { ...draft, breakEndTime: v },
+                                }))
+                              }
+                              placeholder="13:30"
+                              ariaLabel={`${role.parentRoleName} break end`}
                             />
                           </div>
                         </div>
@@ -627,6 +756,28 @@ export function DutyRosterPage() {
                     className="w-full px-4 py-2.5 rounded-xl border border-gray-200 text-lg font-semibold tabular-nums bg-white"
                   />
                 </div>
+                <div>
+                  <label className="mb-1.5 block text-sm font-medium text-gray-700">
+                    Break-in time
+                  </label>
+                  <SmartTimeInput
+                    value={bulkBreakStart}
+                    onChange={setBulkBreakStart}
+                    placeholder="13:00"
+                    ariaLabel="Team break start"
+                  />
+                </div>
+                <div>
+                  <label className="mb-1.5 block text-sm font-medium text-gray-700">
+                    Break-out time
+                  </label>
+                  <SmartTimeInput
+                    value={bulkBreakEnd}
+                    onChange={setBulkBreakEnd}
+                    placeholder="13:45"
+                    ariaLabel="Team break end"
+                  />
+                </div>
               </div>
 
               <div className="flex flex-col sm:flex-row gap-3">
@@ -677,6 +828,7 @@ export function DutyRosterPage() {
                   <th className="px-4 py-3">Staff</th>
                   <th className="px-4 py-3 min-w-[10rem]">Coming time</th>
                   <th className="px-4 py-3 min-w-[9rem]">Min hours</th>
+                  <th className="px-4 py-3 min-w-[11rem]">Break window</th>
                   <th className="px-4 py-3">Master role</th>
                   <th className="px-4 py-3">Weekly off</th>
                 </tr>
@@ -709,6 +861,18 @@ export function DutyRosterPage() {
                           value={`${hoursDisplay}h`}
                           hint={sourceLabel(row.hoursSource)}
                           onClick={() => openHoursModal(row)}
+                          disabled={saving}
+                        />
+                      </td>
+                      <td className="px-4 py-4">
+                        <EditableCell
+                          label="Break"
+                          value={formatBreakWindow(
+                            row.breakStartTime ?? row.effectiveBreakStartTime,
+                            row.breakEndTime ?? row.effectiveBreakEndTime
+                          )}
+                          hint={breakSourceLabel(row.breakSource)}
+                          onClick={() => openBreakModal(row)}
                           disabled={saving}
                         />
                       </td>
@@ -793,6 +957,7 @@ export function DutyRosterPage() {
                 <h2 className="font-semibold text-gray-900">
                   {editModal === 'time' && 'Coming time'}
                   {editModal === 'hours' && 'Min hours / day'}
+                  {editModal === 'break' && 'Break window'}
                   {editModal === 'role' && 'Master role'}
                   {editModal === 'weeklyOff' && 'Weekly off'}
                 </h2>
@@ -868,6 +1033,62 @@ export function DutyRosterPage() {
                     type="button"
                     disabled={updateMutation.isPending}
                     onClick={saveHours}
+                    className="w-full py-2.5 rounded-xl bg-emerald-600 text-white font-semibold hover:bg-emerald-700 disabled:opacity-50"
+                  >
+                    {updateMutation.isPending ? 'Saving…' : 'Save'}
+                  </button>
+                </>
+              )}
+
+              {editModal === 'break' && (
+                <>
+                  <p className="text-xs text-gray-500 rounded-lg bg-amber-50 border border-amber-100 px-3 py-2">
+                    Staff receive mobile reminders 10 minutes before break-in and break-out when
+                    punched in for the day.
+                  </p>
+                  <label className="flex items-center gap-2 text-sm font-medium text-gray-700 rounded-lg bg-emerald-50 border border-emerald-100 px-3 py-2">
+                    <input
+                      type="checkbox"
+                      checked={breakUsesDefault}
+                      onChange={(e) => setBreakUsesDefault(e.target.checked)}
+                    />
+                    Use outlet/role default (
+                    {formatBreakWindow(
+                      editRow.effectiveBreakStartTime,
+                      editRow.effectiveBreakEndTime
+                    )}
+                    )
+                  </label>
+                  {!breakUsesDefault && (
+                    <div className="grid gap-3 sm:grid-cols-2">
+                      <div>
+                        <label className="mb-1.5 block text-sm font-medium text-gray-700">
+                          Break-in
+                        </label>
+                        <SmartTimeInput
+                          value={breakStartDraft}
+                          onChange={setBreakStartDraft}
+                          placeholder="13:00"
+                          ariaLabel="Break start"
+                        />
+                      </div>
+                      <div>
+                        <label className="mb-1.5 block text-sm font-medium text-gray-700">
+                          Break-out
+                        </label>
+                        <SmartTimeInput
+                          value={breakEndDraft}
+                          onChange={setBreakEndDraft}
+                          placeholder="13:45"
+                          ariaLabel="Break end"
+                        />
+                      </div>
+                    </div>
+                  )}
+                  <button
+                    type="button"
+                    disabled={updateMutation.isPending}
+                    onClick={saveBreak}
                     className="w-full py-2.5 rounded-xl bg-emerald-600 text-white font-semibold hover:bg-emerald-700 disabled:opacity-50"
                   >
                     {updateMutation.isPending ? 'Saving…' : 'Save'}

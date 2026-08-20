@@ -7,6 +7,7 @@ import { getApiErrorMessage } from '@/api/auth';
 import { LoadingSpinner } from '@/components/LoadingSpinner';
 import { ListSearchBar } from '@/components/ListSearchBar';
 import { filterVendorTypes } from '@/lib/filterVendors';
+import { CopyVendorsToOutletModal } from '@/components/CopyVendorsToOutletModal';
 import {
   normalizeIndianPhoneInput,
   normalizePhonesForSave,
@@ -31,6 +32,7 @@ import {
   Pencil,
   Trash2,
   UserPlus,
+  Copy,
 } from 'lucide-react';
 
 const ICON_OPTIONS: Array<{ key: VendorIconKey; label: string; Icon: typeof Wrench; bg: string; fg: string }> = [
@@ -117,6 +119,7 @@ export function VendorsPage() {
   const [vendorNote, setVendorNote] = useState('');
   const [phones, setPhones] = useState<string[]>(['']);
   const [deleteTarget, setDeleteTarget] = useState<DeleteTarget | null>(null);
+  const [showCopyModal, setShowCopyModal] = useState(false);
 
   const canEdit = role === 'OWNER' || !!featurePermissions?.webVendors || !!featurePermissions?.managerVendors;
 
@@ -270,8 +273,8 @@ export function VendorsPage() {
 
   return (
     <div className="p-6 max-w-5xl mx-auto">
-      <div className="flex flex-col gap-4 sm:flex-row sm:items-start sm:justify-between mb-6">
-        <div>
+      <div className="flex flex-col gap-4 sm:flex-row sm:items-center sm:justify-between mb-6">
+        <div className="min-w-0 flex-1">
           <h1 className="text-2xl font-bold text-gray-900 flex items-center gap-2">
             <span className="inline-flex h-10 w-10 items-center justify-center rounded-xl bg-emerald-100 text-emerald-700">
               <Phone className="h-5 w-5" />
@@ -283,13 +286,26 @@ export function VendorsPage() {
           </p>
         </div>
         {canEdit && (
-          <button
-            type="button"
-            onClick={openTypeCreate}
-            className="px-4 py-2.5 bg-emerald-600 text-white rounded-xl font-medium flex items-center gap-2 self-start shadow-sm hover:bg-emerald-700"
-          >
-            <Plus className="h-4 w-4" /> Add vendor type
-          </button>
+          <div className="flex shrink-0 flex-row flex-wrap items-center justify-start gap-2 sm:justify-end">
+            {totalContacts > 0 ? (
+              <button
+                type="button"
+                onClick={() => setShowCopyModal(true)}
+                className="inline-flex items-center gap-2 whitespace-nowrap rounded-xl border border-emerald-200 bg-white px-4 py-2.5 text-sm font-medium text-emerald-700 shadow-sm hover:bg-emerald-50"
+              >
+                <Copy className="h-4 w-4 shrink-0" />
+                <span>Copy to outlet</span>
+              </button>
+            ) : null}
+            <button
+              type="button"
+              onClick={openTypeCreate}
+              className="inline-flex items-center gap-2 whitespace-nowrap rounded-xl bg-emerald-600 px-4 py-2.5 text-sm font-medium text-white shadow-sm hover:bg-emerald-700"
+            >
+              <Plus className="h-4 w-4 shrink-0" />
+              <span>Add vendor type</span>
+            </button>
+          </div>
         )}
       </div>
 
@@ -699,6 +715,14 @@ export function VendorsPage() {
           </div>
         </div>
       )}
+
+      <CopyVendorsToOutletModal
+        open={showCopyModal}
+        sourceOutletId={selectedOutletId}
+        types={allTypes}
+        onClose={() => setShowCopyModal(false)}
+        onSuccess={invalidate}
+      />
     </div>
   );
 }

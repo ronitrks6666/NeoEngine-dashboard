@@ -71,4 +71,29 @@ export const vendorApi = {
     const { data } = await api.delete(`/vendor/contacts/${contactId}`);
     return data;
   },
+
+  async copyToOutlet(
+    sourceOutletId: string,
+    payload: { targetOutletId: string; contactIds: string[] }
+  ) {
+    const { data } = await api.post(`/vendor/outlet/${sourceOutletId}/copy-to-outlet`, payload);
+    return data as {
+      success: boolean;
+      message?: string;
+      data?: {
+        summary: {
+          requested: number;
+          copied: number;
+          skipped: number;
+          typesCreated: number;
+        };
+        rows: Array<{
+          contactId: string;
+          name: string;
+          status: 'copied' | 'skipped';
+          message: string;
+        }>;
+      };
+    };
+  },
 };

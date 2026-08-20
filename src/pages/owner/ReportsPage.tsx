@@ -2,6 +2,7 @@ import { useState, useEffect } from 'react';
 import { useSearchParams } from 'react-router-dom';
 import { useQuery } from '@tanstack/react-query';
 import { HighlightSection } from '@/components/HighlightSection';
+import { ScheduledReportsSection } from '@/components/ScheduledReportsSection';
 import { useOutletStore } from '@/stores/outletStore';
 import { managerApi } from '@/api/manager';
 import { leaveApi } from '@/api/leave';
@@ -52,14 +53,21 @@ export function ReportsPage() {
   }
 
   return (
-    <div className="p-6 max-w-5xl mx-auto">
+    <div className="p-6 max-w-5xl mx-auto animate-fade-in">
       <div className="mb-8">
         <h1 className="text-2xl font-bold text-gray-900">Reports</h1>
-        <p className="text-gray-500">Web-only insights for planning and staffing</p>
+        <p className="text-gray-500 mt-1 text-sm">Weekly & monthly analytics, roster, and leave</p>
       </div>
+
+      <HighlightSection id="scheduled-analytics-reports">
+        <ScheduledReportsSection outletId={selectedOutletId} />
+      </HighlightSection>
+
+      <div className="border-t border-gray-200 my-8" />
 
       <div className="flex gap-2 mb-6">
         <button
+          type="button"
           onClick={() => setView('roster')}
           className={`px-4 py-2 rounded-lg text-sm font-medium ${
             view === 'roster' ? 'bg-teal-600 text-white' : 'bg-gray-100 text-gray-600 hover:bg-gray-200'
@@ -68,6 +76,7 @@ export function ReportsPage() {
           Today&apos;s roster
         </button>
         <button
+          type="button"
           onClick={() => setView('leave')}
           className={`px-4 py-2 rounded-lg text-sm font-medium ${
             view === 'leave' ? 'bg-teal-600 text-white' : 'bg-gray-100 text-gray-600 hover:bg-gray-200'
@@ -80,7 +89,7 @@ export function ReportsPage() {
       {view === 'roster' && (
         <HighlightSection id="roster">
         <div className="bg-white rounded-xl border border-gray-200 shadow-sm overflow-hidden">
-          <div className="px-6 py-4 border-b border-gray-100 bg-gradient-to-r from-teal-50 to-cyan-50">
+          <div className="px-6 py-4 border-b border-gray-100 bg-gray-50/80">
             <h2 className="text-lg font-semibold text-gray-900">Staff roster — Today</h2>
             <p className="text-sm text-gray-500">Who&apos;s working, on break, or absent</p>
           </div>
@@ -132,7 +141,7 @@ export function ReportsPage() {
       {view === 'leave' && (
         <HighlightSection id="leave">
         <div className="bg-white rounded-xl border border-gray-200 shadow-sm overflow-hidden">
-          <div className="px-6 py-4 border-b border-gray-100 bg-gradient-to-r from-teal-50 to-cyan-50">
+          <div className="px-6 py-4 border-b border-gray-100 bg-gray-50/80">
             <h2 className="text-lg font-semibold text-gray-900">Upcoming approved leave</h2>
             <p className="text-sm text-gray-500">Plan staffing for the next 30 days</p>
           </div>

@@ -1,6 +1,11 @@
 import { api } from './client';
 
 export const analyticsApi = {
+  getScheduledReports: async (outletId: string) => {
+    const { data } = await api.get(`/analytics/outlet/${outletId}/scheduled-reports`);
+    return data;
+  },
+
   getOutletAnalytics: async (
     outletId: string,
     params?: {

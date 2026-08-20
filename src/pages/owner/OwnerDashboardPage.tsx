@@ -1,6 +1,7 @@
 import { useState } from 'react';
 import { useQuery } from '@tanstack/react-query';
 import { HighlightSection } from '@/components/HighlightSection';
+import { ReportsReminderCard } from '@/components/ReportsReminderCard';
 import { useAuth } from '@/hooks/useAuth';
 import { useOutletStore } from '@/stores/outletStore';
 import { managerApi } from '@/api/manager';
@@ -76,6 +77,10 @@ export function OwnerDashboardPage() {
 
       {selectedOutletId && summary && (
         <>
+          <HighlightSection id="scheduled-reports">
+            <ReportsReminderCard />
+          </HighlightSection>
+
           {/* Summary cards - no stagger so voice-highlight target is visible immediately */}
           <div className="grid grid-cols-2 lg:grid-cols-4 gap-4 mb-8">
             <HighlightSection id="checked-in">

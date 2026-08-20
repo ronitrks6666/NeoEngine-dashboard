@@ -1,9 +1,31 @@
 import { api } from './client';
 
+export interface LateArrivalRules {
+  enabled?: boolean;
+  lateThresholdMinutes?: number;
+  noShowPayCutDays?: number;
+  effectiveFrom?: string | null;
+  effectiveFromMode?: 'next_payroll_month' | 'current_and_next' | null;
+}
+
 export interface PayrollSettings {
   cycleType?: 'every_x_days' | 'specific_day_of_month';
   cycleDays?: number;
   cycleDayOfMonth?: number;
+  autoLockEnabled?: boolean;
+  lockDayOffset?: number;
+  adjustmentApprovalEnabled?: boolean;
+  adjustmentApprovalThresholdAmount?: number;
+  complianceEnabled?: boolean;
+  pfEnabled?: boolean;
+  pfEmployeeRatePct?: number;
+  esiEnabled?: boolean;
+  esiEmployeeRatePct?: number;
+  esiWageLimit?: number;
+  professionalTaxEnabled?: boolean;
+  professionalTaxMonthlyAmount?: number;
+  tdsEnabled?: boolean;
+  tdsRatePct?: number;
   expectedHoursPerDayDefault?: number;
   paidLeavesEnabled?: boolean;
   allowedPaidLeavesPerCycle?: number;
@@ -11,6 +33,7 @@ export interface PayrollSettings {
   overtimeApprovalRequired?: boolean;
   minuteBasedTrackingEnabled?: boolean;
   allowUnlimitedWorkHoursPerDay?: boolean;
+  lateArrivalRules?: LateArrivalRules;
 }
 
 export interface PostShiftEnforcement {

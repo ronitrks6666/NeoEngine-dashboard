@@ -9,6 +9,7 @@ import { useOutletStore } from '@/stores/outletStore';
 import { useAuth } from '@/hooks/useAuth';
 import { taskApi } from '@/api/task';
 import { employeeApi } from '@/api/employee';
+import { ownerApi } from '@/api/owner';
 import { getApiErrorMessage } from '@/api/auth';
 import { LoadingSpinner } from '@/components/LoadingSpinner';
 import { SearchableSelect } from '@/components/SearchableSelect';
@@ -49,7 +50,7 @@ const taskSchema = z.object({
   parentRoleId: z.string().optional(), // Now optional at schema level
   assignToType: z.enum(['role', 'staff']),
   assignToEmployeeId: z.string().optional(),
-  shiftType: z.enum(['Day', 'Night', 'Both']),
+  shiftType: z.string().min(1),
   taskType: z.enum(['daily', 'weekly', 'specific-days', 'onetime']),
   specificDate: z.string().optional(),
   specificDays: z.array(z.number()).optional(),
@@ -237,6 +238,22 @@ export function TasksPage() {
     queryFn: () => employeeApi.getMyEmployees({ outletId: selectedOutletId!, limit: 200 }),
     enabled: !!selectedOutletId && (showCreate || !!editing),
   });
+
+  const { data: outletShifts = [] } = useQuery({
+    queryKey: ['outlet-shifts', selectedOutletId],
+    queryFn: () => ownerApi.getShifts(selectedOutletId!),
+    enabled: !!selectedOutletId,
+  });
+
+  const taskShiftOptions = useMemo(() => {
+    const names = (outletShifts as { name?: string }[])
+      .map((s) => String(s.name || '').trim())
+      .filter(Boolean);
+    return [
+      { value: 'Both', label: 'Both shifts', subtitle: 'All staff' },
+      ...names.map((name) => ({ value: name, label: name, subtitle: 'Outlet shift' })),
+    ];
+  }, [outletShifts]);
 
   const createRoleMutation = useMutation({
     mutationFn: (name: string) => employeeApi.createParentRole(name, selectedOutletId ?? undefined),
@@ -559,7 +576,7 @@ export function TasksPage() {
       if (Array.isArray(t.specificDays)) form.setValue('specificDays', t.specificDays);
       if (typeof t.multipleTimesPerDay === 'boolean') form.setValue('multipleTimesPerDay', t.multipleTimesPerDay);
       if (t.intervalMinutes != null) form.setValue('intervalMinutes', Number(t.intervalMinutes));
-      if (t.shiftType) form.setValue('shiftType', t.shiftType as 'Day' | 'Night' | 'Both');
+      if (t.shiftType) form.setValue('shiftType', t.shiftType);
       if (t.assignToType) form.setValue('assignToType', t.assignToType as 'role' | 'staff');
       if (t.parentRoleId) form.setValue('parentRoleId', String(t.parentRoleId));
       if (t.assignToEmployeeId) form.setValue('assignToEmployeeId', String(t.assignToEmployeeId));
@@ -600,7 +617,7 @@ export function TasksPage() {
       assignToType: isStaffAssignedTemplate(t) ? 'staff' : 'role',
       parentRoleId: (t.parentRoleId as { _id?: string })?._id ?? t.parentRoleId ?? '',
       assignToEmployeeId: resolveEmployeeId(t.assignToEmployeeId),
-      shiftType: (t.shiftType as 'Day' | 'Night' | 'Both') ?? 'Both',
+      shiftType: t.shiftType ?? 'Both',
       taskType: (t.taskType as 'daily' | 'onetime' | 'specific-days' | 'weekly') ?? 'daily',
       specificDate: t.specificDate ?? '',
       specificDays: t.specificDays ?? [],
@@ -988,7 +1005,7 @@ export function TasksPage() {
                           if (Array.isArray(task.specificDays)) form.setValue('specificDays', task.specificDays);
                           if (typeof task.multipleTimesPerDay === 'boolean') form.setValue('multipleTimesPerDay', task.multipleTimesPerDay);
                           if (task.intervalMinutes != null) form.setValue('intervalMinutes', Number(task.intervalMinutes));
-                          if (task.shiftType) form.setValue('shiftType', task.shiftType as 'Day' | 'Night' | 'Both');
+                          if (task.shiftType) form.setValue('shiftType', task.shiftType);
                           if (task.assignToType) form.setValue('assignToType', task.assignToType as 'role' | 'staff');
                           const pr = task.parentRoleId;
                           if (typeof pr === 'string') form.setValue('parentRoleId', pr);
@@ -1024,6 +1041,7 @@ export function TasksPage() {
                   form={form}
                   control={form.control}
                   minOneTimeDate={minOneTimeTaskDate}
+                  shiftOptions={taskShiftOptions}
                 />
 
                 {/* Assignment */}
@@ -1399,6 +1417,7 @@ export function TasksPage() {
                   form={editForm}
                   control={editForm.control}
                   minOneTimeDate={minOneTimeTaskDate}
+                  shiftOptions={taskShiftOptions}
                 />
 
                 {/* Assignment */}

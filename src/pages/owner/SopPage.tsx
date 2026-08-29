@@ -3,6 +3,7 @@ import { useQuery, useMutation, useQueryClient } from '@tanstack/react-query';
 import { useOutletStore } from '@/stores/outletStore';
 import { taskApi } from '@/api/task';
 import { employeeApi } from '@/api/employee';
+import { ownerApi } from '@/api/owner';
 import { getApiErrorMessage } from '@/api/auth';
 import { LoadingSpinner } from '@/components/LoadingSpinner';
 import { SearchableSelect } from '@/components/SearchableSelect';
@@ -20,8 +21,6 @@ import {
   RotateCcw,
   AlertTriangle,
   Calendar,
-  Sun,
-  Moon,
   Copy,
   CheckSquare,
   Square,
@@ -45,7 +44,7 @@ type SopGroup = {
   specificDays?: number[];
   specificDatesOfMonth?: number[];
   specificDate?: string;
-  shiftType?: 'Day' | 'Night' | 'Both';
+  shiftType?: string;
   sopVersion?: number;
   deletedAt?: string;
 };
@@ -137,7 +136,7 @@ export function SopPage() {
   const [specificDays, setSpecificDays] = useState<number[]>([]);
   const [specificDatesOfMonth, setSpecificDatesOfMonth] = useState<number[]>([]);
   const [specificDate, setSpecificDate] = useState('');
-  const [shiftType, setShiftType] = useState<'Day' | 'Night' | 'Both'>('Both');
+  const [shiftType, setShiftType] = useState('Both');
   const [isSharedSop, setIsSharedSop] = useState(false);
 
   const { data: groupsData, isLoading } = useQuery({
@@ -156,6 +155,21 @@ export function SopPage() {
     queryKey: ['parent-roles'],
     queryFn: () => employeeApi.getParentRoles(),
   });
+
+  const { data: outletShifts = [] } = useQuery({
+    queryKey: ['outlet-shifts', selectedOutletId],
+    queryFn: () => ownerApi.getShifts(selectedOutletId!),
+    enabled: !!selectedOutletId,
+  });
+
+  const sopShiftOptions = useMemo(() => {
+    const names = (outletShifts as { name?: string }[])
+      .map((s) => String(s.name || '').trim())
+      .filter(Boolean);
+    const opts = ['Both', ...names];
+    if (shiftType && !opts.includes(shiftType)) opts.push(shiftType);
+    return opts;
+  }, [outletShifts, shiftType]);
 
   const { data: employeesData } = useQuery({
     queryKey: ['my-employees', selectedOutletId, 'sop'],
@@ -610,8 +624,8 @@ export function SopPage() {
 
               <div>
                 <label className="block text-sm font-medium text-gray-700 mb-1.5">Shift</label>
-                <div className="flex gap-2">
-                  {(['Day', 'Night', 'Both'] as const).map((s) => (
+                <div className="flex flex-wrap gap-2">
+                  {sopShiftOptions.map((s) => (
                     <button
                       key={s}
                       type="button"
@@ -622,7 +636,6 @@ export function SopPage() {
                           : 'bg-white text-gray-600 border-gray-200 hover:border-emerald-300'
                       }`}
                     >
-                      {s === 'Day' ? <Sun className="h-3.5 w-3.5" /> : s === 'Night' ? <Moon className="h-3.5 w-3.5" /> : null}
                       {s}
                     </button>
                   ))}

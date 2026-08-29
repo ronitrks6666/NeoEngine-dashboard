@@ -23,11 +23,9 @@ const REPEAT_OPTIONS = [
   { value: 'onetime', label: 'On a specific date', subtitle: 'Runs once — pick a date' },
 ];
 
-const SHIFT_OPTIONS = [
-  { value: 'Both', label: 'Both shifts', subtitle: 'Day & night staff' },
-  { value: 'Day', label: 'Day shift', subtitle: 'Morning & afternoon' },
-  { value: 'Night', label: 'Night shift', subtitle: 'Evening & overnight' },
-];
+const DEFAULT_SHIFT_OPTIONS = [{ value: 'Both', label: 'Both shifts', subtitle: 'All staff' }];
+
+type ShiftOption = { value: string; label: string; subtitle?: string };
 
 type ScheduleFields = {
   taskType: string;
@@ -45,13 +43,17 @@ type Props<T extends FieldValues & ScheduleFields> = {
   form: UseFormReturn<T>;
   control: Control<T>;
   minOneTimeDate?: Date;
+  /** Outlet-managed shifts (+ Both). Defaults to Both only if omitted. */
+  shiftOptions?: ShiftOption[];
 };
 
 export function TaskScheduleCard<T extends FieldValues & ScheduleFields>({
   form,
   control,
   minOneTimeDate,
+  shiftOptions,
 }: Props<T>) {
+  const options = shiftOptions?.length ? shiftOptions : DEFAULT_SHIFT_OPTIONS;
   const taskType = form.watch('taskType' as Path<T>) as string;
   const startTime = form.watch('startTime' as Path<T>) as string | undefined;
   const repeatEndTime = form.watch('repeatEndTime' as Path<T>) as string | undefined;
@@ -184,7 +186,7 @@ export function TaskScheduleCard<T extends FieldValues & ScheduleFields>({
                 <SearchableSelect
                   value={field.value ?? 'Both'}
                   onChange={field.onChange}
-                  options={SHIFT_OPTIONS}
+                  options={options}
                   placeholder="Both shifts"
                   showSearch={false}
                 />

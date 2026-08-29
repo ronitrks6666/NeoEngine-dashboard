@@ -56,7 +56,7 @@ const createSchema = z.object({
 const editSchema = z.object({
   name: z.string().min(1, 'Name required'),
   phone: zPhone10,
-  shiftType: z.enum(['Day', 'Night']).optional(),
+  shiftType: z.string().optional(),
   parentRoleId: z.string().optional(),
   activeRoleId: z.string().optional(),
   salary: z.any().optional().transform((v) => {
@@ -241,6 +241,12 @@ export function StaffPage() {
   const { data: parentRolesData } = useQuery({
     queryKey: ['parent-roles'],
     queryFn: () => employeeApi.getParentRoles(),
+    enabled: !!selectedOutletId,
+  });
+
+  const { data: outletShifts = [] } = useQuery({
+    queryKey: ['outlet-shifts', selectedOutletId],
+    queryFn: () => ownerApi.getShifts(selectedOutletId!),
     enabled: !!selectedOutletId,
   });
 
@@ -471,13 +477,20 @@ export function StaffPage() {
     [roles]
   );
 
-  const shiftSelectOptions: SearchableSelectOption[] = useMemo(
-    () => [
-      { value: 'Day', label: 'Day' },
-      { value: 'Night', label: 'Night' },
-    ],
-    []
-  );
+  const shiftSelectOptions: SearchableSelectOption[] = useMemo(() => {
+    const names = (outletShifts as { name?: string }[])
+      .map((s) => String(s.name || '').trim())
+      .filter(Boolean);
+    return names.map((name) => ({ value: name, label: name }));
+  }, [outletShifts]);
+
+  const shiftSelectOptionsWithCurrent: SearchableSelectOption[] = useMemo(() => {
+    const current = String(editForm.watch('shiftType') || '').trim();
+    if (current && !shiftSelectOptions.some((o) => o.value === current)) {
+      return [{ value: current, label: current }, ...shiftSelectOptions];
+    }
+    return shiftSelectOptions;
+  }, [shiftSelectOptions, editForm.watch('shiftType')]);
 
   const ownerForReportsOption = useMemo(() => {
     if (authRole !== 'OWNER' || !user || !('id' in user)) return null;
@@ -601,7 +614,7 @@ export function StaffPage() {
       name: e.name,
       // Always normalise to last 10 digits — backend may store with country code prefix
       phone: String(e.phone ?? '').replace(/\D/g, '').slice(-10),
-      shiftType: (e.shiftType as 'Day' | 'Night') || 'Day',
+      shiftType: e.shiftType || shiftSelectOptions[0]?.value || '',
       parentRoleId: parentRoleId || '',
       activeRoleId: roleId || '',
       salary: e.salary ?? undefined,
@@ -1335,16 +1348,16 @@ export function StaffPage() {
                     <div>
                       <label className="block text-sm font-medium text-gray-600 mb-1.5">Shift</label>
                       <SearchableSelect
-                        value={editForm.watch('shiftType') || 'Day'}
+                        value={editForm.watch('shiftType') || shiftSelectOptions[0]?.value || ''}
                         onChange={(v) =>
-                          editForm.setValue('shiftType', v as 'Day' | 'Night', { shouldValidate: true })
+                          editForm.setValue('shiftType', v, { shouldValidate: true })
                         }
-                        options={shiftSelectOptions}
+                        options={shiftSelectOptionsWithCurrent}
                         placeholder="Shift"
                         searchPlaceholder="Shift…"
                         showSearch={false}
-                        noOptionsText="—"
-                        emptyText="—"
+                        noOptionsText="Add shifts in Manage Outlet"
+                        emptyText="Add shifts in Manage Outlet"
                       />
                     </div>
                   </div>

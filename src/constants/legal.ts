@@ -7,7 +7,7 @@ export const LEGAL_CONTACT_EMAIL =
 export const LEGAL_COMPANY_NAME = 'Neuoptic Private Limited';
 
 /** Shown on Privacy Policy, Terms, and other default legal page headers. */
-export const LEGAL_LAST_UPDATED = 'June 22, 2026';
+export const LEGAL_LAST_UPDATED = 'September 2, 2026';
 
 export const CONTACT_EMAIL =
   import.meta.env.VITE_CONTACT_EMAIL || 'contact@neuoptic.in';

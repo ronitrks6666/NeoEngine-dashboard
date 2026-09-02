@@ -163,6 +163,14 @@ export function PrivacyPolicyPage() {
           should only enable this where legally permitted and with appropriate notices to staff. You may
           deny camera permission, but features that require face verification will not work.
         </p>
+        <p>
+          When automated face verification cannot complete (for example due to lighting, camera issues, or
+          repeated mismatch), the app may offer a <strong>manual attendance proof</strong> flow. You may
+          capture a still photo with the device camera; the image and related metadata (such as outlet,
+          timestamp, and punch type) may be transmitted to our servers for manager or owner review and
+          approval before attendance is recorded. Owners and managers may also use manual attendance
+          workflows where configured.
+        </p>
 
         <h3 className="text-lg font-medium text-slate-800 pt-2">3.4 Location</h3>
         <p>
@@ -295,6 +303,12 @@ export function PrivacyPolicyPage() {
               <strong>Android:</strong> the app may use high-priority channels, custom sounds, and{' '}
               <strong>full-screen intent</strong> capability for time-sensitive task alerts where
               enabled—so critical workforce alerts can surface when the device allows it.
+            </>,
+            <>
+              <strong>Alert tone preference:</strong> in mobile Settings you can choose between bundled
+              notification sounds (for example standard and urgent). Your choice is stored on the device
+              and associated with your push token registration so server-delivered alerts can use the
+              selected tone where supported by your platform.
             </>,
           ]}
         />

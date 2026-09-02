@@ -65,6 +65,8 @@ export interface Outlet {
   gstNumber?: string;
   timezone?: string;
   punchInTime?: string;
+  /** Hours after shift end before system auto punch-out (attendance logout). */
+  shiftAutoLogoutGraceHours?: number | null;
   openingHours?: {
     day: string;
     closed: boolean;
@@ -122,6 +124,7 @@ export const ownerApi = {
     gstNumber?: string;
     timezone?: string;
     punchInTime?: string;
+    shiftAutoLogoutGraceHours?: number | null;
     openingHours?: {
       day: string;
       closed: boolean;

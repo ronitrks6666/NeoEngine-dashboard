@@ -267,6 +267,7 @@ export function OwnerOutletsPage() {
   });
   const [editGst, setEditGst] = useState('');
   const [editPunchInTime, setEditPunchInTime] = useState('09:00');
+  const [editShiftAutoLogoutGraceHours, setEditShiftAutoLogoutGraceHours] = useState('6');
   const [editOpeningHours, setEditOpeningHours] = useState<OpeningHourDay[]>(createDefaultOpeningHours);
   const [editShifts, setEditShifts] = useState<EditShift[]>(DEFAULT_SHIFTS.map((s) => ({ ...s })));
   const [initialEditShifts, setInitialEditShifts] = useState<EditShift[]>([]);
@@ -363,6 +364,9 @@ export function OwnerOutletsPage() {
     });
     setEditGst(String(o.gstNumber || ''));
     setEditPunchInTime(o.punchInTime || '09:00');
+    setEditShiftAutoLogoutGraceHours(
+      o.shiftAutoLogoutGraceHours != null ? String(o.shiftAutoLogoutGraceHours) : '6'
+    );
     setEditOpeningHours(normalizeOpeningHoursFromOutlet(o.openingHours));
     setExpandedShiftKey(null);
     setExpandedHoursDay(null);
@@ -635,6 +639,16 @@ export function OwnerOutletsPage() {
                       setEditFormError('Punch-in time must use HH:mm format');
                       return;
                     }
+                    const autoLogoutGraceHours = Number(editShiftAutoLogoutGraceHours);
+                    if (
+                      !Number.isFinite(autoLogoutGraceHours) ||
+                      autoLogoutGraceHours < 0 ||
+                      autoLogoutGraceHours > 24 ||
+                      !Number.isInteger(autoLogoutGraceHours)
+                    ) {
+                      setEditFormError('Auto attendance logout grace must be a whole number from 0 to 24 hours');
+                      return;
+                    }
                     const openDayInvalid = editOpeningHours.some(
                       (h) =>
                         !h.closed &&
@@ -653,6 +667,7 @@ export function OwnerOutletsPage() {
                         geofence,
                         gstNumber: gstCheck.value || undefined,
                         punchInTime: editPunchInTime.trim(),
+                        shiftAutoLogoutGraceHours: autoLogoutGraceHours,
                         openingHours: editOpeningHours.map((h) => ({
                           day: h.day,
                           closed: h.closed,
@@ -804,6 +819,28 @@ export function OwnerOutletsPage() {
                       onChange={(e) => setEditPunchInTime(e.target.value)}
                       className="w-full max-w-[12rem] px-4 py-3 rounded-xl border border-gray-200 bg-gray-50/50 focus:ring-2 focus:ring-teal-500/20 focus:border-teal-500 focus:bg-white"
                     />
+                  </div>
+
+                  <div className="rounded-xl border border-amber-100 bg-amber-50/50 p-4 space-y-2">
+                    <label className="block text-sm font-semibold text-gray-800">
+                      Auto attendance logout grace
+                    </label>
+                    <p className="text-xs text-gray-600">
+                      Hours after an employee&apos;s scheduled shift ends before the system automatically punches them out.
+                      This is attendance logout, not app logout.
+                    </p>
+                    <div className="flex items-center gap-2 max-w-[14rem]">
+                      <input
+                        type="number"
+                        min={0}
+                        max={24}
+                        step={1}
+                        value={editShiftAutoLogoutGraceHours}
+                        onChange={(e) => setEditShiftAutoLogoutGraceHours(e.target.value)}
+                        className="w-full px-4 py-3 rounded-xl border border-amber-200 bg-white focus:ring-2 focus:ring-teal-500/20 focus:border-teal-500"
+                      />
+                      <span className="text-sm text-gray-600 shrink-0">hours</span>
+                    </div>
                   </div>
 
                   <div className="rounded-xl border border-gray-200 p-4 space-y-3">

@@ -27,7 +27,8 @@ export function TermsOfServicePage() {
       <LegalSection title="2. Description of the Services">
         <p>
           NeoEngine provides software for businesses to manage operations, staffing, attendance (including
-          optional face verification and location-based checks), tasks, issues and internal messaging,
+          optional face verification, manual attendance proof when face verification cannot complete, and
+          location-based checks), tasks, issues and internal messaging,
           documents, approvals, payroll-related workflows, analytics, and related administration through a
           web dashboard and mobile applications. Features available to you depend on your role, outlet
           configuration, and subscription/contract with NeoEngine or your organization.
@@ -80,7 +81,8 @@ export function TermsOfServicePage() {
           Mobile features may require permissions such as camera, microphone, contacts, notifications,
           location, storage/media access, and (on Android) foreground service or full-screen alert
           capabilities. You control many permissions through your device settings; denying them may limit
-          functionality.
+          functionality. You may also choose between bundled notification alert tones in app Settings;
+          server-delivered push notifications may use your selected tone where the platform supports it.
         </p>
         <p>
           <strong>Location:</strong> On <strong>iOS</strong>, location is used only while the app is in use,

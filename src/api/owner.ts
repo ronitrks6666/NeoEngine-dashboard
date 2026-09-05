@@ -67,6 +67,8 @@ export interface Outlet {
   punchInTime?: string;
   /** Hours after shift end before system auto punch-out (attendance logout). */
   shiftAutoLogoutGraceHours?: number | null;
+  /** Alert tone for all staff pushes at this outlet (`default` | `urgent`). */
+  staffNotificationSoundId?: 'default' | 'urgent' | string | null;
   openingHours?: {
     day: string;
     closed: boolean;
@@ -125,6 +127,7 @@ export const ownerApi = {
     timezone?: string;
     punchInTime?: string;
     shiftAutoLogoutGraceHours?: number | null;
+    staffNotificationSoundId?: 'default' | 'urgent';
     openingHours?: {
       day: string;
       closed: boolean;

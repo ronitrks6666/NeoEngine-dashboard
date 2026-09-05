@@ -266,8 +266,17 @@ export function OwnerOutletsPage() {
     geofenceRadius: '100',
   });
   const [editGst, setEditGst] = useState('');
+  const [createGst, setCreateGst] = useState('');
   const [editPunchInTime, setEditPunchInTime] = useState('09:00');
   const [editShiftAutoLogoutGraceHours, setEditShiftAutoLogoutGraceHours] = useState('6');
+  const [editStaffNotificationSoundId, setEditStaffNotificationSoundId] = useState<'default' | 'urgent'>(
+    'default'
+  );
+  const [editPostShiftEnabled, setEditPostShiftEnabled] = useState(false);
+  const [editPostShiftShadow, setEditPostShiftShadow] = useState(false);
+  const [editPostShiftGrace, setEditPostShiftGrace] = useState('30');
+  const [editPostShiftEscalation, setEditPostShiftEscalation] = useState('15');
+  const [editPostShiftHardCutoff, setEditPostShiftHardCutoff] = useState('60');
   const [editOpeningHours, setEditOpeningHours] = useState<OpeningHourDay[]>(createDefaultOpeningHours);
   const [editShifts, setEditShifts] = useState<EditShift[]>(DEFAULT_SHIFTS.map((s) => ({ ...s })));
   const [initialEditShifts, setInitialEditShifts] = useState<EditShift[]>([]);
@@ -287,6 +296,7 @@ export function OwnerOutletsPage() {
       name: string;
       address: string;
       phone: string;
+      gstNumber?: string;
       geofence?: { latitude: number; longitude: number; radius: number };
     }) => {
       const res = await ownerApi.createOutlet(payload);
@@ -307,6 +317,7 @@ export function OwnerOutletsPage() {
       await queryClient.invalidateQueries({ queryKey: ['owner-outlets'] });
       setShowCreate(false);
       createForm.reset();
+      setCreateGst('');
       setCreateGeofence({ geofenceLat: '', geofenceLng: '', geofenceRadius: '100' });
     },
   });
@@ -367,6 +378,21 @@ export function OwnerOutletsPage() {
     setEditShiftAutoLogoutGraceHours(
       o.shiftAutoLogoutGraceHours != null ? String(o.shiftAutoLogoutGraceHours) : '6'
     );
+    setEditStaffNotificationSoundId(
+      o.staffNotificationSoundId === 'urgent' ? 'urgent' : 'default'
+    );
+    const pse = o.postShiftEnforcement || {};
+    setEditPostShiftEnabled(Boolean(pse.enabled));
+    setEditPostShiftShadow(Boolean(pse.shadowMode));
+    setEditPostShiftGrace(
+      pse.graceWindowMinutes != null ? String(pse.graceWindowMinutes) : '30'
+    );
+    setEditPostShiftEscalation(
+      pse.escalationWindowMinutes != null ? String(pse.escalationWindowMinutes) : '15'
+    );
+    setEditPostShiftHardCutoff(
+      pse.hardCutoffMinutes != null ? String(pse.hardCutoffMinutes) : '60'
+    );
     setEditOpeningHours(normalizeOpeningHoursFromOutlet(o.openingHours));
     setExpandedShiftKey(null);
     setExpandedHoursDay(null);
@@ -397,6 +423,7 @@ export function OwnerOutletsPage() {
   };
 
   const gstCheck = validateGstOptional(editGst);
+  const createGstCheck = validateGstOptional(createGst);
 
   return (
     <div className="p-6 max-w-6xl mx-auto animate-fade-in">
@@ -514,7 +541,12 @@ export function OwnerOutletsPage() {
               )}
               <form
                 onSubmit={createForm.handleSubmit((d) => {
-                  createMutation.mutate({ ...d, geofence: parseGeofence(createGeofence) });
+                  if (!createGstCheck.ok) return;
+                  createMutation.mutate({
+                    ...d,
+                    gstNumber: createGstCheck.value || undefined,
+                    geofence: parseGeofence(createGeofence),
+                  });
                 })}
                 className="space-y-5"
               >
@@ -588,10 +620,27 @@ export function OwnerOutletsPage() {
                   {createForm.formState.errors.phone && <p className="text-red-600 text-sm mt-1">{createForm.formState.errors.phone.message}</p>}
                 </div>
 
+                <div>
+                  <label className="block text-sm font-semibold text-gray-700 mb-2">GST Number</label>
+                  <input
+                    type="text"
+                    value={createGst}
+                    onChange={(e) => setCreateGst(normalizeGstInput(e.target.value).slice(0, 15))}
+                    maxLength={15}
+                    className="w-full px-4 py-3 rounded-xl border border-gray-200 bg-gray-50/50 focus:ring-2 focus:ring-teal-500/20 focus:border-teal-500 focus:bg-white uppercase tracking-wide"
+                    placeholder="29ABCDE1234F1Z5"
+                  />
+                  {!createGstCheck.ok && createGstCheck.message ? (
+                    <p className="text-red-600 text-sm mt-1">{createGstCheck.message}</p>
+                  ) : (
+                    <p className="text-xs text-gray-500 mt-1">Optional. 15-character GSTIN.</p>
+                  )}
+                </div>
+
                 <div className="flex gap-3 pt-2">
                   <button
                     type="submit"
-                    disabled={createMutation.isPending}
+                    disabled={createMutation.isPending || !createGstCheck.ok}
                     className="flex-1 px-5 py-3 bg-teal-600 text-white rounded-xl font-semibold hover:bg-teal-700 disabled:opacity-50 transition-all shadow-sm hover:shadow-md"
                   >
                     {createMutation.isPending ? 'Creating...' : 'Create outlet'}
@@ -649,6 +698,18 @@ export function OwnerOutletsPage() {
                       setEditFormError('Auto attendance logout grace must be a whole number from 0 to 24 hours');
                       return;
                     }
+                    const graceMins = Number(editPostShiftGrace);
+                    const escMins = Number(editPostShiftEscalation);
+                    const hardMins = Number(editPostShiftHardCutoff);
+                    const postShiftOk = [graceMins, escMins, hardMins].every(
+                      (n) => Number.isFinite(n) && n >= 0 && n <= 24 * 60 && Number.isInteger(n)
+                    );
+                    if (!postShiftOk) {
+                      setEditFormError(
+                        'Post-shift windows must be whole minutes from 0 to 1440'
+                      );
+                      return;
+                    }
                     const openDayInvalid = editOpeningHours.some(
                       (h) =>
                         !h.closed &&
@@ -668,6 +729,14 @@ export function OwnerOutletsPage() {
                         gstNumber: gstCheck.value || undefined,
                         punchInTime: editPunchInTime.trim(),
                         shiftAutoLogoutGraceHours: autoLogoutGraceHours,
+                        staffNotificationSoundId: editStaffNotificationSoundId,
+                        postShiftEnforcement: {
+                          enabled: editPostShiftEnabled,
+                          shadowMode: editPostShiftShadow,
+                          graceWindowMinutes: graceMins,
+                          escalationWindowMinutes: escMins,
+                          hardCutoffMinutes: hardMins,
+                        },
                         openingHours: editOpeningHours.map((h) => ({
                           day: h.day,
                           closed: h.closed,
@@ -840,6 +909,119 @@ export function OwnerOutletsPage() {
                         className="w-full px-4 py-3 rounded-xl border border-amber-200 bg-white focus:ring-2 focus:ring-teal-500/20 focus:border-teal-500"
                       />
                       <span className="text-sm text-gray-600 shrink-0">hours</span>
+                    </div>
+                  </div>
+
+                  <div className="rounded-xl border border-violet-100 bg-violet-50/50 p-4 space-y-3">
+                    <div>
+                      <label className="block text-sm font-semibold text-gray-800">
+                        Staff notification sound
+                      </label>
+                      <p className="text-xs text-gray-600 mt-1">
+                        One alert tone for all staff at this outlet (task reminders, staff calls). Your own owner tone stays in the mobile app Settings.
+                      </p>
+                    </div>
+                    <div className="grid grid-cols-1 sm:grid-cols-2 gap-2">
+                      {(
+                        [
+                          {
+                            id: 'default' as const,
+                            label: 'Standard',
+                            description: 'Default Neo alert tone',
+                          },
+                          {
+                            id: 'urgent' as const,
+                            label: 'Urgent',
+                            description: 'Louder urgent alert tone',
+                          },
+                        ] as const
+                      ).map((opt) => {
+                        const selected = editStaffNotificationSoundId === opt.id;
+                        return (
+                          <button
+                            key={opt.id}
+                            type="button"
+                            onClick={() => setEditStaffNotificationSoundId(opt.id)}
+                            className={`text-left rounded-xl border px-3 py-3 transition-all ${
+                              selected
+                                ? 'border-violet-500 bg-white ring-2 ring-violet-500/20'
+                                : 'border-violet-100 bg-white/70 hover:border-violet-300'
+                            }`}
+                          >
+                            <p className="text-sm font-semibold text-gray-900">{opt.label}</p>
+                            <p className="text-xs text-gray-500 mt-0.5">{opt.description}</p>
+                          </button>
+                        );
+                      })}
+                    </div>
+                  </div>
+
+                  <div className="rounded-xl border border-sky-100 bg-sky-50/50 p-4 space-y-3">
+                    <div>
+                      <label className="block text-sm font-semibold text-gray-800">
+                        Post-shift enforcement
+                      </label>
+                      <p className="text-xs text-gray-600 mt-1">
+                        After shift end, prompt staff still punched in and escalate or auto-logout based on these windows.
+                      </p>
+                    </div>
+                    <div className="flex flex-col sm:flex-row gap-3">
+                      <label className="inline-flex items-center gap-2 text-sm text-gray-800 cursor-pointer">
+                        <input
+                          type="checkbox"
+                          checked={editPostShiftEnabled}
+                          onChange={(e) => setEditPostShiftEnabled(e.target.checked)}
+                          className="rounded border-gray-300 text-teal-600 focus:ring-teal-500"
+                        />
+                        Enabled
+                      </label>
+                      <label className="inline-flex items-center gap-2 text-sm text-gray-800 cursor-pointer">
+                        <input
+                          type="checkbox"
+                          checked={editPostShiftShadow}
+                          onChange={(e) => setEditPostShiftShadow(e.target.checked)}
+                          className="rounded border-gray-300 text-teal-600 focus:ring-teal-500"
+                        />
+                        Shadow mode (log only, no punch-out)
+                      </label>
+                    </div>
+                    <div className="grid grid-cols-1 sm:grid-cols-3 gap-3">
+                      <div>
+                        <label className="text-xs text-gray-500">Grace (min)</label>
+                        <input
+                          type="number"
+                          min={0}
+                          max={1440}
+                          step={1}
+                          value={editPostShiftGrace}
+                          onChange={(e) => setEditPostShiftGrace(e.target.value)}
+                          className="w-full mt-0.5 px-3 py-2 rounded-lg border border-sky-200 bg-white text-sm"
+                        />
+                      </div>
+                      <div>
+                        <label className="text-xs text-gray-500">Escalation (min)</label>
+                        <input
+                          type="number"
+                          min={0}
+                          max={1440}
+                          step={1}
+                          value={editPostShiftEscalation}
+                          onChange={(e) => setEditPostShiftEscalation(e.target.value)}
+                          className="w-full mt-0.5 px-3 py-2 rounded-lg border border-sky-200 bg-white text-sm"
+                        />
+                      </div>
+                      <div>
+                        <label className="text-xs text-gray-500">Hard cutoff (min)</label>
+                        <input
+                          type="number"
+                          min={0}
+                          max={1440}
+                          step={1}
+                          value={editPostShiftHardCutoff}
+                          onChange={(e) => setEditPostShiftHardCutoff(e.target.value)}
+                          className="w-full mt-0.5 px-3 py-2 rounded-lg border border-sky-200 bg-white text-sm"
+                        />
+                      </div>
                     </div>
                   </div>
 

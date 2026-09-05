@@ -39,6 +39,7 @@ import {
   CalendarClock,
   ScrollText,
   Phone,
+  Package,
 } from 'lucide-react';
 
 import { NeoEngineLogo } from '@/components/NeoEngineLogo';
@@ -82,6 +83,7 @@ const ownerNav: OwnerNavItem[] = [
   { key: 'analytics', to: '/owner/analytics', label: 'Analytics', icon: BarChart3 },
   { key: 'reports', to: '/owner/reports', label: 'Reports', icon: FileText },
   { key: 'attendance', to: '/owner/attendance', label: 'Attendance', icon: CalendarCheck },
+  { key: 'assets', to: '/owner/assets', label: 'Assets', icon: Package },
   { key: 'duty-roster', to: '/owner/duty-roster', label: 'Duty Roster', icon: CalendarClock },
   { key: 'leave', to: '/owner/leave', label: 'Leave', icon: CalendarDays },
   { key: 'leave-rules', to: '/owner/leave-rules', label: 'Leave Rules', icon: BookOpen },

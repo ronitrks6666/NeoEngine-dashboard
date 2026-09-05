@@ -5,6 +5,11 @@ import { HighlightSection } from '@/components/HighlightSection';
 import { useOutletStore } from '@/stores/outletStore';
 import { managerApi } from '@/api/manager';
 import { leaveApi } from '@/api/leave';
+import {
+  staffStatusBadgeClass,
+  staffStatusCardClass,
+  staffStatusLabel,
+} from '@/utils/staffStatusStyles';
 
 /**
  * Web-only Reports page for restaurant/retail owners.
@@ -82,7 +87,7 @@ export function ReportsPage() {
         <div className="bg-white rounded-xl border border-gray-200 shadow-sm overflow-hidden">
           <div className="px-6 py-4 border-b border-gray-100 bg-gradient-to-r from-teal-50 to-cyan-50">
             <h2 className="text-lg font-semibold text-gray-900">Staff roster — Today</h2>
-            <p className="text-sm text-gray-500">Who&apos;s working, on break, or absent</p>
+            <p className="text-sm text-gray-500">Who&apos;s working, on break, proof pending, or absent</p>
           </div>
           <div className="p-6">
             {staffStatus.length > 0 ? (
@@ -90,13 +95,7 @@ export function ReportsPage() {
                 {staffStatus.map((s: { id: string; name: string; role: string; status: string; isLate?: boolean }) => (
                   <div
                     key={s.id}
-                    className={`rounded-lg border p-4 ${
-                      s.status === 'working'
-                        ? 'border-emerald-200 bg-emerald-50'
-                        : s.status === 'break'
-                          ? 'border-amber-200 bg-amber-50'
-                          : 'border-gray-200 bg-gray-50'
-                    }`}
+                    className={`rounded-lg border p-4 ${staffStatusCardClass(s.status)}`}
                   >
                     <div className="flex justify-between items-start">
                       <div>
@@ -104,15 +103,9 @@ export function ReportsPage() {
                         <p className="text-sm text-gray-500">{s.role}</p>
                       </div>
                       <span
-                        className={`px-2 py-0.5 rounded-full text-xs font-medium ${
-                          s.status === 'working'
-                            ? 'bg-emerald-100 text-emerald-700'
-                            : s.status === 'break'
-                              ? 'bg-amber-100 text-amber-700'
-                              : 'bg-gray-200 text-gray-600'
-                        }`}
+                        className={`px-2 py-0.5 rounded-full text-xs font-medium ${staffStatusBadgeClass(s.status)}`}
                       >
-                        {s.status}
+                        {staffStatusLabel(s.status)}
                       </span>
                     </div>
                     {s.isLate && (

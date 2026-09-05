@@ -30,6 +30,7 @@ import { LeavePage } from '@/pages/owner/LeavePage';
 import { PayrollPage } from '@/pages/owner/PayrollPage';
 import { AnalyticsPage as OwnerAnalyticsPage } from '@/pages/owner/AnalyticsPage';
 import { BriefingPoolPage } from '@/pages/owner/BriefingPoolPage';
+import { AssetsPage } from '@/pages/owner/AssetsPage';
 import { NeoNotesPage } from '@/pages/owner/NeoNotesPage';
 import { HierarchyPage } from '@/pages/owner/HierarchyPage';
 import { ReportsPage } from '@/pages/owner/ReportsPage';
@@ -335,6 +336,7 @@ function App() {
                     </EmployeeWebPermissionRoute>
                   }
                 />
+                <Route path="assets" element={<AssetsPage />} />
                 <Route
                   path="briefing-pool"
                   element={

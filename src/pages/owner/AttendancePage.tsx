@@ -21,12 +21,8 @@ import {
 } from 'lucide-react';
 import { format, startOfDay } from 'date-fns';
 import { CalendarDateField } from '@/components/CalendarDateField';
-
-function statusBadgeLabel(status: string) {
-  const s = status?.trim() ?? '';
-  if (!s) return '—';
-  return s.charAt(0).toUpperCase() + s.slice(1).toLowerCase();
-}
+import { AttendanceProofQueue } from '@/components/AttendanceProofQueue';
+import { staffStatusBadgeClass, staffStatusLabel } from '@/utils/staffStatusStyles';
 
 type PunchAction = 'in' | 'out' | 'break_start' | 'break_end';
 
@@ -260,6 +256,8 @@ export function AttendancePage() {
         </div>
       </div>
 
+      {selectedOutletId ? <AttendanceProofQueue outletId={selectedOutletId} /> : null}
+
       {/* Date Navigation */}
       <div className="bg-white rounded-2xl border border-gray-100 p-4 mb-8 shadow-sm flex flex-col sm:flex-row sm:items-center sm:justify-between gap-4">
         <div>
@@ -289,11 +287,7 @@ export function AttendancePage() {
             const menuOpen = punchMenuOpenId === s.id;
             const pendingHere =
               punchMutation.isPending && punchMutation.variables?.employeeId === s.id;
-            const statusStyle = s.status === 'working'
-              ? 'bg-emerald-100 text-emerald-700'
-              : s.status === 'break'
-                ? 'bg-amber-100 text-amber-700'
-                : 'bg-gray-100 text-gray-600';
+            const statusStyle = staffStatusBadgeClass(s.status);
 
             return (
               <div key={s.id} className="bg-white border border-gray-100 rounded-2xl p-4 shadow-sm hover:shadow-md transition-shadow">
@@ -308,7 +302,7 @@ export function AttendancePage() {
                     </div>
                   </div>
                   <span className={`text-[10px] uppercase tracking-widest font-bold px-2 py-1 rounded-lg ${statusStyle}`}>
-                    {statusBadgeLabel(s.status)}
+                    {staffStatusLabel(s.status)}
                   </span>
                 </div>
 

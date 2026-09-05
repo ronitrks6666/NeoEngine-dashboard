@@ -17,7 +17,12 @@ import {
   ResponsiveContainer,
   Legend,
 } from 'recharts';
-import { UserCheck, Users, ClipboardList, UserCircle, Clock, Coffee } from 'lucide-react';
+import { UserCheck, Users, ClipboardList, UserCircle, Clock, Coffee, Camera } from 'lucide-react';
+import {
+  staffStatusBadgeClass,
+  staffStatusCardClass,
+  staffStatusLabel,
+} from '@/utils/staffStatusStyles';
 
 const TASK_COLORS = { pending: '#F59E0B', done: '#059669', escalated: '#EF4444' };
 
@@ -140,22 +145,18 @@ export function OwnerDashboardPage() {
               {staffStatus.map((s) => (
                 <div
                   key={s.id}
-                  className={`rounded-xl border p-4 flex items-center gap-3 ${
-                    s.status === 'working'
-                      ? 'bg-emerald-50/50 border-emerald-200'
-                      : s.status === 'break'
-                        ? 'bg-amber-50/50 border-amber-200'
-                        : s.status === 'absent'
-                          ? 'bg-red-50/50 border-red-100'
-                          : 'bg-gray-50 border-gray-200'
-                  }`}
+                  className={`rounded-xl border p-4 flex items-center gap-3 ${staffStatusCardClass(s.status)}`}
                 >
-                  <div className={`w-10 h-10 rounded-xl flex items-center justify-center font-bold text-sm ${
-                    s.status === 'working' ? 'bg-emerald-100 text-emerald-700' :
-                    s.status === 'break' ? 'bg-amber-100 text-amber-700' :
-                    s.status === 'absent' ? 'bg-red-100 text-red-700' : 'bg-gray-200 text-gray-600'
-                  }`}>
-                    {s.status === 'working' ? <Clock className="h-5 w-5" /> : s.status === 'break' ? <Coffee className="h-5 w-5" /> : (s.name ?? '?').charAt(0).toUpperCase()}
+                  <div className={`w-10 h-10 rounded-xl flex items-center justify-center font-bold text-sm ${staffStatusBadgeClass(s.status)}`}>
+                    {s.status === 'working' ? (
+                      <Clock className="h-5 w-5" />
+                    ) : s.status === 'break' ? (
+                      <Coffee className="h-5 w-5" />
+                    ) : s.status === 'soft_present' ? (
+                      <Camera className="h-5 w-5" />
+                    ) : (
+                      (s.name ?? '?').charAt(0).toUpperCase()
+                    )}
                   </div>
                   <div className="flex-1 min-w-0">
                     <div className="flex flex-wrap items-center gap-2 min-w-0">
@@ -164,14 +165,10 @@ export function OwnerDashboardPage() {
                         {s.isLate && <span className="text-amber-600 text-xs ml-1">(Late)</span>}
                       </p>
                       <span
-                        className={`px-2 py-0.5 rounded-lg text-xs font-medium shrink-0 capitalize ${
-                          s.status === 'working' ? 'bg-emerald-100 text-emerald-700' :
-                          s.status === 'break' ? 'bg-amber-100 text-amber-700' :
-                          s.status === 'absent' ? 'bg-red-100 text-red-700' : 'bg-gray-200 text-gray-600'
-                        }`}
-                        title={`Status: ${s.status}`}
+                        className={`px-2 py-0.5 rounded-lg text-xs font-medium shrink-0 ${staffStatusBadgeClass(s.status)}`}
+                        title={`Status: ${staffStatusLabel(s.status)}`}
                       >
-                        {s.status}
+                        {staffStatusLabel(s.status)}
                       </span>
                     </div>
                     <p className="text-sm text-gray-500 mt-0.5">{s.role}</p>

@@ -16,6 +16,7 @@ import {
 } from 'lucide-react';
 import { format, subDays } from 'date-fns';
 import { CalendarDateField } from '@/components/CalendarDateField';
+import { BriefingPoolOpsPanels } from '@/components/BriefingPoolOpsPanels';
 import { formatTime12 } from '@/utils/taskScheduleUtils';
 
 type DatePreset = 'today' | '7d' | '15d' | '30d' | 'custom';
@@ -97,6 +98,26 @@ export function BriefingPoolPage() {
   const employees = data?.data?.employees ?? data?.employees ?? [];
   const raw = tasksData?.data ?? tasksData ?? {};
 
+  const opsData = useMemo(() => {
+    const pool = data?.data ?? data ?? {};
+    return {
+      isSingleDay,
+      todayYmd: pool.todayYmd,
+      yesterdayYmd: pool.yesterdayYmd,
+      offToday: pool.offToday,
+      notPunchedInYet: pool.notPunchedInYet,
+      dutyRosterExpectedStarts: pool.dutyRosterExpectedStarts,
+      yesterdayNotes: pool.yesterdayNotes,
+      postShiftFlags: pool.postShiftFlags,
+      pendingApprovals: pool.pendingApprovals,
+      manualAttendanceRepeatOffenders: pool.manualAttendanceRepeatOffenders,
+      repeatLate: pool.repeatLate,
+      weakPerformers: pool.weakPerformers,
+      lateArrivals: pool.lateArrivals,
+      unresolvedIssues: pool.unresolvedIssues,
+    };
+  }, [data, isSingleDay]);
+
   const tasks = useMemo(() => {
     const taskMap = new Map();
     [...(raw.notCompleted ?? []), ...(raw.escalated ?? []), ...(raw.completed ?? [])].forEach((t) => {
@@ -120,7 +141,9 @@ export function BriefingPoolPage() {
       <div className="flex flex-col lg:flex-row lg:items-center lg:justify-between gap-6 mb-8">
         <div>
           <h1 className="text-2xl font-bold text-gray-900">Briefing Pool</h1>
-          <p className="text-gray-500 mt-0.5">Track completed, pending, and escalated tasks across your team for any date range</p>
+          <p className="text-gray-500 mt-0.5">
+            Morning ops talking points plus completed, pending, and escalated tasks
+          </p>
         </div>
         <div className="relative w-full lg:w-80">
           <Search className="absolute left-3.5 top-1/2 -translate-y-1/2 h-4 w-4 text-gray-400" />
@@ -212,6 +235,13 @@ export function BriefingPoolPage() {
         <LoadingSpinner className="py-16" />
       ) : (
         <div className="space-y-4">
+          <BriefingPoolOpsPanels data={opsData} />
+
+          <div>
+            <h2 className="text-lg font-bold text-gray-900 mb-1">Staff task attention</h2>
+            <p className="text-sm text-gray-500 mb-4">Expand anyone to review their tasks for this range</p>
+          </div>
+
           {employees.map((emp: { _id: string; name: string; notCompletedCount?: number; escalatedCount?: number; completedCount?: number; phone?: string }) => (
             <div key={emp._id} className="bg-white rounded-2xl border border-gray-100 shadow-sm overflow-hidden hover:border-emerald-200 transition-colors">
               <div className="p-5 flex items-center justify-between gap-4">

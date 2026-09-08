@@ -918,7 +918,7 @@ export function OwnerOutletsPage() {
                         Staff notification sound
                       </label>
                       <p className="text-xs text-gray-600 mt-1">
-                        One alert tone for all staff at this outlet (task reminders, staff calls). Your own owner tone stays in the mobile app Settings.
+                        One alert tone for all staff at this outlet (task reminders, staff calls). Your own owner or manager tone stays in the mobile app Settings.
                       </p>
                     </div>
                     <div className="grid grid-cols-1 sm:grid-cols-2 gap-2">
